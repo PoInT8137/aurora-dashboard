@@ -35,6 +35,8 @@
       <ul class="verdict__factors" id="verdict-factors"></ul>
     </div>
 
+    <p class="card__stale" id="verdict-stale"><span class="stale__text"></span></p>
+
     <div class="card__error">
       <p>Не удалось рассчитать оценку — нет данных.</p>
     </div>
@@ -54,6 +56,11 @@
         <div class="scale" id="kp-scale" aria-hidden="true"></div>
         <p class="card__meta" id="kp-time"></p>
       </div>
+
+      <p class="card__stale" id="kp-stale">
+        <span class="stale__text"></span>
+        <button class="btn btn--ghost btn--mini" type="button" data-retry="kp">Повторить</button>
+      </p>
 
       <div class="card__error">
         <p class="card__error-text" id="kp-error">Нет связи с NOAA SWPC.</p>
@@ -94,6 +101,11 @@
         <p class="card__meta" id="cloud-meta"></p>
       </div>
 
+      <p class="card__stale" id="cloud-stale">
+        <span class="stale__text"></span>
+        <button class="btn btn--ghost btn--mini" type="button" data-retry="cloud">Повторить</button>
+      </p>
+
       <div class="card__error">
         <p class="card__error-text" id="cloud-error">Нет связи с Open-Meteo.</p>
         <button class="btn btn--ghost" type="button" data-retry="cloud">Повторить</button>
@@ -112,6 +124,11 @@
       <div class="forecast" id="forecast-list"></div>
       <p class="card__meta">Время местное (UTC+3), шаг 3 часа. Источник: NOAA SWPC 3-day forecast. Прогнозные значения усреднены по трёхчасовкам и могут отличаться от текущей оценки Kp выше.</p>
     </div>
+
+    <p class="card__stale" id="forecast-stale">
+      <span class="stale__text"></span>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="forecast">Повторить</button>
+    </p>
 
     <div class="card__error">
       <p class="card__error-text" id="forecast-error">Прогноз недоступен.</p>

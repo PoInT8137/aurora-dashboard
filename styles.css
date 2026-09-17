@@ -164,9 +164,10 @@ body {
   color: var(--text-dim);
 }
 
-/* Переключение состояний: loading / ok / error */
+/* Переключение состояний: loading / ok / stale / error */
 .card__loading,
 .card__body,
+.card__stale,
 .card__error { display: none; }
 
 .card[data-state="loading"] .card__loading { display: block; color: var(--text-faint); }
@@ -175,6 +176,34 @@ body {
 
 .card[data-state="error"] { border-color: rgba(255, 122, 138, 0.3); }
 .card__error-text { margin: 0; color: var(--bad); }
+
+/* Данные из кэша: показываем, но приглушённо — видно, что они не живые */
+.card[data-state="stale"] { border-color: rgba(255, 209, 102, 0.28); }
+
+.card[data-state="stale"] .card__body {
+  display: block;
+  opacity: 0.42;
+  filter: saturate(0.5);
+}
+
+.card[data-state="stale"] .card__stale {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.card__stale {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--mid);
+}
+
+.btn--mini {
+  margin-top: 0;
+  padding: 4px 13px;
+  font-size: 13px;
+}
 
 /* Крупные цифры */
 .bignum {

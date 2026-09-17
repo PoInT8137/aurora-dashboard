@@ -86,6 +86,7 @@ function fetchJson(url, attempt) {
 /** "2026-09-17 15:00:00" (UTC, без указания зоны) -> Date */
 function parseUtc(str) {
   if (!str) return null;
+  if (str instanceof Date) return isNaN(str.getTime()) ? null : str;
   var iso = String(str).trim().replace(' ', 'T');
   if (!/(Z|[+-]\d{2}:?\d{2})$/.test(iso)) iso += 'Z';
   var d = new Date(iso);
@@ -118,6 +119,93 @@ function plural(n, one, few, many) {
 
 function fmtKp(value) {
   return value.toFixed(1).replace('.', ',');
+}
+
+/** Возраст данных словами: «12 минут назад», «1 час 5 минут назад». */
+function fmtAge(ms) {
+  var mins = Math.max(0, Math.round(ms / 60000));
+  if (mins < 1) return 'меньше минуты назад';
+  if (mins < 60) return mins + ' ' + plural(mins, 'минуту', 'минуты', 'минут') + ' назад';
+
+  var hours = Math.floor(mins / 60);
+  var rest = mins % 60;
+  var out = hours + ' ' + plural(hours, 'час', 'часа', 'часов');
+  if (rest) out += ' ' + rest + ' ' + plural(rest, 'минуту', 'минуты', 'минут');
+  return out + ' назад';
+}
+
+/** ISO-строка из кэша обратно в Date (или null). */
+function toDate(value) {
+  if (!value) return null;
+  var d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Кэш последних удачных ответов                                      */
+/*                                                                     */
+/*  Кэш необязателен: в приватном режиме обращение к localStorage может */
+/*  бросить исключение, при переполнении квоты падает setItem. Любая    */
+/*  ошибка хранилища просто означает работу как раньше, без кэша.       */
+/* ------------------------------------------------------------------ */
+
+var CACHE = {
+  prefix: 'aurora.',
+  maxAgeMs: 3 * 60 * 60 * 1000 // старше трёх часов не показываем
+};
+
+function cacheSave(key, payload) {
+  try {
+    localStorage.setItem(CACHE.prefix + key, JSON.stringify({
+      savedAt: Date.now(),
+      payload: payload
+    }));
+  } catch (e) { /* хранилище недоступно или переполнено */ }
+}
+
+/** Возвращает { payload, age } или null, если записи нет либо она просрочена. */
+function cacheLoad(key) {
+  try {
+    var raw = localStorage.getItem(CACHE.prefix + key);
+    if (!raw) return null;
+
+    var entry = JSON.parse(raw);
+    var age = Date.now() - entry.savedAt;
+
+    // Отрицательный возраст означает, что часы перевели назад — доверять нельзя.
+    if (!isFinite(age) || age < 0 || age > CACHE.maxAgeMs) {
+      cacheDrop(key);
+      return null;
+    }
+    return { payload: entry.payload, age: age };
+  } catch (e) {
+    cacheDrop(key); // битая запись — выбрасываем, чтобы не спотыкаться о неё снова
+    return null;
+  }
+}
+
+function cacheDrop(key) {
+  try {
+    localStorage.removeItem(CACHE.prefix + key);
+  } catch (e) { /* см. выше */ }
+}
+
+/**
+ * Переключает карточку между «свежо» и «данные из кэша».
+ * ageMs === null — данные живые.
+ */
+function applyFreshness(cardId, staleId, ageMs, lead) {
+  if (ageMs === null || ageMs === undefined) {
+    setState(cardId, 'ok');
+    return;
+  }
+
+  var note = $(staleId);
+  if (note) {
+    var text = note.querySelector('.stale__text');
+    if (text) text.textContent = (lead || 'Нет связи. Данные') + ' ' + fmtAge(ageMs);
+  }
+  setState(cardId, 'stale');
 }
 
 /* ------------------------------------------------------------------ */
@@ -325,11 +413,26 @@ function loadKp() {
       return fetchJson(URLS.kpNowAlt).then(readKpSeries);
     })
     .then(function (kp) {
+      kp.stale = null;
       state.kp = kp;
+      cacheSave('kp', { value: kp.value, time: kp.time });
       renderKp(kp);
       return kp;
     })
     .catch(function (err) {
+      var cached = cacheLoad('kp');
+
+      if (cached) {
+        var kp = {
+          value: cached.payload.value,
+          time: toDate(cached.payload.time),
+          stale: cached.age
+        };
+        state.kp = kp;
+        renderKp(kp);
+        return kp;
+      }
+
       state.kp = null;
       $('kp-error').textContent = 'NOAA SWPC недоступен: ' + err.message + '.';
       setState('kp-card', 'error');
@@ -367,7 +470,7 @@ function renderKp(kp) {
   }
   $('kp-time').textContent = meta;
 
-  setState('kp-card', 'ok');
+  applyFreshness('kp-card', 'kp-stale', kp.stale);
 }
 
 /* ------------------------------------------------------------------ */
@@ -435,13 +538,33 @@ function loadCloud() {
         layers: layers,
         temp: num(cur.temperature_2m) === null ? null : Math.round(num(cur.temperature_2m)),
         time: parseUtc(cur.time),
-        soon: pickCloudIn(data, 3)
+        soon: pickCloudIn(data, 3),
+        stale: null
       };
       state.cloud = cloud;
+      cacheSave('cloud', cloud);
       renderCloud(cloud);
       return cloud;
     })
     .catch(function (err) {
+      var cached = cacheLoad('cloud');
+
+      if (cached) {
+        var cloud = cached.payload;
+        cloud.time = toDate(cloud.time);
+        cloud.stale = cached.age;
+
+        // Прогноз «через 3 часа» мог уже стать прошлым — тогда не показываем его.
+        if (cloud.soon) {
+          cloud.soon.time = toDate(cloud.soon.time);
+          if (!cloud.soon.time || cloud.soon.time.getTime() < Date.now()) cloud.soon = null;
+        }
+
+        state.cloud = cloud;
+        renderCloud(cloud);
+        return cloud;
+      }
+
       state.cloud = null;
       $('cloud-error').textContent = 'Open-Meteo недоступен: ' + err.message + '.';
       setState('cloud-card', 'error');
@@ -490,7 +613,7 @@ function renderCloud(cloud) {
   if (cloud.time) parts.push('данные на ' + fmtTime(cloud.time));
   $('cloud-meta').textContent = parts.join(' · ');
 
-  setState('cloud-card', 'ok');
+  applyFreshness('cloud-card', 'cloud-stale', cloud.stale);
 }
 
 /** Полоски по ярусам и пояснение к весам. */
@@ -542,30 +665,53 @@ function loadForecast() {
   return fetchJson(URLS.kpForecast)
     .then(function (data) {
       var source = normalizeRows(data);
-      var now = Date.now();
-      var rows = [];
-
-      for (var i = 0; i < source.length; i++) {
-        var t = parseUtc(source[i].time_tag);
-        var v = pickKpValue(source[i]);
-        if (!t || !isFinite(v)) continue;
-        if (t.getTime() + 3 * 3600000 < now) continue; // прошедшие трёхчасовки пропускаем
-        rows.push({ time: t, value: v, current: t.getTime() <= now });
-        if (rows.length >= 24) break;
-      }
+      var rows = buildForecastRows(source);
 
       if (!rows.length) throw new Error('нет актуальных значений');
-      renderForecast(rows);
+
+      // Кэшируем исходные строки, а не готовые ячейки: за время хранения часть
+      // трёхчасовок уйдёт в прошлое, и при восстановлении их надо отфильтровать
+      // заново — иначе подсветка «сейчас» встанет не на ту ячейку.
+      cacheSave('forecast', source);
+      renderForecast(rows, null);
       return rows;
     })
     .catch(function (err) {
+      var cached = cacheLoad('forecast');
+
+      if (cached) {
+        var rows = buildForecastRows(cached.payload);
+        if (rows.length) {
+          renderForecast(rows, cached.age);
+          return rows;
+        }
+        cacheDrop('forecast'); // весь сохранённый прогноз уже в прошлом
+      }
+
       $('forecast-error').textContent = 'Прогноз NOAA недоступен: ' + err.message + '.';
       setState('forecast-card', 'error');
       return null;
     });
 }
 
-function renderForecast(rows) {
+/** Строки NOAA -> ячейки прогноза: только будущее, максимум 24 трёхчасовки. */
+function buildForecastRows(source) {
+  var now = Date.now();
+  var rows = [];
+
+  for (var i = 0; i < source.length; i++) {
+    var t = parseUtc(source[i].time_tag);
+    var v = pickKpValue(source[i]);
+    if (!t || !isFinite(v)) continue;
+    if (t.getTime() + 3 * 3600000 < now) continue; // прошедшие трёхчасовки пропускаем
+    rows.push({ time: t, value: v, current: t.getTime() <= now });
+    if (rows.length >= 24) break;
+  }
+
+  return rows;
+}
+
+function renderForecast(rows, ageMs) {
   var list = $('forecast-list');
   list.innerHTML = '';
   var lastDay = '';
@@ -595,7 +741,7 @@ function renderForecast(rows) {
     list.appendChild(slot);
   });
 
-  setState('forecast-card', 'ok');
+  applyFreshness('forecast-card', 'forecast-stale', ageMs === undefined ? null : ageMs);
 }
 
 /* ------------------------------------------------------------------ */
@@ -626,7 +772,14 @@ function renderVerdict() {
     list.appendChild(li);
   });
 
-  setState('verdict-card', 'ok');
+  // Вердикт устарел настолько, насколько устарел самый старый из его входов.
+  var ages = [state.kp, state.cloud]
+    .filter(function (item) { return item && item.stale; })
+    .map(function (item) { return item.stale; });
+
+  applyFreshness('verdict-card', 'verdict-stale',
+    ages.length ? Math.max.apply(null, ages) : null,
+    'Оценка по сохранённым данным:');
 }
 
 /* ------------------------------------------------------------------ */
@@ -643,9 +796,15 @@ function refreshAll() {
     .then(function () {
       renderVerdict();
 
-      if (state.kp || state.cloud) {
+      // Свежесть определяется флагом stale, а не наличием данных: после отката
+      // на кэш в state лежат значения, но «Обновлено» писать про них нельзя.
+      var fresh = (state.kp && !state.kp.stale) || (state.cloud && !state.cloud.stale);
+
+      if (fresh) {
         state.lastOk = new Date();
         $('updated').textContent = 'Обновлено в ' + fmtTime(state.lastOk);
+      } else if (state.kp || state.cloud) {
+        $('updated').textContent = 'Нет связи · показаны сохранённые данные';
       } else {
         $('updated').textContent = state.lastOk
           ? 'Нет связи · последние данные в ' + fmtTime(state.lastOk)
