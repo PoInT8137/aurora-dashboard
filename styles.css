@@ -303,6 +303,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Предупреждение о противоречивых данных */
+.card__warn {
+  margin: 16px 0 0;
+  padding: 10px 13px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--mid);
+  background: rgba(255, 209, 102, 0.08);
+  border: 1px solid rgba(255, 209, 102, 0.25);
+  border-radius: 10px;
+}
+
+.card__warn[hidden] { display: none; }
+
 .layers__note {
   margin: 12px 0 0;
   font-size: 12px;

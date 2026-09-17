@@ -12,8 +12,34 @@ var CONFIG = {
   tz: 'Europe/Moscow',
   timeoutMs: 12000,        // таймаут одного запроса
   retries: 1,              // одна автоматическая повторная попытка
-  refreshMs: 5 * 60 * 1000 // автообновление раз в 5 минут
+  refreshMs: 5 * 60 * 1000, // автообновление раз в 5 минут
+
+  /*
+   * Модель Open-Meteo. best_match для Мурманска выбирает MET Norway: её
+   * ответ совпадает с models=metno_seamless во всех полях и на всех часах.
+   *
+   * У этой модели ярусы и суммарная облачность несогласованы: на 48-часовом
+   * ряду в трети часов нарушается неравенство max(ярусы) <= всего <= сумма
+   * ярусов (например ярусы 8/4/0 при суммарной облачности 90 %). Какое из
+   * двух полей врёт — неизвестно: те же ярусы 8/13/0 отдают knmi_seamless и
+   * dmi_seamless с согласованной суммой 15 %, но суммарные 72 % совпадают у
+   * icon_eu и gfs_seamless. Поэтому итог считается по ярусам, а суммарное
+   * поле используется как перекрёстная проверка (CLOUD_CONFLICT_LIMIT).
+   *
+   * Альтернатива с согласованными полями — 'icon_eu': за те же 48 часов ни
+   * одного нарушения, среднее расхождение 2 п.п. Модель грубее (7 км против
+   * локальной скандинавской сетки), но её ярусы и сумма не противоречат
+   * друг другу.
+   */
+  weatherModel: 'best_match'
 };
+
+/*
+ * Порог противоречивости: если оценка по ярусам и суммарная облачность
+ * расходятся сильнее, доверять данным нельзя — показываем предупреждение
+ * и не ставим высокий балл за облачность.
+ */
+var CLOUD_CONFLICT_LIMIT = 30;
 
 var URLS = {
   kpNow:      'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json',
@@ -23,6 +49,7 @@ var URLS = {
     + '?latitude=' + CONFIG.lat + '&longitude=' + CONFIG.lon
     + '&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m'
     + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
+    + '&models=' + CONFIG.weatherModel
     + '&forecast_days=2&timezone=UTC'
 };
 
@@ -264,12 +291,19 @@ function kpTone(kp) {
   return TONE.bad;
 }
 
-/** Балл за облачность (0..3). */
-function cloudScore(pct) {
-  if (pct <= 25) return 3;
-  if (pct <= 50) return 2;
-  if (pct <= 75) return 1;
-  return 0;
+/**
+ * Балл за облачность (0..3). При противоречивых данных высокий балл не
+ * ставим: ярусы могут говорить о чистом небе, а суммарный показатель той же
+ * модели — о сплошной облачности, и какой из них верен, мы не знаем.
+ */
+function cloudScore(pct, conflict) {
+  var score;
+  if (pct <= 25) score = 3;
+  else if (pct <= 50) score = 2;
+  else if (pct <= 75) score = 1;
+  else score = 0;
+
+  return conflict ? Math.min(2, score) : score;
 }
 
 function cloudText(pct) {
@@ -292,7 +326,7 @@ function cloudTone(pct) {
  */
 function computeVerdict(kp, cloud) {
   var ks = kp !== null ? kpScore(kp.value) : null;
-  var cs = cloud !== null ? cloudScore(cloud.value) : null;
+  var cs = cloud !== null ? cloudScore(cloud.value, cloud.conflict) : null;
 
   if (ks === null && cs === null) return null; // считать не из чего
 
@@ -301,6 +335,7 @@ function computeVerdict(kp, cloud) {
 
   factors.push(ks !== null ? 'Kp ' + fmtKp(kp.value) : 'Kp: данных нет');
   factors.push(cs !== null ? 'Облачность ' + cloud.value + '%' : 'Облачность: данных нет');
+  if (cloud && cloud.conflict) factors.push('Данные об облачности противоречивы');
 
   var level;
   if (partial) {
@@ -546,9 +581,16 @@ function loadCloud() {
         throw new Error('в ответе нет облачности');
       }
 
+      // Оценка по ярусам и суммарное поле модели должны быть согласованы.
+      // Сильное расхождение означает, что одно из полей врёт, а какое —
+      // неизвестно, поэтому данным доверяем лишь частично.
+      var conflict = (effective !== null && total !== null)
+        && Math.abs(effective - total) > CLOUD_CONFLICT_LIMIT;
+
       var cloud = {
         value: effective !== null ? effective : total,
         byLayers: effective !== null,
+        conflict: conflict,
         total: total,
         layers: layers,
         temp: num(cur.temperature_2m) === null ? null : Math.round(num(cur.temperature_2m)),
@@ -621,6 +663,14 @@ function renderCloud(cloud) {
   setTone(fill, tone);
 
   renderCloudLayers(cloud);
+
+  var warn = $('cloud-warn');
+  warn.hidden = !cloud.conflict;
+  if (cloud.conflict) {
+    warn.textContent = 'Данные об облачности противоречивы: по ярусам ' + cloud.value +
+      '%, а суммарный показатель той же модели — ' + Math.round(cloud.total) +
+      '%. Такое расхождение физически невозможно, поэтому высокий балл за облачность не ставится.';
+  }
 
   var parts = [];
   if (cloud.temp !== null) parts.push((cloud.temp > 0 ? '+' : '') + cloud.temp + ' °C');
