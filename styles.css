@@ -372,6 +372,55 @@ body {
   padding: 5px 13px;
 }
 
+/* ---------- Окно наблюдения ---------- */
+#window-card { margin-top: 18px; min-height: 0; }
+
+.window__value {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--tone, var(--text));
+  text-shadow: 0 0 36px color-mix(in srgb, var(--tone, var(--aurora-teal)) 40%, transparent);
+}
+
+.window__hint {
+  margin: 10px 0 0;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.nighthours {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.hour {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 9px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hour--best {
+  background: color-mix(in srgb, var(--tone, var(--aurora-teal)) 12%, transparent);
+  border-color: color-mix(in srgb, var(--tone, var(--aurora-teal)) 55%, transparent);
+}
+
+.hour__time {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--tone, var(--text));
+}
+
+.hour__cloud { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+.hour__kp    { font-size: 12px; color: var(--text-faint); }
+
 /* ---------- Прогноз ---------- */
 .forecast {
   display: grid;

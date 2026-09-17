@@ -42,6 +42,26 @@
     </div>
   </section>
 
+  <!-- Окно наблюдения -->
+  <section class="card card--wide" id="window-card" data-state="loading">
+    <h2 class="card__label">Лучшее время этой ночью</h2>
+
+    <div class="card__loading">Считаем…</div>
+
+    <div class="card__body">
+      <p class="window__value" id="window-value">—</p>
+      <p class="window__hint" id="window-hint"></p>
+      <div class="nighthours" id="window-hours"></div>
+      <p class="card__meta" id="window-meta"></p>
+    </div>
+
+    <p class="card__stale" id="window-stale"><span class="stale__text"></span></p>
+
+    <div class="card__error">
+      <p>Окно наблюдения не рассчитать — нет почасовых данных об облачности.</p>
+    </div>
+  </section>
+
   <div class="grid">
 
     <!-- Kp -->

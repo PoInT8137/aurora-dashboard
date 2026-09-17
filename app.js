@@ -103,7 +103,7 @@ var CLOUD_LAYERS = [
 ];
 
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
-var state = { kp: null, cloud: null, lastOk: null };
+var state = { kp: null, cloud: null, forecast: null, lastOk: null };
 
 /* ------------------------------------------------------------------ */
 /*  Утилиты                                                            */
@@ -631,6 +631,7 @@ function loadCloud() {
         temp: num(cur.temperature_2m) === null ? null : Math.round(num(cur.temperature_2m)),
         time: parseUtc(cur.time),
         soon: pickCloudIn(data, 3),
+        hours: readHourlyCloud(data),
         stale: null
       };
       state.cloud = cloud;
@@ -662,6 +663,25 @@ function loadCloud() {
       setState('cloud-card', 'error');
       return null;
     });
+}
+
+/**
+ * Весь почасовой ряд облачности: [{ time: '2026-09-17T18:00', cloud: 78 }, …].
+ * Метки времени остаются строками — так они переживают JSON в кэше и
+ * разбираются тем же parseUtc(), что и свежие.
+ */
+function readHourlyCloud(data) {
+  var out = [];
+  try {
+    var hourly = data.hourly;
+    for (var i = 0; i < hourly.time.length; i++) {
+      var value = effectiveCloud(readLayers(hourly, i));
+      if (value === null) value = num(hourly.cloud_cover ? hourly.cloud_cover[i] : null);
+      if (value === null) continue;
+      out.push({ time: hourly.time[i], cloud: Math.round(value) });
+    }
+  } catch (e) { /* почасовых данных нет — окно наблюдения просто не покажем */ }
+  return out;
 }
 
 /** Эффективная облачность через N часов из почасового ряда (или null). */
@@ -773,6 +793,7 @@ function loadForecast() {
       // трёхчасовок уйдёт в прошлое, и при восстановлении их надо отфильтровать
       // заново — иначе подсветка «сейчас» встанет не на ту ячейку.
       cacheSave('forecast', source);
+      state.forecast = rows;
       renderForecast(rows, null);
       return rows;
     })
@@ -782,6 +803,7 @@ function loadForecast() {
       if (cached) {
         var rows = buildForecastRows(cached.payload);
         if (rows.length) {
+          state.forecast = rows;
           renderForecast(rows, cached.age);
           return rows;
         }
@@ -845,6 +867,200 @@ function renderForecast(rows, ageMs) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Окно наблюдения на ближайшую ночь                                  */
+/*                                                                     */
+/*  Новых запросов не требует: почасовая облачность и трёхчасовой      */
+/*  прогноз Kp уже загружены, высота Солнца считается локально.        */
+/* ------------------------------------------------------------------ */
+
+var DARK_USABLE = -6;  // ниже этой высоты Солнца сияние уже различимо
+var DARK_FULL = -12;   // полная темнота
+
+/** Прогнозное Kp на момент time: последняя трёхчасовка, начавшаяся до него. */
+function kpAt(time, rows, fallback) {
+  if (rows) {
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].time.getTime() <= time.getTime()) return rows[i].value;
+    }
+  }
+  return fallback;
+}
+
+/** Уровень часа: 2 — высокий, 1 — средний, 0 — низкий. */
+function hourLevel(kp, cloudPct, alt, conflict) {
+  var cs = cloudScore(cloudPct, conflict);
+  var level;
+
+  if (kp === null) {
+    // Без прогноза Kp судим только по небу и выше среднего не поднимаемся.
+    level = cs >= 3 ? 1 : 0;
+  } else {
+    var product = kpScore(kp) * cs;
+    level = product >= 6 ? 2 : (product >= 2 ? 1 : 0);
+  }
+
+  // В неполной темноте высокий уровень не ставим — как и в вердикте.
+  if (alt > DARK_FULL && level > 1) level = 1;
+  return level;
+}
+
+/**
+ * Ближайшая ночь и лучший отрезок внутри неё.
+ * Возвращает null (нет данных), { polarDay: true } либо описание окна.
+ */
+function computeNightWindow(cloud, kpRows, kpNow) {
+  if (!cloud || !cloud.hours || !cloud.hours.length) return null;
+
+  var now = Date.now();
+  var hours = [];
+
+  for (var i = 0; i < cloud.hours.length; i++) {
+    var t = parseUtc(cloud.hours[i].time);
+    if (!t || t.getTime() + 3600000 < now) continue; // час уже прошёл
+    hours.push({
+      time: t,
+      cloud: cloud.hours[i].cloud,
+      alt: solarAltitude(t, CONFIG.lat, CONFIG.lon)
+    });
+  }
+
+  if (!hours.length) return null;
+
+  // Ближайший тёмный отрезок — это и есть «ночь».
+  var start = -1;
+  for (i = 0; i < hours.length; i++) {
+    if (hours[i].alt <= DARK_USABLE) { start = i; break; }
+  }
+  if (start < 0) return { polarDay: true };
+
+  var night = [];
+  for (i = start; i < hours.length && hours[i].alt <= DARK_USABLE; i++) night.push(hours[i]);
+
+  var noKp = true;
+  night.forEach(function (h) {
+    h.kp = kpAt(h.time, kpRows, kpNow);
+    if (h.kp !== null && h.kp !== undefined) noKp = false;
+    h.level = hourLevel(h.kp === undefined ? null : h.kp, h.cloud, h.alt, cloud.conflict);
+  });
+
+  // Лучший отрезок: самый длинный непрерывный ряд часов максимального уровня.
+  var best = { level: -1, from: 0, to: -1 };
+  var runStart = 0;
+
+  for (i = 0; i <= night.length; i++) {
+    var ends = (i === night.length) || (night[i].level !== night[runStart].level);
+    if (!ends) continue;
+
+    var level = night[runStart].level;
+    var length = i - runStart;
+    var bestLength = best.to - best.from + 1;
+
+    if (level > best.level || (level === best.level && length > bestLength)) {
+      best = { level: level, from: runStart, to: i - 1 };
+    }
+    runStart = i;
+  }
+
+  var window = night.slice(best.from, best.to + 1);
+  var clouds = window.map(function (h) { return h.cloud; });
+  var kps = window.map(function (h) { return h.kp; }).filter(function (v) {
+    return v !== null && v !== undefined;
+  });
+
+  return {
+    polarDay: false,
+    night: night,
+    from: window[0].time,
+    to: new Date(window[window.length - 1].time.getTime() + 3600000), // час занимает интервал
+    level: best.level,
+    hours: window.length,
+    cloudMin: Math.min.apply(null, clouds),
+    cloudMax: Math.max.apply(null, clouds),
+    kpMax: kps.length ? Math.max.apply(null, kps) : null,
+    noKp: noKp,
+    fullDark: window.every(function (h) { return h.alt <= DARK_FULL; })
+  };
+}
+
+function renderWindow() {
+  var win = computeNightWindow(state.cloud, state.forecast, state.kp ? state.kp.value : null);
+
+  if (!win) {
+    setState('window-card', 'error');
+    return;
+  }
+
+  var valueEl = $('window-value');
+  var hintEl = $('window-hint');
+  var metaEl = $('window-meta');
+  var list = $('window-hours');
+  list.innerHTML = '';
+
+  if (win.polarDay) {
+    setTone($('window-card'), TONE.mid);
+    setTone(valueEl, TONE.mid);
+    valueEl.textContent = 'Темноты не будет';
+    hintEl.textContent = 'В ближайшие двое суток Солнце не опускается достаточно низко — ' +
+      'полярный день. Сияние не увидеть при любой магнитной активности.';
+    metaEl.textContent = '';
+    applyFreshness('window-card', 'window-stale', state.cloud.stale, 'Расчёт по сохранённым данным:');
+    return;
+  }
+
+  var tone = win.level === 2 ? TONE.ok : (win.level === 1 ? TONE.mid : TONE.bad);
+  setTone($('window-card'), tone);
+  setTone(valueEl, tone);
+
+  valueEl.textContent = fmtTime(win.from) + ' — ' + fmtTime(win.to);
+
+  var quality = win.level === 2 ? 'высокий шанс'
+    : (win.level === 1 ? 'средний шанс' : 'лучшее из возможного, но условия плохие');
+
+  var cloudText = win.cloudMin === win.cloudMax
+    ? 'облачность ' + win.cloudMin + '%'
+    : 'облачность ' + win.cloudMin + '–' + win.cloudMax + '%';
+
+  var parts = [quality, cloudText];
+  if (win.kpMax !== null) parts.push('Kp до ' + fmtKp(win.kpMax));
+  parts.push(win.fullDark ? 'полная темнота' : 'неполная темнота');
+
+  hintEl.textContent = parts.join(' · ') + '.';
+
+  // Почасовая полоса всей ночи
+  win.night.forEach(function (h) {
+    var cell = document.createElement('div');
+    var inWindow = h.time >= win.from && h.time < win.to;
+    cell.className = 'hour' + (inWindow ? ' hour--best' : '');
+    setTone(cell, h.level === 2 ? TONE.ok : (h.level === 1 ? TONE.mid : TONE.bad));
+
+    var time = document.createElement('div');
+    time.className = 'hour__time';
+    time.textContent = fmtTime(h.time);
+
+    var cloud = document.createElement('div');
+    cloud.className = 'hour__cloud';
+    cloud.textContent = h.cloud + '%';
+
+    var kp = document.createElement('div');
+    kp.className = 'hour__kp';
+    kp.textContent = (h.kp === null || h.kp === undefined) ? '—' : 'Kp ' + fmtKp(h.kp);
+
+    cell.appendChild(time);
+    cell.appendChild(cloud);
+    cell.appendChild(kp);
+    list.appendChild(cell);
+  });
+
+  var meta = 'Ночь с ' + fmtTime(win.night[0].time) + ' до ' +
+    fmtTime(new Date(win.night[win.night.length - 1].time.getTime() + 3600000)) +
+    '. В ячейках — облачность и прогнозное Kp на каждый час.';
+  if (win.noKp) meta += ' Прогноз Kp недоступен, учтены только облачность и темнота.';
+  metaEl.textContent = meta;
+
+  applyFreshness('window-card', 'window-stale', state.cloud.stale, 'Расчёт по сохранённым данным:');
+}
+
+/* ------------------------------------------------------------------ */
 /*  Вердикт                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -886,15 +1102,22 @@ function renderVerdict() {
 /*  Оркестрация                                                        */
 /* ------------------------------------------------------------------ */
 
+/** Всё, что считается из уже загруженных данных. */
+function renderDerived() {
+  renderVerdict();
+  renderWindow();
+}
+
 function refreshAll() {
   var btn = $('refresh');
   btn.disabled = true;
   $('updated').textContent = 'Обновляем…';
   setState('verdict-card', 'loading');
+  setState('window-card', 'loading');
 
   return Promise.all([loadKp(), loadCloud(), loadForecast()])
     .then(function () {
-      renderVerdict();
+      renderDerived();
 
       // Свежесть определяется флагом stale, а не наличием данных: после отката
       // на кэш в state лежат значения, но «Обновлено» писать про них нельзя.
@@ -923,9 +1146,9 @@ function init() {
     var target = e.target.closest ? e.target.closest('[data-retry]') : null;
     if (!target) return;
     var what = target.getAttribute('data-retry');
-    if (what === 'kp')       loadKp().then(renderVerdict);
-    if (what === 'cloud')    loadCloud().then(renderVerdict);
-    if (what === 'forecast') loadForecast();
+    if (what === 'kp')       loadKp().then(renderDerived);
+    if (what === 'cloud')    loadCloud().then(renderDerived);
+    if (what === 'forecast') loadForecast().then(renderDerived);
   });
 
   refreshAll();
