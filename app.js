@@ -1163,4 +1163,21 @@ function init() {
   });
 }
 
+/**
+ * Регистрация service worker: он кэширует оболочку приложения, чтобы дашборд
+ * открывался без сети. Работает только по http(s), с file:// молча пропускаем.
+ */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+
+  try {
+    navigator.serviceWorker.register('sw.js').catch(function (err) {
+      // Офлайн-режим необязателен: без него дашборд работает как обычная страница.
+      console.warn('Service worker не зарегистрирован:', err.message);
+    });
+  } catch (e) { /* см. выше */ }
+}
+
 document.addEventListener('DOMContentLoaded', init);
+window.addEventListener('load', registerServiceWorker);
