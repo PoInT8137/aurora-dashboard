@@ -21,9 +21,24 @@ var URLS = {
   kpForecast: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json',
   weather:    'https://api.open-meteo.com/v1/forecast'
     + '?latitude=' + CONFIG.lat + '&longitude=' + CONFIG.lon
-    + '&current=cloud_cover,temperature_2m'
-    + '&hourly=cloud_cover&forecast_days=2&timezone=UTC'
+    + '&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m'
+    + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
+    + '&forecast_days=2&timezone=UTC'
 };
+
+/**
+ * Веса ярусов облачности. Сияние светится на высоте 100–300 км, выше любых
+ * облаков, поэтому важна только прозрачность слоя:
+ *   нижний  — водяной, оптически плотный, за stratus не видно ничего;
+ *   средний — тоже в основном непрозрачен, но altocumulus чаще рваный;
+ *   верхний — ледяные кристаллы, перистые облака сияние просвечивает,
+ *             теряя контраст, но не скрывая полностью.
+ */
+var CLOUD_LAYERS = [
+  { key: 'low',  field: 'cloud_cover_low',  label: 'Нижний',  weight: 1.0 },
+  { key: 'mid',  field: 'cloud_cover_mid',  label: 'Средний', weight: 0.8 },
+  { key: 'high', field: 'cloud_cover_high', label: 'Верхний', weight: 0.35 }
+];
 
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
 var state = { kp: null, cloud: null, lastOk: null };
@@ -359,19 +374,66 @@ function renderKp(kp) {
 /*  Облачность                                                         */
 /* ------------------------------------------------------------------ */
 
+/** Число из ответа API или null. */
+function num(value) {
+  if (value === undefined || value === null) return null;
+  var parsed = parseFloat(value);
+  return isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Эффективная облачность: взвешенная сумма ярусов, где верхний ярус весит
+ * меньше. Ограничена сверху 100 %, потому что ярусы перекрываются и сумма
+ * процентов легко переваливает за сотню — закрытое небо «закрытее» не станет.
+ * Если API не отдал ярусы, возвращаем null, и вызывающий код берёт общий
+ * показатель облачности.
+ */
+function effectiveCloud(layers) {
+  var sum = 0;
+  var known = 0;
+
+  CLOUD_LAYERS.forEach(function (layer) {
+    var value = layers[layer.key];
+    if (value === null) return;
+    sum += value * layer.weight;
+    known++;
+  });
+
+  if (!known) return null;
+  return Math.min(100, Math.round(sum));
+}
+
+/** Ярусы облачности из объекта current или строки hourly. */
+function readLayers(source, index) {
+  var layers = {};
+  CLOUD_LAYERS.forEach(function (layer) {
+    var raw = source[layer.field];
+    layers[layer.key] = num(index === undefined ? raw : (raw ? raw[index] : null));
+  });
+  return layers;
+}
+
 function loadCloud() {
   setState('cloud-card', 'loading');
 
   return fetchJson(URLS.weather)
     .then(function (data) {
       var cur = data && data.current;
-      if (!cur || cur.cloud_cover === undefined || cur.cloud_cover === null) {
+      var total = cur ? num(cur.cloud_cover) : null;
+      var layers = cur ? readLayers(cur) : {};
+      var effective = cur ? effectiveCloud(layers) : null;
+
+      // Без ярусов оценка всё равно возможна — по общей облачности.
+      if (effective === null && total === null) {
         throw new Error('в ответе нет облачности');
       }
+
       var cloud = {
-        value: Math.round(cur.cloud_cover),
-        temp: (cur.temperature_2m === undefined || cur.temperature_2m === null)
-          ? null : Math.round(cur.temperature_2m),
+        value: effective !== null ? effective : total,
+        byLayers: effective !== null,
+        total: total,
+        layers: layers,
+        temp: num(cur.temperature_2m) === null ? null : Math.round(num(cur.temperature_2m)),
         time: parseUtc(cur.time),
         soon: pickCloudIn(data, 3)
       };
@@ -387,17 +449,20 @@ function loadCloud() {
     });
 }
 
-/** Облачность через N часов из почасового ряда (или null). */
+/** Эффективная облачность через N часов из почасового ряда (или null). */
 function pickCloudIn(data, hours) {
   try {
-    var times = data.hourly.time;
-    var values = data.hourly.cloud_cover;
+    var hourly = data.hourly;
+    var times = hourly.time;
     var target = Date.now() + hours * 3600000;
+
     for (var i = 0; i < times.length; i++) {
       var t = parseUtc(times[i]);
-      if (t && t.getTime() >= target && values[i] !== null && values[i] !== undefined) {
-        return { value: Math.round(values[i]), time: t };
-      }
+      if (!t || t.getTime() < target) continue;
+
+      var value = effectiveCloud(readLayers(hourly, i));
+      if (value === null) value = num(hourly.cloud_cover ? hourly.cloud_cover[i] : null);
+      if (value !== null) return { value: Math.round(value), time: t };
     }
   } catch (e) { /* почасовых данных нет — не критично */ }
   return null;
@@ -417,6 +482,8 @@ function renderCloud(cloud) {
   fill.style.width = cloud.value + '%';
   setTone(fill, tone);
 
+  renderCloudLayers(cloud);
+
   var parts = [];
   if (cloud.temp !== null) parts.push((cloud.temp > 0 ? '+' : '') + cloud.temp + ' °C');
   if (cloud.soon) parts.push('к ' + fmtTime(cloud.soon.time) + ' — ' + cloud.soon.value + '%');
@@ -424,6 +491,45 @@ function renderCloud(cloud) {
   $('cloud-meta').textContent = parts.join(' · ');
 
   setState('cloud-card', 'ok');
+}
+
+/** Полоски по ярусам и пояснение к весам. */
+function renderCloudLayers(cloud) {
+  var box = $('cloud-layers');
+  var note = $('cloud-note');
+
+  if (!cloud.byLayers) {
+    // Ярусов нет — показываем только общий показатель и говорим об этом прямо.
+    box.hidden = true;
+    note.textContent = 'Ярусы облачности недоступны — показан суммарный показатель.';
+    return;
+  }
+
+  box.hidden = false;
+
+  CLOUD_LAYERS.forEach(function (layer) {
+    var row = box.querySelector('[data-layer="' + layer.key + '"]');
+    if (!row) return;
+
+    var value = cloud.layers[layer.key];
+    var known = value !== null;
+
+    row.querySelector('.layer__val').textContent = known ? Math.round(value) + '%' : '—';
+
+    var bar = row.querySelector('.layer__fill');
+    bar.style.width = (known ? Math.round(value) : 0) + '%';
+    setTone(bar, cloudTone(known ? value : 0));
+  });
+
+  var weights = CLOUD_LAYERS.map(function (layer) {
+    // Целый вес печатаем как «1,0», а не «1», чтобы ряд читался единообразно.
+    var weight = Number.isInteger(layer.weight) ? layer.weight.toFixed(1) : String(layer.weight);
+    return layer.label.toLowerCase() + ' ×' + weight.replace('.', ',');
+  }).join(', ');
+
+  note.textContent = 'Итог — взвешенная сумма: ' + weights +
+    '. Перистые облака верхнего яруса сияние просвечивает, поэтому их вклад меньше.' +
+    (cloud.total !== null ? ' Суммарная облачность по модели — ' + Math.round(cloud.total) + '%.' : '');
 }
 
 /* ------------------------------------------------------------------ */

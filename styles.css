@@ -233,6 +233,54 @@ body {
   transition: width 0.5s ease;
 }
 
+/* Разбивка облачности по ярусам */
+.layers {
+  display: grid;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.layers[hidden] { display: none; }
+
+.layer {
+  display: grid;
+  grid-template-columns: minmax(104px, auto) 1fr 42px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.layer__name { color: var(--text-dim); white-space: nowrap; }
+.layer__alt  { color: var(--text-faint); font-size: 11px; }
+
+.layer__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.layer__fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--tone, var(--aurora-teal));
+  transition: width 0.5s ease;
+}
+
+.layer__val {
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.layers__note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
 /* ---------- Вердикт ---------- */
 .card--verdict {
   margin-top: 22px;
