@@ -1,0 +1,12 @@
+# Настройки локального окружения Claude Code
+.claude/
+
+# Системный мусор
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Редакторы
+.vscode/
+.idea/
+*.swp
