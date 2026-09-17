@@ -155,6 +155,64 @@ body {
 
 .btn--ghost { background: transparent; margin-top: 10px; }
 
+/* ---------- Вкладки ---------- */
+.tabs {
+  position: relative;
+  z-index: 2;
+  max-width: 1040px;
+  margin: 18px auto 0;
+  padding: 0 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.tabs__btn {
+  flex: 1;
+  font: inherit;
+  text-align: left;
+  color: var(--text-dim);
+  background: rgba(17, 27, 43, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.tabs__btn:hover { background: rgba(53, 214, 232, 0.12); }
+
+.tabs__btn[aria-selected="true"] {
+  color: var(--text);
+  background: rgba(53, 214, 232, 0.16);
+  border-color: rgba(53, 214, 232, 0.5);
+}
+
+.tabs__title { display: block; font-size: 15px; font-weight: 650; }
+.tabs__sub   { display: block; font-size: 12px; color: var(--text-faint); margin-top: 1px; }
+
+.tabs__btn[aria-selected="true"] .tabs__sub { color: var(--text-dim); }
+
+/* На узком экране навигация уезжает вниз, как в мобильных приложениях */
+@media (max-width: 719px) {
+  .tabs {
+    position: fixed;
+    inset: auto 0 0 0;
+    margin: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    gap: 8px;
+    background: rgba(6, 11, 20, 0.92);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+  }
+
+  .tabs__btn { text-align: center; padding: 9px 10px; }
+  .tabs__title { font-size: 14px; }
+  .tabs__sub { display: none; }
+
+  /* чтобы панель не перекрывала последнюю карточку */
+  .wrap { padding-bottom: 92px; }
+}
+
 /* ---------- Сетка ---------- */
 .wrap {
   position: relative;
@@ -455,6 +513,63 @@ body {
 
 .hour__cloud { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
 .hour__kp    { font-size: 12px; color: var(--text-faint); }
+
+/* Ответ «куда ехать» длиннее слова «Низкий», поэтому на узком экране
+   уменьшаем кегль, иначе строка занимает треть первого экрана */
+@media (max-width: 480px) {
+  #best-value { font-size: 34px; }
+}
+
+/* ---------- Список точек ---------- */
+.places {
+  display: grid;
+  gap: 10px;
+}
+
+.place {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 16px;
+  align-items: baseline;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  border-left: 3px solid var(--tone, var(--border));
+}
+
+.place--best {
+  background: color-mix(in srgb, var(--tone, var(--aurora-teal)) 10%, transparent);
+  border-color: color-mix(in srgb, var(--tone, var(--aurora-teal)) 45%, transparent);
+}
+
+.place__name {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.place__level {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--tone, var(--text));
+  white-space: nowrap;
+}
+
+.place__facts,
+.place__travel {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.place__travel { color: var(--text-faint); }
+
+@media (max-width: 480px) {
+  .place { grid-template-columns: 1fr; }
+  .place__level { grid-row: 1; justify-self: start; }
+}
 
 /* ---------- Прогноз ---------- */
 .forecast {

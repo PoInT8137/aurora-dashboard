@@ -25,15 +25,19 @@
  * Её преимущество перед городом не в широте, а в отсутствии засветки.
  *
  * light — уровень засветки, в расчёт не входит: только пояснение к вердикту.
+ *
+ * km и drive — приблизительное расстояние по автодорогам от Мурманска и время
+ * в пути летом. Маршрутный API намеренно не подключён: значения меняются редко,
+ * а зависимость от ещё одного сервиса стоила бы дороже точности.
  */
 var POINTS = [
-  { id: 'murmansk',    name: 'Мурманск',   lat: 68.9678, lon: 33.0992, geoLat: 64.87, light: 'high' },
-  { id: 'teriberka',   name: 'Териберка',  lat: 69.1609, lon: 35.1453, geoLat: 64.78, light: 'minimal' },
-  { id: 'monchegorsk', name: 'Мончегорск', lat: 67.9397, lon: 32.8739, geoLat: 63.94, light: 'medium' },
-  { id: 'lovozero',    name: 'Ловозеро',   lat: 68.0056, lon: 35.0187, geoLat: 63.72, light: 'low' },
-  { id: 'kirovsk',     name: 'Кировск',    lat: 67.6148, lon: 33.6727, geoLat: 63.53, light: 'medium' },
-  { id: 'apatity',     name: 'Апатиты',    lat: 67.5827, lon: 33.4134, geoLat: 63.53, light: 'medium' },
-  { id: 'kandalaksha', name: 'Кандалакша', lat: 67.1512, lon: 32.4128, geoLat: 63.26, light: 'medium' }
+  { id: 'murmansk',    name: 'Мурманск',   lat: 68.9678, lon: 33.0992, geoLat: 64.87, light: 'high',    km: 0,   drive: null,   note: '' },
+  { id: 'teriberka',   name: 'Териберка',  lat: 69.1609, lon: 35.1453, geoLat: 64.78, light: 'minimal', km: 120, drive: '2,5 ч', note: 'последний участок грунтовый' },
+  { id: 'monchegorsk', name: 'Мончегорск', lat: 67.9397, lon: 32.8739, geoLat: 63.94, light: 'medium',  km: 110, drive: '1,5 ч', note: '' },
+  { id: 'lovozero',    name: 'Ловозеро',   lat: 68.0056, lon: 35.0187, geoLat: 63.72, light: 'low',     km: 175, drive: '2,5 ч', note: '' },
+  { id: 'kirovsk',     name: 'Кировск',    lat: 67.6148, lon: 33.6727, geoLat: 63.53, light: 'medium',  km: 205, drive: '3 ч',   note: '' },
+  { id: 'apatity',     name: 'Апатиты',    lat: 67.5827, lon: 33.4134, geoLat: 63.53, light: 'medium',  km: 185, drive: '2,5 ч', note: '' },
+  { id: 'kandalaksha', name: 'Кандалакша', lat: 67.1512, lon: 32.4128, geoLat: 63.26, light: 'medium',  km: 280, drive: '4 ч',   note: '' }
 ];
 
 var LIGHT_POLLUTION = {
@@ -120,6 +124,16 @@ var URLS = {
   kpForecast: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json'
 };
 
+/** Адрес почасовой облачности сразу для всех точек: один запрос вместо семи. */
+function allPointsWeatherUrl() {
+  return 'https://api.open-meteo.com/v1/forecast'
+    + '?latitude=' + POINTS.map(function (p) { return p.lat; }).join(',')
+    + '&longitude=' + POINTS.map(function (p) { return p.lon; }).join(',')
+    + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
+    + '&models=' + CONFIG.weatherModel
+    + '&forecast_days=2&timezone=UTC';
+}
+
 /** Адрес погоды для выбранной точки. */
 function weatherUrl(point) {
   return 'https://api.open-meteo.com/v1/forecast'
@@ -145,7 +159,8 @@ var CLOUD_LAYERS = [
 ];
 
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
-var state = { point: null, kp: null, cloud: null, forecast: null, lastOk: null };
+var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null,
+              tonight: null, tonightLoading: false, lastOk: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -1008,7 +1023,7 @@ function kpAt(time, rows, fallback) {
 }
 
 /** Уровень часа: 2 — высокий, 1 — средний, 0 — низкий. */
-function hourLevel(kp, cloudPct, alt, conflict) {
+function hourLevel(kp, cloudPct, alt, conflict, point) {
   var cs = cloudScore(cloudPct, conflict);
   var level;
 
@@ -1016,7 +1031,7 @@ function hourLevel(kp, cloudPct, alt, conflict) {
     // Без прогноза Kp судим только по небу и выше среднего не поднимаемся.
     level = cs >= 3 ? 1 : 0;
   } else {
-    var product = kpScore(kp, currentPoint()) * cs;
+    var product = kpScore(kp, point) * cs;
     level = product >= 6 ? 2 : (product >= 2 ? 1 : 0);
   }
 
@@ -1029,10 +1044,10 @@ function hourLevel(kp, cloudPct, alt, conflict) {
  * Ближайшая ночь и лучший отрезок внутри неё.
  * Возвращает null (нет данных), { polarDay: true } либо описание окна.
  */
-function computeNightWindow(cloud, kpRows, kpNow) {
+function computeNightWindow(cloud, kpRows, kpNow, point) {
   if (!cloud || !cloud.hours || !cloud.hours.length) return null;
 
-  var point = currentPoint();
+  point = point || currentPoint();
   var now = Date.now();
   var hours = [];
 
@@ -1062,7 +1077,7 @@ function computeNightWindow(cloud, kpRows, kpNow) {
   night.forEach(function (h) {
     h.kp = kpAt(h.time, kpRows, kpNow);
     if (h.kp !== null && h.kp !== undefined) noKp = false;
-    h.level = hourLevel(h.kp === undefined ? null : h.kp, h.cloud, h.alt, cloud.conflict);
+    h.level = hourLevel(h.kp === undefined ? null : h.kp, h.cloud, h.alt, cloud.conflict, point);
   });
 
   // Лучший отрезок: самый длинный непрерывный ряд часов максимального уровня.
@@ -1091,6 +1106,7 @@ function computeNightWindow(cloud, kpRows, kpNow) {
 
   return {
     polarDay: false,
+    point: point,
     night: night,
     from: window[0].time,
     to: new Date(window[window.length - 1].time.getTime() + 3600000), // час занимает интервал
@@ -1180,6 +1196,299 @@ function renderWindow() {
   metaEl.textContent = meta;
 
   applyFreshness('window-card', 'window-stale', state.cloud.stale, 'Расчёт по сохранённым данным:');
+}
+
+/* ------------------------------------------------------------------ */
+/*  Вкладка «Куда ехать ночью»                                         */
+/*                                                                     */
+/*  Облачность для всех семи точек берётся одним запросом, Kp и его     */
+/*  прогноз переиспользуются с первой вкладки — они планетарные.        */
+/*  Запрос уходит при первом открытии вкладки, не при старте.           */
+/* ------------------------------------------------------------------ */
+
+/** Почасовые ряды всех точек из ответа с несколькими координатами. */
+function readAllPointsHours(data) {
+  if (!Array.isArray(data)) throw new Error('ожидался список точек');
+  if (data.length !== POINTS.length) {
+    throw new Error('точек в ответе ' + data.length + ', ожидалось ' + POINTS.length);
+  }
+
+  // Порядок ответа совпадает с порядком переданных координат.
+  return POINTS.map(function (point, i) {
+    return { id: point.id, hours: readHourlyCloud(data[i]) };
+  });
+}
+
+function loadTonight() {
+  setState('best-card', 'loading');
+  setState('places-card', 'loading');
+
+  // Смена вкладки правит хэш, а hashchange вызывает showTab повторно. Без
+  // этого флага второй вызов успевал уйти в сеть до ответа на первый.
+  state.tonightLoading = true;
+
+  return fetchJson(allPointsWeatherUrl())
+    .then(function (data) {
+      var rows = readAllPointsHours(data);
+      state.tonight = { rows: rows, stale: null };
+      cacheSave('tonight', rows);
+      renderTonight();
+      return rows;
+    })
+    .catch(function (err) {
+      var cached = cacheLoad('tonight');
+
+      if (cached) {
+        state.tonight = { rows: cached.payload, stale: cached.age };
+        renderTonight();
+        return cached.payload;
+      }
+
+      state.tonight = null;
+      $('best-error').textContent = 'Не удалось загрузить прогноз по точкам: ' + err.message + '.';
+      setState('best-card', 'error');
+      setState('places-card', 'error');
+      return null;
+    })
+    .finally(function () { state.tonightLoading = false; });
+}
+
+/** Окно на ближайшую ночь для каждой точки, отсортированное по привлекательности. */
+function computeAllWindows() {
+  if (!state.tonight || !state.tonight.rows) return null;
+
+  var kpNow = state.kp ? state.kp.value : null;
+
+  var list = state.tonight.rows.map(function (row) {
+    var point = findPoint(row.id);
+    var win = computeNightWindow({ hours: row.hours, conflict: false },
+      state.forecast, kpNow, point);
+    return { point: point, window: win };
+  });
+
+  list.sort(function (a, b) {
+    var aw = a.window, bw = b.window;
+
+    // Точки без темноты или без данных уходят вниз списка.
+    var aRank = (aw && !aw.polarDay) ? aw.level : -1;
+    var bRank = (bw && !bw.polarDay) ? bw.level : -1;
+    if (aRank !== bRank) return bRank - aRank;
+
+    // При равном уровне ближе к делу тот, где чище небо, затем — кто ближе.
+    var aCloud = (aw && !aw.polarDay) ? aw.cloudMin : 101;
+    var bCloud = (bw && !bw.polarDay) ? bw.cloudMin : 101;
+    if (aCloud !== bCloud) return aCloud - bCloud;
+
+    return a.point.km - b.point.km;
+  });
+
+  return list;
+}
+
+function levelWord(level) {
+  return level === 2 ? 'Высокий шанс' : (level === 1 ? 'Средний шанс' : 'Низкий шанс');
+}
+
+function levelTone(level) {
+  return level === 2 ? TONE.ok : (level === 1 ? TONE.mid : TONE.bad);
+}
+
+function renderTonight() {
+  var list = computeAllWindows();
+
+  if (!list) {
+    setState('best-card', 'error');
+    setState('places-card', 'error');
+    return;
+  }
+
+  renderBest(list);
+  renderPlaces(list);
+
+  var age = state.tonight.stale;
+  applyFreshness('best-card', 'best-stale', age, 'Расчёт по сохранённым данным:');
+  setState('places-card', 'ok');
+}
+
+/** Крупная строка с ответом. Лучшее из плохого здесь не показываем. */
+function renderBest(list) {
+  var valueEl = $('best-value');
+  var hintEl = $('best-hint');
+  var factors = $('best-factors');
+  factors.innerHTML = '';
+
+  var best = list[0];
+  var win = best.window;
+  var hasDark = list.some(function (item) { return item.window && !item.window.polarDay; });
+
+  if (!hasDark) {
+    setTone($('best-card'), TONE.mid);
+    setTone(valueEl, TONE.mid);
+    valueEl.textContent = 'Темноты не будет';
+    hintEl.textContent = 'Полярный день: ближайшие двое суток Солнце нигде в области не опускается ' +
+      'достаточно низко. Ехать некуда — сияние не увидеть при любой магнитной активности.';
+    return;
+  }
+
+  if (!win || win.polarDay || win.level < 1) {
+    setTone($('best-card'), TONE.bad);
+    setTone(valueEl, TONE.bad);
+    valueEl.textContent = 'Ехать некуда';
+
+    // Объясняем, что именно мешает: это видно по лучшей из точек.
+    var reason;
+    var cloudy = list.every(function (item) {
+      return item.window && !item.window.polarDay && item.window.cloudMin > 75;
+    });
+    var kpNow = state.kp ? state.kp.value : null;
+
+    if (cloudy) {
+      reason = 'Этой ночью затянуто во всей области — ни в одной из семи точек нет просветов.';
+    } else if (kpNow !== null && kpScore(kpNow, findPoint(REFERENCE_POINT_ID)) === 0) {
+      reason = 'Магнитное поле спокойно, и прогноз Kp на ночь не обещает роста. ' +
+        'Даже там, где небо чистое, смотреть нечего.';
+    } else {
+      reason = 'Ни в одной из семи точек сочетание облачности и прогнозного Kp не даёт ' +
+        'заметного шанса. Список ниже показывает, насколько всё плохо.';
+    }
+    hintEl.textContent = reason + ' Лучше дождаться следующей ночи.';
+    return;
+  }
+
+  var tone = levelTone(win.level);
+  setTone($('best-card'), tone);
+  setTone(valueEl, tone);
+
+  valueEl.textContent = best.point.name + ', ' + fmtTime(win.from) + ' — ' + fmtTime(win.to);
+
+  var cloudText = win.cloudMin === win.cloudMax
+    ? 'облачность ' + win.cloudMin + '%'
+    : 'облачность ' + win.cloudMin + '–' + win.cloudMax + '%';
+
+  hintEl.textContent = levelWord(win.level).toLowerCase() + ' · ' + cloudText +
+    (win.kpMax !== null ? ' · Kp до ' + fmtKp(win.kpMax) : '') +
+    (best.point.km ? '. От Мурманска ' + best.point.km + ' км, около ' + best.point.drive + ' пути.'
+                   : '. Никуда ехать не нужно — это Мурманск.');
+
+  [
+    'Засветка: ' + LIGHT_POLLUTION[best.point.light].label,
+    'Порог Kp здесь: ' + fmtKp(kpThresholds(best.point).low),
+    win.fullDark ? 'Полная темнота' : 'Неполная темнота'
+  ].forEach(function (text) {
+    var li = document.createElement('li');
+    li.textContent = text;
+    factors.appendChild(li);
+  });
+}
+
+function renderPlaces(list) {
+  var box = $('places-list');
+  box.innerHTML = '';
+
+  list.forEach(function (item, index) {
+    var point = item.point;
+    var win = item.window;
+    var usable = win && !win.polarDay;
+    var tone = usable ? levelTone(win.level) : TONE.bad;
+
+    var row = document.createElement('div');
+    row.className = 'place' + (index === 0 && usable && win.level >= 1 ? ' place--best' : '');
+    setTone(row, tone);
+
+    var name = document.createElement('div');
+    name.className = 'place__name';
+    name.textContent = point.name;
+
+    var level = document.createElement('div');
+    level.className = 'place__level';
+    level.textContent = usable ? levelWord(win.level) : 'Нет темноты';
+    setTone(level, tone);
+
+    var facts = document.createElement('div');
+    facts.className = 'place__facts';
+    if (usable) {
+      var cloud = win.cloudMin === win.cloudMax
+        ? win.cloudMin + '%'
+        : win.cloudMin + '–' + win.cloudMax + '%';
+      facts.textContent = fmtTime(win.from) + ' — ' + fmtTime(win.to) +
+        ' · облачность ' + cloud +
+        (win.kpMax !== null ? ' · Kp до ' + fmtKp(win.kpMax) : '') +
+        ' · порог Kp ' + fmtKp(kpThresholds(point).low);
+    } else {
+      facts.textContent = win ? 'Солнце не опускается ниже −6°' : 'Нет данных об облачности';
+    }
+
+    var travel = document.createElement('div');
+    travel.className = 'place__travel';
+    travel.textContent = point.km
+      ? 'От Мурманска ' + point.km + ' км, около ' + point.drive + ' в пути' +
+        (point.note ? ' · ' + point.note : '') +
+        ' · засветка ' + LIGHT_POLLUTION[point.light].label
+      : 'Точка отсчёта · засветка ' + LIGHT_POLLUTION[point.light].label;
+
+    row.appendChild(name);
+    row.appendChild(level);
+    row.appendChild(facts);
+    row.appendChild(travel);
+    box.appendChild(row);
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Вкладки                                                            */
+/* ------------------------------------------------------------------ */
+
+var TAB_IDS = ['now', 'tonight'];
+
+function savedTab() {
+  try {
+    return localStorage.getItem(CACHE.prefix + 'tab');
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveTab(id) {
+  try {
+    localStorage.setItem(CACHE.prefix + 'tab', id);
+  } catch (e) { /* выбор просто не переживёт перезагрузку */ }
+}
+
+function showTab(id, updateHash) {
+  if (TAB_IDS.indexOf(id) < 0) id = 'now';
+
+  TAB_IDS.forEach(function (tab) {
+    $('tab-' + tab).hidden = (tab !== id);
+  });
+
+  var buttons = $('tabs').querySelectorAll('[data-tab]');
+  Array.prototype.forEach.call(buttons, function (btn) {
+    btn.setAttribute('aria-selected', String(btn.getAttribute('data-tab') === id));
+  });
+
+  state.tab = id;
+  saveTab(id);
+  if (updateHash !== false && location.hash !== '#' + id) location.hash = '#' + id;
+
+  // Данные второй вкладки грузятся при первом открытии, а не при старте.
+  if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
+}
+
+function initTabs() {
+  var fromHash = (location.hash || '').replace('#', '');
+  var initial = TAB_IDS.indexOf(fromHash) >= 0 ? fromHash : (savedTab() || 'now');
+
+  $('tabs').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-tab]') : null;
+    if (btn) showTab(btn.getAttribute('data-tab'), true);
+  });
+
+  // Ссылкой с хэшем можно поделиться, работают и кнопки «назад/вперёд».
+  window.addEventListener('hashchange', function () {
+    showTab((location.hash || '').replace('#', '') || 'now', false);
+  });
+
+  showTab(initial, true);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1277,6 +1586,9 @@ function initPointSelect() {
 function renderDerived() {
   renderVerdict();
   renderWindow();
+  // Ночная вкладка опирается на общий прогноз Kp: если он обновился,
+  // её оценки надо пересчитать. Но только когда данные уже загружены.
+  if (state.tonight) renderTonight();
 }
 
 function refreshAll() {
@@ -1286,7 +1598,10 @@ function refreshAll() {
   setState('verdict-card', 'loading');
   setState('window-card', 'loading');
 
-  return Promise.all([loadKp(), loadCloud(), loadForecast()])
+  var tasks = [loadKp(), loadCloud(), loadForecast()];
+  if (state.tonight) tasks.push(loadTonight());
+
+  return Promise.all(tasks)
     .then(function () {
       renderDerived();
 
@@ -1314,6 +1629,7 @@ function init() {
   cacheDrop('cloud');
 
   initPointSelect();
+  initTabs();
   $('cloud-model').textContent = 'Модель прогноза: ' + weatherModelLabel();
   $('refresh').addEventListener('click', refreshAll);
 
@@ -1322,6 +1638,7 @@ function init() {
     var target = e.target.closest ? e.target.closest('[data-retry]') : null;
     if (!target) return;
     var what = target.getAttribute('data-retry');
+    if (what === 'tonight')  loadTonight();
     if (what === 'kp')       loadKp().then(renderDerived);
     if (what === 'cloud')    loadCloud().then(renderDerived);
     if (what === 'forecast') loadForecast().then(renderDerived);

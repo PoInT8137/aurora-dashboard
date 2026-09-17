@@ -33,7 +33,18 @@
   </div>
 </header>
 
-<main class="wrap">
+<nav class="tabs" id="tabs" aria-label="Разделы">
+  <button class="tabs__btn" type="button" data-tab="now" aria-selected="true">
+    <span class="tabs__title">Сейчас</span>
+    <span class="tabs__sub">условия в точке</span>
+  </button>
+  <button class="tabs__btn" type="button" data-tab="tonight" aria-selected="false">
+    <span class="tabs__title">Куда ехать ночью</span>
+    <span class="tabs__sub">сравнение семи точек</span>
+  </button>
+</nav>
+
+<main class="wrap" id="tab-now">
 
   <!-- Итоговый вердикт -->
   <section class="card card--verdict" id="verdict-card" data-state="loading">
@@ -175,6 +186,53 @@
        <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
        Обновление автоматически каждые 5 минут.</p>
     <p class="foot__note">Оценка ориентировочная: Kp и облачность не учитывают засветку города, туман и локальные разрывы облаков.</p>
+  </footer>
+
+</main>
+
+<main class="wrap" id="tab-tonight" hidden>
+
+  <!-- Ответ: куда ехать -->
+  <section class="card card--verdict" id="best-card" data-state="loading">
+    <h2 class="card__label">Куда ехать этой ночью</h2>
+
+    <div class="card__loading">Считаем по семи точкам…</div>
+
+    <div class="card__body">
+      <p class="verdict__value" id="best-value">—</p>
+      <p class="verdict__hint" id="best-hint"></p>
+      <ul class="verdict__factors" id="best-factors"></ul>
+    </div>
+
+    <p class="card__stale" id="best-stale">
+      <span class="stale__text"></span>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="tonight">Повторить</button>
+    </p>
+
+    <div class="card__error">
+      <p class="card__error-text" id="best-error">Не удалось загрузить прогноз по точкам.</p>
+      <button class="btn btn--ghost" type="button" data-retry="tonight">Повторить</button>
+    </div>
+  </section>
+
+  <!-- Список точек -->
+  <section class="card card--wide" id="places-card" data-state="loading">
+    <h2 class="card__label">Все точки по убыванию оценки</h2>
+
+    <div class="card__loading">Загружаем облачность…</div>
+
+    <div class="card__body">
+      <div class="places" id="places-list"></div>
+      <p class="card__meta">Расстояния и время в пути — приблизительные, по автодорогам от Мурманска и для летних условий. Зимой, в метель и на грунтовке до Териберки дорога занимает заметно больше.</p>
+    </div>
+
+    <div class="card__error">
+      <p class="card__error-text">Список недоступен — нет данных об облачности.</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
   </footer>
 
 </main>
