@@ -6,9 +6,47 @@
 /*  Настройки                                                          */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Точки наблюдения в Мурманской области.
+ *
+ * Координаты проверены по открытому геокодеру Open-Meteo (данные GeoNames).
+ *
+ * geoLat — геомагнитная широта в дипольном приближении IGRF (эпоха ~2025,
+ * северный геомагнитный полюс 80.7° с. ш., 72.7° з. д.):
+ *
+ *   sin(φm) = sin(φ)·sin(φp) + cos(φ)·cos(φp)·cos(λ − λp)
+ *
+ * Это не строгая скорректированная геомагнитная широта (CGM), которой
+ * пользуются в авроральной науке: в этом регионе расхождение до полуградуса,
+ * то есть до четверти единицы Kp — меньше шага самих данных NOAA.
+ *
+ * Заметная деталь: Териберка географически севернее Мурманска, а геомагнитно
+ * чуть южнее — геомагнитная сетка наклонена, и Териберка лежит восточнее.
+ * Её преимущество перед городом не в широте, а в отсутствии засветки.
+ *
+ * light — уровень засветки, в расчёт не входит: только пояснение к вердикту.
+ */
+var POINTS = [
+  { id: 'murmansk',    name: 'Мурманск',   lat: 68.9678, lon: 33.0992, geoLat: 64.87, light: 'high' },
+  { id: 'teriberka',   name: 'Териберка',  lat: 69.1609, lon: 35.1453, geoLat: 64.78, light: 'minimal' },
+  { id: 'monchegorsk', name: 'Мончегорск', lat: 67.9397, lon: 32.8739, geoLat: 63.94, light: 'medium' },
+  { id: 'lovozero',    name: 'Ловозеро',   lat: 68.0056, lon: 35.0187, geoLat: 63.72, light: 'low' },
+  { id: 'kirovsk',     name: 'Кировск',    lat: 67.6148, lon: 33.6727, geoLat: 63.53, light: 'medium' },
+  { id: 'apatity',     name: 'Апатиты',    lat: 67.5827, lon: 33.4134, geoLat: 63.53, light: 'medium' },
+  { id: 'kandalaksha', name: 'Кандалакша', lat: 67.1512, lon: 32.4128, geoLat: 63.26, light: 'medium' }
+];
+
+var LIGHT_POLLUTION = {
+  high:    { label: 'сильная',    hint: 'Городская засветка сильная: за городом, в 15–20 км от огней, слабое сияние видно заметно лучше.' },
+  medium:  { label: 'заметная',   hint: 'Засветка заметная — стоит отъехать на несколько километров от освещённых улиц.' },
+  low:     { label: 'слабая',     hint: 'Засветка слабая — достаточно отойти от фонарей.' },
+  minimal: { label: 'минимальная', hint: 'Засветки практически нет — условия для наблюдения идеальные.' }
+};
+
+/* Точка, под которую подобраны пороги баллов за Kp: от неё считается сдвиг. */
+var REFERENCE_POINT_ID = 'murmansk';
+
 var CONFIG = {
-  lat: 68.97,
-  lon: 33.07,
   tz: 'Europe/Moscow',
   timeoutMs: 12000,        // таймаут одного запроса
   retries: 1,              // одна автоматическая повторная попытка
@@ -79,14 +117,18 @@ var CLOUD_CONFLICT_LIMIT = 30;
 var URLS = {
   kpNow:      'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json',
   kpNowAlt:   'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
-  kpForecast: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json',
-  weather:    'https://api.open-meteo.com/v1/forecast'
-    + '?latitude=' + CONFIG.lat + '&longitude=' + CONFIG.lon
+  kpForecast: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json'
+};
+
+/** Адрес погоды для выбранной точки. */
+function weatherUrl(point) {
+  return 'https://api.open-meteo.com/v1/forecast'
+    + '?latitude=' + point.lat + '&longitude=' + point.lon
     + '&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m'
     + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
     + '&models=' + CONFIG.weatherModel
-    + '&forecast_days=2&timezone=UTC'
-};
+    + '&forecast_days=2&timezone=UTC';
+}
 
 /**
  * Веса ярусов облачности. Сияние светится на высоте 100–300 км, выше любых
@@ -103,7 +145,37 @@ var CLOUD_LAYERS = [
 ];
 
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
-var state = { kp: null, cloud: null, forecast: null, lastOk: null };
+var state = { point: null, kp: null, cloud: null, forecast: null, lastOk: null };
+
+/* ------------------------------------------------------------------ */
+/*  Точка наблюдения                                                   */
+/* ------------------------------------------------------------------ */
+
+function findPoint(id) {
+  for (var i = 0; i < POINTS.length; i++) {
+    if (POINTS[i].id === id) return POINTS[i];
+  }
+  return POINTS[0];
+}
+
+function currentPoint() {
+  return state.point || POINTS[0];
+}
+
+/** Выбор города переживает перезагрузку; хранилище может быть недоступно. */
+function savedPointId() {
+  try {
+    return localStorage.getItem(CACHE.prefix + 'point');
+  } catch (e) {
+    return null;
+  }
+}
+
+function savePointId(id) {
+  try {
+    localStorage.setItem(CACHE.prefix + 'point', id);
+  } catch (e) { /* без сохранения выбор просто не переживёт перезагрузку */ }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Утилиты                                                            */
@@ -246,6 +318,16 @@ function cacheLoad(key) {
   }
 }
 
+/**
+ * Облачность зависит от точки, поэтому кэшируется по каждой отдельно.
+ * Kp и его прогноз — планетарные величины, одинаковые для всей области,
+ * и хранятся общими ключами: смешиваться там нечему, а копия на каждый город
+ * лишила бы запасных данных при переходе в город, куда ещё не заходили.
+ */
+function cloudCacheKey(point) {
+  return 'cloud.' + point.id;
+}
+
 function cacheDrop(key) {
   try {
     localStorage.removeItem(CACHE.prefix + key);
@@ -304,25 +386,54 @@ function solarAltitude(date, lat, lon) {
 
 var TONE = { ok: '#4dffb8', mid: '#ffd166', bad: '#ff7a8a' };
 
-/** Балл за Kp (0..3). Пороги низкие: Мурманск лежит под авроральным овалом. */
-function kpScore(kp) {
-  if (kp >= 3) return 3;
-  if (kp >= 2) return 2;
-  if (kp >= 1) return 1;
+/**
+ * Пороги баллов за Kp для точки наблюдения.
+ *
+ * Экваториальная граница аврорального овала опускается примерно на 2°
+ * геомагнитной широты на каждую единицу Kp, то есть овал оказывается над
+ * головой при Kp ≈ (67° − φm) / 2. Для Мурманска это ≈ 1,1, и пороги 1/2/3,
+ * подобранные под него, уже это отражают. Поэтому шкала не считается заново,
+ * а якорится на Мурманск и сдвигается для остальных точек:
+ *
+ *   сдвиг = (φm Мурманска − φm точки) / 2
+ *
+ * Кандалакше, например, нужно почти на целую единицу Kp больше, чем
+ * Мурманску, — это соответствует 200 км разницы по меридиану.
+ */
+function kpThresholds(point) {
+  var reference = findPoint(REFERENCE_POINT_ID);
+  var shift = (reference.geoLat - point.geoLat) / 2;
+  return { low: 1 + shift, mid: 2 + shift, high: 3 + shift };
+}
+
+/** Балл за Kp (0..3) для выбранной точки. */
+function kpScore(kp, point) {
+  var t = kpThresholds(point || currentPoint());
+  if (kp >= t.high) return 3;
+  if (kp >= t.mid) return 2;
+  if (kp >= t.low) return 1;
   return 0;
 }
 
-function kpText(kp) {
-  if (kp >= 5) return 'Магнитная буря — сияние вероятно и южнее Мурманска';
-  if (kp >= 3) return 'Повышенная активность — овал сияния над городом';
-  if (kp >= 2) return 'Умеренная активность — сияние возможно на севере неба';
-  if (kp >= 1) return 'Слабая активность — шанс на бледную дугу у горизонта';
+function kpText(kp, point) {
+  point = point || currentPoint();
+  var score = kpScore(kp, point);
+  var t = kpThresholds(point);
+
+  if (score === 3) {
+    return kp >= t.high + 2
+      ? 'Магнитная буря — сияние вероятно и южнее'
+      : 'Повышенная активность — овал сияния над точкой';
+  }
+  if (score === 2) return 'Умеренная активность — сияние возможно на севере неба';
+  if (score === 1) return 'Слабая активность — шанс на бледную дугу у горизонта';
   return 'Магнитное поле спокойно';
 }
 
-function kpTone(kp) {
-  if (kp >= 3) return TONE.ok;
-  if (kp >= 1) return TONE.mid;
+function kpTone(kp, point) {
+  var score = kpScore(kp, point);
+  if (score === 3) return TONE.ok;
+  if (score >= 1) return TONE.mid;
   return TONE.bad;
 }
 
@@ -360,7 +471,7 @@ function cloudTone(pct) {
  * ни при каком Kp, поэтому светлое небо опускает вердикт.
  */
 function computeVerdict(kp, cloud) {
-  var ks = kp !== null ? kpScore(kp.value) : null;
+  var ks = kp !== null ? kpScore(kp.value, currentPoint()) : null;
   var cs = cloud !== null ? cloudScore(cloud.value, cloud.conflict) : null;
 
   if (ks === null && cs === null) return null; // считать не из чего
@@ -383,7 +494,8 @@ function computeVerdict(kp, cloud) {
   }
 
   // Освещённость неба
-  var alt = solarAltitude(new Date(), CONFIG.lat, CONFIG.lon);
+  var point = currentPoint();
+  var alt = solarAltitude(new Date(), point.lat, point.lon);
   var tooLight = false;
 
   if (alt > -6) {
@@ -399,7 +511,7 @@ function computeVerdict(kp, cloud) {
 
   var hint;
   if (level === 'high') {
-    hint = 'Хорошие условия: активность есть, небо достаточно чистое. Отойдите от городской засветки и смотрите на север.';
+    hint = 'Хорошие условия: активность есть, небо достаточно чистое. Смотрите на север.';
   } else if (level === 'mid') {
     hint = 'Шанс есть, но не гарантирован — имеет смысл проверять небо каждые полчаса.';
   } else if (tooLight) {
@@ -411,6 +523,13 @@ function computeVerdict(kp, cloud) {
   } else {
     hint = 'Условия неблагоприятные.';
   }
+
+  // Засветка в расчёт не входит — только пояснение. Упоминаем её, когда
+  // небо в принципе стоит смотреть: при полярном дне или сплошных облаках
+  // совет отъехать от фонарей бесполезен.
+  var light = LIGHT_POLLUTION[point.light];
+  factors.push('Засветка: ' + light.label);
+  if (light && !tooLight && level !== 'low') hint += ' ' + light.hint;
 
   if (partial) hint += ' Оценка неполная: часть данных не загрузилась.';
 
@@ -604,7 +723,9 @@ function readLayers(source, index) {
 function loadCloud() {
   setState('cloud-card', 'loading');
 
-  return fetchJson(URLS.weather)
+  var point = currentPoint();
+
+  return fetchJson(weatherUrl(point))
     .then(function (data) {
       var cur = data && data.current;
       var total = cur ? num(cur.cloud_cover) : null;
@@ -635,12 +756,12 @@ function loadCloud() {
         stale: null
       };
       state.cloud = cloud;
-      cacheSave('cloud', cloud);
+      cacheSave(cloudCacheKey(point), cloud);
       renderCloud(cloud);
       return cloud;
     })
     .catch(function (err) {
-      var cached = cacheLoad('cloud');
+      var cached = cacheLoad(cloudCacheKey(point));
 
       if (cached) {
         var cloud = cached.payload;
@@ -895,7 +1016,7 @@ function hourLevel(kp, cloudPct, alt, conflict) {
     // Без прогноза Kp судим только по небу и выше среднего не поднимаемся.
     level = cs >= 3 ? 1 : 0;
   } else {
-    var product = kpScore(kp) * cs;
+    var product = kpScore(kp, currentPoint()) * cs;
     level = product >= 6 ? 2 : (product >= 2 ? 1 : 0);
   }
 
@@ -911,6 +1032,7 @@ function hourLevel(kp, cloudPct, alt, conflict) {
 function computeNightWindow(cloud, kpRows, kpNow) {
   if (!cloud || !cloud.hours || !cloud.hours.length) return null;
 
+  var point = currentPoint();
   var now = Date.now();
   var hours = [];
 
@@ -920,7 +1042,7 @@ function computeNightWindow(cloud, kpRows, kpNow) {
     hours.push({
       time: t,
       cloud: cloud.hours[i].cloud,
-      alt: solarAltitude(t, CONFIG.lat, CONFIG.lon)
+      alt: solarAltitude(t, point.lat, point.lon)
     });
   }
 
@@ -1102,6 +1224,55 @@ function renderVerdict() {
 /*  Оркестрация                                                        */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Селектор точки                                                     */
+/* ------------------------------------------------------------------ */
+
+function fmtCoord(value, positive, negative) {
+  return Math.abs(value).toFixed(2).replace('.', ',') + '° ' + (value >= 0 ? positive : negative);
+}
+
+/** Подпись под заголовком и название вкладки. */
+function renderPointMeta() {
+  var point = currentPoint();
+  var t = kpThresholds(point);
+
+  $('point-meta').textContent =
+    fmtCoord(point.lat, 'с. ш.', 'ю. ш.') + ', ' + fmtCoord(point.lon, 'в. д.', 'з. д.') +
+    ' · геомагнитная широта ' + point.geoLat.toFixed(1).replace('.', ',') + '°' +
+    ' · сияние заметно от Kp ' + fmtKp(t.low);
+
+  document.title = 'Северное сияние — ' + point.name;
+}
+
+function initPointSelect() {
+  var select = $('point');
+
+  POINTS.forEach(function (point) {
+    var option = document.createElement('option');
+    option.value = point.id;
+    option.textContent = point.name;
+    select.appendChild(option);
+  });
+
+  state.point = findPoint(savedPointId() || POINTS[0].id);
+  select.value = state.point.id;
+  renderPointMeta();
+
+  select.addEventListener('change', function () {
+    state.point = findPoint(select.value);
+    savePointId(state.point.id);
+    renderPointMeta();
+
+    // Облачность принадлежала прежней точке — её нельзя показывать для новой.
+    state.cloud = null;
+    setState('cloud-card', 'loading');
+    setState('window-card', 'loading');
+
+    refreshAll();
+  });
+}
+
 /** Всё, что считается из уже загруженных данных. */
 function renderDerived() {
   renderVerdict();
@@ -1138,6 +1309,11 @@ function refreshAll() {
 }
 
 function init() {
+  // До появления выбора точки облачность лежала в общем ключе. У тех, кто
+  // заходил раньше, он остался мусором — убираем при первом же запуске.
+  cacheDrop('cloud');
+
+  initPointSelect();
   $('cloud-model').textContent = 'Модель прогноза: ' + weatherModelLabel();
   $('refresh').addEventListener('click', refreshAll);
 

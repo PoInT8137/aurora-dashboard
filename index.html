@@ -21,7 +21,11 @@
 <header class="topbar">
   <div class="topbar__title">
     <h1>Северное сияние</h1>
-    <p class="topbar__place">Мурманск · 68.97° с. ш., 33.07° в. д.</p>
+    <div class="point">
+      <label class="point__label" for="point">Точка наблюдения</label>
+      <select class="point__select" id="point"></select>
+    </div>
+    <p class="topbar__place" id="point-meta"></p>
   </div>
   <div class="topbar__actions">
     <span id="updated" class="updated">Загрузка…</span>

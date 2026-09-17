@@ -85,10 +85,45 @@ body {
 }
 
 .topbar__place {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   color: var(--text-dim);
   font-size: 14px;
 }
+
+/* Выбор точки наблюдения */
+.point {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.point__label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.point__select {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(53, 214, 232, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.point__select:hover { background: rgba(53, 214, 232, 0.18); border-color: rgba(53, 214, 232, 0.45); }
+.point__select:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
+
+/* Список вариантов рисует система — задаём тёмный фон явно */
+.point__select option { background: #0f1c2e; color: var(--text); }
 
 .topbar__actions {
   display: flex;
