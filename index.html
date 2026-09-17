@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Северное сияние — Мурманск</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="aurora-bg" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar__title">
+    <h1>Северное сияние</h1>
+    <p class="topbar__place">Мурманск · 68.97° с. ш., 33.07° в. д.</p>
+  </div>
+  <div class="topbar__actions">
+    <span id="updated" class="updated">Загрузка…</span>
+    <button id="refresh" class="btn" type="button">Обновить</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Итоговый вердикт -->
+  <section class="card card--verdict" id="verdict-card" data-state="loading">
+    <h2 class="card__label">Шанс увидеть сияние</h2>
+
+    <div class="card__loading">Считаем…</div>
+
+    <div class="card__body">
+      <p class="verdict__value" id="verdict-value">—</p>
+      <p class="verdict__hint" id="verdict-hint"></p>
+      <ul class="verdict__factors" id="verdict-factors"></ul>
+    </div>
+
+    <div class="card__error">
+      <p>Не удалось рассчитать оценку — нет данных.</p>
+    </div>
+  </section>
+
+  <div class="grid">
+
+    <!-- Kp -->
+    <section class="card" id="kp-card" data-state="loading">
+      <h2 class="card__label">Kp-индекс</h2>
+
+      <div class="card__loading">Запрашиваем NOAA SWPC…</div>
+
+      <div class="card__body">
+        <p class="bignum" id="kp-value">—</p>
+        <p class="card__caption" id="kp-caption"></p>
+        <div class="scale" id="kp-scale" aria-hidden="true"></div>
+        <p class="card__meta" id="kp-time"></p>
+      </div>
+
+      <div class="card__error">
+        <p class="card__error-text" id="kp-error">Нет связи с NOAA SWPC.</p>
+        <button class="btn btn--ghost" type="button" data-retry="kp">Повторить</button>
+      </div>
+    </section>
+
+    <!-- Облачность -->
+    <section class="card" id="cloud-card" data-state="loading">
+      <h2 class="card__label">Облачность</h2>
+
+      <div class="card__loading">Запрашиваем Open-Meteo…</div>
+
+      <div class="card__body">
+        <p class="bignum" id="cloud-value">—</p>
+        <p class="card__caption" id="cloud-caption"></p>
+        <div class="cloudbar"><div class="cloudbar__fill" id="cloud-fill"></div></div>
+        <p class="card__meta" id="cloud-meta"></p>
+      </div>
+
+      <div class="card__error">
+        <p class="card__error-text" id="cloud-error">Нет связи с Open-Meteo.</p>
+        <button class="btn btn--ghost" type="button" data-retry="cloud">Повторить</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Прогноз Kp -->
+  <section class="card card--wide" id="forecast-card" data-state="loading">
+    <h2 class="card__label">Прогноз Kp на трое суток</h2>
+
+    <div class="card__loading">Загружаем прогноз…</div>
+
+    <div class="card__body">
+      <div class="forecast" id="forecast-list"></div>
+      <p class="card__meta">Время местное (UTC+3), шаг 3 часа. Источник: NOAA SWPC 3-day forecast. Прогнозные значения усреднены по трёхчасовкам и могут отличаться от текущей оценки Kp выше.</p>
+    </div>
+
+    <div class="card__error">
+      <p class="card__error-text" id="forecast-error">Прогноз недоступен.</p>
+      <button class="btn btn--ghost" type="button" data-retry="forecast">Повторить</button>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>Данные: <a href="https://www.swpc.noaa.gov/" target="_blank" rel="noopener">NOAA SWPC</a> ·
+       <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
+       Обновление автоматически каждые 5 минут.</p>
+    <p class="foot__note">Оценка ориентировочная: Kp и облачность не учитывают засветку города, туман и локальные разрывы облаков.</p>
+  </footer>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
