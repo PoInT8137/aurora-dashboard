@@ -28,23 +28,27 @@
     <p class="topbar__place" id="point-meta"></p>
   </div>
   <div class="topbar__actions">
-    <span id="updated" class="updated">Загрузка…</span>
+    <span id="updated" class="updated" role="status">Загрузка…</span>
     <button id="refresh" class="btn" type="button">Обновить</button>
   </div>
 </header>
 
-<nav class="tabs" id="tabs" aria-label="Разделы">
-  <button class="tabs__btn" type="button" data-tab="now" aria-selected="true">
+<div class="tabs" id="tabs" role="tablist" aria-label="Разделы">
+  <button class="tabs__btn" type="button" role="tab" id="tab-btn-now" data-tab="now"
+          aria-controls="tab-now" aria-selected="true" tabindex="0">
     <span class="tabs__title">Сейчас</span>
     <span class="tabs__sub">условия в точке</span>
   </button>
-  <button class="tabs__btn" type="button" data-tab="tonight" aria-selected="false">
+  <button class="tabs__btn" type="button" role="tab" id="tab-btn-tonight" data-tab="tonight"
+          aria-controls="tab-tonight" aria-selected="false" tabindex="-1">
     <span class="tabs__title">Куда ехать ночью</span>
     <span class="tabs__sub">сравнение семи точек</span>
   </button>
-</nav>
+</div>
 
-<main class="wrap" id="tab-now">
+<main>
+
+<section class="wrap" id="tab-now" role="tabpanel" aria-labelledby="tab-btn-now" tabindex="0">
 
   <!-- Итоговый вердикт -->
   <section class="card card--verdict" id="verdict-card" data-state="loading">
@@ -188,9 +192,9 @@
     <p class="foot__note">Оценка ориентировочная. Засветка показана в факторах и пояснении, но в расчёт шанса не входит: это свойство места, а не прогноз. Туман и локальные разрывы облаков модель не видит.</p>
   </footer>
 
-</main>
+</section>
 
-<main class="wrap" id="tab-tonight" hidden>
+<section class="wrap" id="tab-tonight" role="tabpanel" aria-labelledby="tab-btn-tonight" tabindex="0" hidden>
 
   <!-- Ответ: куда ехать -->
   <section class="card card--verdict" id="best-card" data-state="loading">
@@ -234,6 +238,8 @@
   <footer class="foot">
     <p>Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
   </footer>
+
+</section>
 
 </main>
 

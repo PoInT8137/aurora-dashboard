@@ -5,7 +5,7 @@
   --border:        rgba(120, 190, 200, 0.16);
   --text:          #e8f1f5;
   --text-dim:      #8ea3b5;
-  --text-faint:    #5d7186;
+  --text-faint:    #74889c;
 
   --aurora-green:  #4dffb8;
   --aurora-teal:   #35d6e8;
@@ -161,8 +161,16 @@ body {
 }
 
 .btn:hover  { background: rgba(53, 214, 232, 0.22); border-color: rgba(53, 214, 232, 0.45); }
+
 .btn:active { transform: translateY(1px); }
 .btn[disabled] { opacity: 0.5; cursor: progress; }
+
+/* Видимый фокус с клавиатуры — единый для всех элементов управления */
+.btn:focus-visible,
+.tabs__btn:focus-visible {
+  outline: 2px solid var(--aurora-teal);
+  outline-offset: 2px;
+}
 
 .btn--ghost { background: transparent; margin-top: 10px; }
 
@@ -307,8 +315,12 @@ body {
 
 .card[data-state="stale"] .card__body {
   display: block;
-  opacity: 0.42;
-  filter: saturate(0.5);
+  /* Приглушаем цвет, а не прозрачность: при opacity 0,42 основной текст
+     падал до контраста 3,7:1, а мелкий — до 1,6:1. Серый вместо белого и
+     выцветшие оценки читаются как «не живые данные», но весь текст держит
+     не меньше 4,9:1. */
+  --text: #aab6c0;
+  filter: saturate(0.35);
 }
 
 .card[data-state="stale"] .card__stale {
@@ -445,7 +457,7 @@ body {
 .card__model {
   margin: 6px 0 0;
   font-size: 12px;
-  color: #4c5f72;
+  color: var(--text-faint);
 }
 
 .layers__note {
@@ -647,6 +659,14 @@ body {
 }
 
 .foot p { margin: 4px 0; }
-.foot__note { color: #4c5f72; }
+.foot__note { color: var(--text-faint); }
 .foot a { color: var(--aurora-teal); text-decoration: none; }
 .foot a:hover { text-decoration: underline; }
+
+/* Панель вкладки фокусируется с клавиатуры (Tab из вкладок ведёт в неё),
+   но кольцо вокруг всей страницы было бы шумом — показываем тонкую линию. */
+[role="tabpanel"]:focus-visible {
+  outline: 1px solid rgba(53, 214, 232, 0.35);
+  outline-offset: 4px;
+  border-radius: 12px;
+}

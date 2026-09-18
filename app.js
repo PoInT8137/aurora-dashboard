@@ -1574,9 +1574,13 @@ function showTab(id, historyMode) {
     $('tab-' + tab).hidden = (tab !== id);
   });
 
-  var buttons = $('tabs').querySelectorAll('[data-tab]');
+  // Паттерн вкладок WAI-ARIA: в порядке Tab стоит только выбранная вкладка,
+  // между вкладками перемещаются стрелками.
+  var buttons = $('tabs').querySelectorAll('[role="tab"]');
   Array.prototype.forEach.call(buttons, function (btn) {
-    btn.setAttribute('aria-selected', String(btn.getAttribute('data-tab') === id));
+    var selected = btn.getAttribute('data-tab') === id;
+    btn.setAttribute('aria-selected', String(selected));
+    btn.tabIndex = selected ? 0 : -1;
   });
 
   state.tab = id;
@@ -1598,6 +1602,22 @@ function initTabs() {
   $('tabs').addEventListener('click', function (e) {
     var btn = e.target.closest ? e.target.closest('[data-tab]') : null;
     if (btn) showTab(btn.getAttribute('data-tab'), 'push');
+  });
+
+  // Стрелки, Home и End переключают вкладки и переводят на них фокус.
+  $('tabs').addEventListener('keydown', function (e) {
+    var keys = { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
+    if (!(e.key in keys)) return;
+    e.preventDefault();
+
+    var index = TAB_IDS.indexOf(state.tab);
+    var step = keys[e.key];
+    if (step === 'first') index = 0;
+    else if (step === 'last') index = TAB_IDS.length - 1;
+    else index = (index + step + TAB_IDS.length) % TAB_IDS.length;
+
+    showTab(TAB_IDS[index], 'push');
+    $('tab-btn-' + TAB_IDS[index]).focus();
   });
 
   // Ссылкой с хэшем можно поделиться, работают и кнопки «назад/вперёд».
