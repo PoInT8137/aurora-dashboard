@@ -160,7 +160,8 @@ var CLOUD_LAYERS = [
 
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
 var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null,
-              tonight: null, tonightLoading: false, lastOk: null };
+              tonight: null, tonightLoading: false, lastOk: null,
+              cloudSeq: 0, cloudPending: false, refreshing: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -740,6 +741,13 @@ function loadCloud() {
 
   var point = currentPoint();
 
+  // Каждый запрос получает номер, и ответ применяется, только если за время
+  // ожидания не ушёл более новый. Иначе при быстрой смене городов медленный
+  // ответ по прежнему городу приходил вторым и перезаписывал данные выбранного.
+  var seq = ++state.cloudSeq;
+  var isLatest = function () { return seq === state.cloudSeq; };
+  state.cloudPending = true;
+
   return fetchJson(weatherUrl(point))
     .then(function (data) {
       var cur = data && data.current;
@@ -768,14 +776,24 @@ function loadCloud() {
         time: parseUtc(cur.time),
         soon: pickCloudIn(data, 3),
         hours: readHourlyCloud(data),
+        pointId: point.id,
         stale: null
       };
-      state.cloud = cloud;
+
+      // Данные верны для своей точки, поэтому в кэш кладём в любом случае —
+      // а показываем, только если это ответ на последний запрос.
       cacheSave(cloudCacheKey(point), cloud);
+      if (!isLatest()) return null;
+
+      state.cloudPending = false;
+      state.cloud = cloud;
       renderCloud(cloud);
       return cloud;
     })
     .catch(function (err) {
+      if (!isLatest()) return null;
+      state.cloudPending = false;
+
       var cached = cacheLoad(cloudCacheKey(point));
 
       if (cached) {
@@ -1585,24 +1603,55 @@ function initPointSelect() {
     renderPointMeta();
 
     // Облачность принадлежала прежней точке — её нельзя показывать для новой.
+    // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
     state.cloud = null;
-    setState('cloud-card', 'loading');
+    setState('verdict-card', 'loading');
     setState('window-card', 'loading');
 
-    refreshAll();
+    loadCloud().then(function (cloud) {
+      if (cloud === null && state.cloudPending) return; // ответ устарел
+      renderDerived();
+      updateStatus();
+    });
   });
 }
 
 /** Всё, что считается из уже загруженных данных. */
 function renderDerived() {
-  renderVerdict();
-  renderWindow();
+  // Пока облачность для выбранной точки в пути, вердикт и окно не трогаем:
+  // иначе на мгновение показалось бы «облачность: данных нет».
+  if (!state.cloudPending) {
+    renderVerdict();
+    renderWindow();
+  }
   // Ночная вкладка опирается на общий прогноз Kp: если он обновился,
   // её оценки надо пересчитать. Но только когда данные уже загружены.
   if (state.tonight) renderTonight();
 }
 
+/** Строка статуса в шапке по текущему состоянию данных. */
+function updateStatus() {
+  // Свежесть определяется флагом stale, а не наличием данных: после отката
+  // на кэш в state лежат значения, но «Обновлено» писать про них нельзя.
+  var fresh = (state.kp && !state.kp.stale) || (state.cloud && !state.cloud.stale);
+
+  if (fresh) {
+    state.lastOk = new Date();
+    $('updated').textContent = 'Обновлено в ' + fmtTime(state.lastOk);
+  } else if (state.kp || state.cloud) {
+    $('updated').textContent = 'Нет связи · показаны сохранённые данные';
+  } else {
+    $('updated').textContent = state.lastOk
+      ? 'Нет связи · последние данные в ' + fmtTime(state.lastOk)
+      : 'Нет связи с сервисами данных';
+  }
+}
+
 function refreshAll() {
+  // Автообновление, кнопка и возврат на вкладку могут совпасть по времени —
+  // второе обновление просто присоединяется к идущему.
+  if (state.refreshing) return state.refreshing;
+
   var btn = $('refresh');
   btn.disabled = true;
   $('updated').textContent = 'Обновляем…';
@@ -1612,26 +1661,17 @@ function refreshAll() {
   var tasks = [loadKp(), loadCloud(), loadForecast()];
   if (state.tonight) tasks.push(loadTonight());
 
-  return Promise.all(tasks)
+  state.refreshing = Promise.all(tasks)
     .then(function () {
       renderDerived();
-
-      // Свежесть определяется флагом stale, а не наличием данных: после отката
-      // на кэш в state лежат значения, но «Обновлено» писать про них нельзя.
-      var fresh = (state.kp && !state.kp.stale) || (state.cloud && !state.cloud.stale);
-
-      if (fresh) {
-        state.lastOk = new Date();
-        $('updated').textContent = 'Обновлено в ' + fmtTime(state.lastOk);
-      } else if (state.kp || state.cloud) {
-        $('updated').textContent = 'Нет связи · показаны сохранённые данные';
-      } else {
-        $('updated').textContent = state.lastOk
-          ? 'Нет связи · последние данные в ' + fmtTime(state.lastOk)
-          : 'Нет связи с сервисами данных';
-      }
+      updateStatus();
     })
-    .finally(function () { btn.disabled = false; });
+    .finally(function () {
+      btn.disabled = false;
+      state.refreshing = null;
+    });
+
+  return state.refreshing;
 }
 
 function init() {
