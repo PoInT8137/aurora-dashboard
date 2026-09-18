@@ -6,9 +6,9 @@
   "dir": "ltr",
   "display": "standalone",
   "orientation": "any",
-  "start_url": "./",
-  "scope": "./",
-  "id": "./",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
   "theme_color": "#060b14",
   "background_color": "#060b14",
   "categories": [
