@@ -11,7 +11,7 @@
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v5';
+var CACHE_VERSION = 'v6';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [

@@ -1606,18 +1606,22 @@ function showAppNotification(title, options) {
   options.lang = 'ru';
   options.data = { url: location.href.split('#')[0] + '#now' };
 
+  // Результат — каким способом показали; ошибка — если не получилось никак.
+  // Вкладке «Уведомления» это нужно, чтобы сказать человеку, что сломалось.
   var direct = function () {
-    try { new Notification(title, options); } catch (e) { /* не удалось — не страшно */ }
+    new Notification(title, options);
+    return 'напрямую';
   };
 
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
     return navigator.serviceWorker.ready
       .then(function (reg) { return reg.showNotification(title, options); })
-      .catch(direct);
+      .then(function () { return 'через service worker'; }, direct);
   }
-  direct();
-  return Promise.resolve();
+  return new Promise(function (resolve) { resolve(direct()); });
 }
+
+function ignore() { /* результат не нужен, а необработанный отказ шумел бы в консоли */ }
 
 /**
  * Вызывается при каждом пересчёте вердикта. Шлёт уведомление при переходе
@@ -1648,7 +1652,7 @@ function checkHighChance(verdict) {
   showAppNotification('Высокий шанс увидеть сияние — ' + point.name, {
     body: verdict.factors.slice(0, 3).join(' · ') + '. Смотрите на север.',
     tag: 'aurora-high-' + point.id  // новое уведомление по точке заменяет старое
-  });
+  }).catch(ignore);
 }
 
 /** Разрешение: современный вариант с промисом и старый с колбэком (Safari). */
@@ -1695,6 +1699,7 @@ function initNotifications() {
     if (notifyEnabled() && Notification.permission === 'granted') {
       setNotifyEnabled(false);
       renderNotifyControl();
+      renderNotifyDiagnostics();
       return;
     }
 
@@ -1706,18 +1711,206 @@ function initNotifications() {
           body: 'Сообщим, когда в точке «' + currentPoint().name + '» шанс увидеть сияние ' +
             'станет высоким. Пока приложение открыто.',
           tag: 'aurora-test'
-        });
+        }).catch(ignore);
       }
       renderNotifyControl();
+      renderNotifyDiagnostics();
     });
   });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Вкладка «Уведомления»: проверка работоспособности                  */
+/* ------------------------------------------------------------------ */
+
+var CHECK_MARKS = {
+  ok:   { mark: '✓', tone: TONE.ok,  label: 'в порядке' },
+  warn: { mark: '!', tone: TONE.mid, label: 'внимание' },
+  fail: { mark: '✕', tone: TONE.bad, label: 'проблема' }
+};
+
+function isStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true;
+}
+
+function isIOS() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/** Список проверок: что должно сойтись, чтобы уведомление дошло. */
+function notifyChecks() {
+  var checks = [];
+  var supported = notifySupported();
+  var permission = supported ? Notification.permission : null;
+
+  checks.push(supported
+    ? { state: 'ok', title: 'Браузер поддерживает уведомления' }
+    : { state: 'fail', title: 'Браузер не поддерживает уведомления',
+        detail: isIOS() ? 'На iPhone они работают только в приложении, добавленном на экран «Домой».'
+                        : 'Попробуйте Chrome, Edge или Firefox.' });
+
+  if (supported) {
+    if (permission === 'granted') {
+      checks.push({ state: 'ok', title: 'Разрешение для сайта выдано' });
+    } else if (permission === 'denied') {
+      checks.push({ state: 'fail', title: 'Разрешение для сайта запрещено',
+        detail: 'Браузер не покажет ни одного уведомления, пока не разрешить их в настройках сайта — см. ниже.' });
+    } else {
+      checks.push({ state: 'warn', title: 'Разрешение ещё не запрашивали',
+        detail: 'Браузер спросит при первой пробной отправке.' });
+    }
+  }
+
+  var sw = 'serviceWorker' in navigator;
+  var controlled = sw && !!navigator.serviceWorker.controller;
+  checks.push(controlled
+    ? { state: 'ok', title: 'Service worker активен' }
+    : { state: 'warn', title: sw ? 'Service worker ещё не активен' : 'Service worker недоступен',
+        detail: sw ? 'Обновите страницу. Без него на Android уведомления не показываются.'
+                   : 'На Android уведомления не покажутся; на компьютере пробное всё равно сработает.' });
+
+  var on = notifyEnabled() && permission === 'granted';
+  checks.push({
+    state: on ? 'ok' : 'warn',
+    title: on ? 'Уведомления о высоком шансе включены' : 'Уведомления о высоком шансе выключены',
+    detail: on ? 'Для точки «' + currentPoint().name + '», не чаще раза в 3 часа.'
+         : permission === 'denied' ? 'Сначала нужно разрешение для сайта.'
+         : 'Пробное уведомление придёт и без этого, а о сиянии — нет.',
+    toggle: supported && permission !== 'denied' ? (on ? 'Выключить' : 'Включить') : null
+  });
+
+  if (isIOS() && !isStandalone()) {
+    checks.push({ state: 'fail', title: 'Открыто в браузере, а не как приложение',
+      detail: 'На iPhone добавьте сайт на экран «Домой» через «Поделиться» и откройте оттуда.' });
+  } else {
+    checks.push(isStandalone()
+      ? { state: 'ok', title: 'Открыто как установленное приложение' }
+      : { state: 'ok', title: 'Открыто во вкладке браузера',
+          detail: 'Подходит. Уведомления о сиянии будут приходить, пока вкладка открыта.' });
+  }
+
+  return checks;
+}
+
+function renderNotifyDiagnostics() {
+  var list = $('ntest-checks');
+  if (!list) return;
+  list.innerHTML = '';
+
+  notifyChecks().forEach(function (check) {
+    var look = CHECK_MARKS[check.state];
+    var li = document.createElement('li');
+    li.className = 'check';
+
+    var mark = document.createElement('span');
+    mark.className = 'check__mark';
+    mark.textContent = look.mark;
+    mark.setAttribute('aria-label', look.label);
+    setTone(mark, look.tone);
+
+    var title = document.createElement('span');
+    title.className = 'check__title';
+    title.textContent = check.title;
+
+    li.appendChild(mark);
+    li.appendChild(title);
+
+    if (check.toggle) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn--ghost btn--mini';
+      btn.textContent = check.toggle;
+      btn.addEventListener('click', function () { $('notify-btn').click(); });
+      li.appendChild(btn);
+    }
+
+    if (check.detail) {
+      var detail = document.createElement('span');
+      detail.className = 'check__detail';
+      detail.textContent = check.detail;
+      li.appendChild(detail);
+    }
+
+    list.appendChild(li);
+  });
+
+  var denied = notifySupported() && Notification.permission === 'denied';
+  $('ntest-now').disabled = !notifySupported() || denied;
+  $('ntest-later').disabled = !notifySupported() || denied;
+}
+
+function setTestStatus(text, tone) {
+  var el = $('ntest-status');
+  el.textContent = text;
+  setTone(el, tone || null);
+}
+
+/** Пробное уведомление: сейчас или с задержкой, чтобы успеть свернуть приложение. */
+function sendTestNotification(delayMs) {
+  if (!notifySupported()) return;
+
+  var permissionReady = Notification.permission === 'granted'
+    ? Promise.resolve('granted')
+    : askNotificationPermission();
+
+  permissionReady.then(function (permission) {
+    renderNotifyDiagnostics();
+    renderNotifyControl();
+
+    if (permission !== 'granted') {
+      setTestStatus('Разрешение не выдано — браузер не покажет уведомление. Как разрешить, написано ниже.', TONE.bad);
+      return;
+    }
+
+    var send = function () {
+      showAppNotification('Пробное уведомление', {
+        body: 'Уведомления работают. О высоком шансе в точке «' + currentPoint().name +
+          '» сообщим так же, пока приложение открыто.',
+        tag: 'aurora-test'
+      }).then(function (how) {
+        setTestStatus('Отправлено в ' + new Date().toLocaleTimeString('ru-RU') + ' (' + how + '). ' +
+          'Если уведомления не видно — проверьте системные настройки ниже.', TONE.ok);
+      }, function (err) {
+        setTestStatus('Браузер не смог показать уведомление: ' + (err && err.message || err) + '.', TONE.bad);
+      });
+    };
+
+    if (delayMs) {
+      var seconds = Math.round(delayMs / 1000);
+      setTestStatus('Отправим через ' + seconds + ' ' + plural(seconds, 'секунду', 'секунды', 'секунд') +
+        ' — сверните приложение ' +
+        'или переключитесь на другую вкладку.', TONE.mid);
+      setTimeout(send, delayMs);
+    } else {
+      send();
+    }
+  });
+}
+
+function initNotifyTab() {
+  $('ntest-now').addEventListener('click', function () { sendTestNotification(0); });
+  $('ntest-later').addEventListener('click', function () { sendTestNotification(10000); });
+
+  // Разрешение могли поменять в настройках браузера — следим, где это возможно.
+  try {
+    navigator.permissions.query({ name: 'notifications' }).then(function (status) {
+      status.onchange = function () {
+        renderNotifyDiagnostics();
+        renderNotifyControl();
+      };
+    }, ignore);
+  } catch (e) { /* API разрешений нет — обновим при возврате на вкладку */ }
+
+  renderNotifyDiagnostics();
 }
 
 /* ------------------------------------------------------------------ */
 /*  Вкладки                                                            */
 /* ------------------------------------------------------------------ */
 
-var TAB_IDS = ['now', 'tonight'];
+var TAB_IDS = ['now', 'tonight', 'notify'];
 
 function savedTab() {
   try {
@@ -1764,6 +1957,8 @@ function showTab(id, historyMode) {
 
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
   if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
+  // Состояние service worker и разрешения могло измениться — показываем актуальное.
+  if (id === 'notify') renderNotifyDiagnostics();
 }
 
 function initTabs() {
@@ -1971,8 +2166,9 @@ function init() {
   cacheDrop('cloud');
 
   initPointSelect();
-  initTabs();
   initNotifications();
+  initNotifyTab();
+  initTabs();
   $('cloud-model').textContent = 'Модель прогноза: ' + weatherModelLabel();
   $('refresh').addEventListener('click', refreshAll);
 
@@ -1992,6 +2188,12 @@ function init() {
 
   // Вернулись на вкладку после долгого отсутствия — обновляем сразу.
   document.addEventListener('visibilitychange', function () {
+    // Вернулись из настроек браузера — разрешение могло поменяться.
+    if (document.visibilityState === 'visible') {
+      renderNotifyControl();
+      renderNotifyDiagnostics();
+    }
+
     if (document.visibilityState === 'visible' &&
         (!state.lastOk || Date.now() - state.lastOk.getTime() > CONFIG.refreshMs)) {
       refreshAll();

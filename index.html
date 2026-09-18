@@ -41,8 +41,13 @@
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-tonight" data-tab="tonight"
           aria-controls="tab-tonight" aria-selected="false" tabindex="-1">
-    <span class="tabs__title">Куда ехать ночью</span>
+    <span class="tabs__title"><span class="tabs__long">Куда ехать ночью</span><span class="tabs__short">Куда ехать</span></span>
     <span class="tabs__sub">сравнение семи точек</span>
+  </button>
+  <button class="tabs__btn" type="button" role="tab" id="tab-btn-notify" data-tab="notify"
+          aria-controls="tab-notify" aria-selected="false" tabindex="-1">
+    <span class="tabs__title">Уведомления</span>
+    <span class="tabs__sub">проверка и настройка</span>
   </button>
 </div>
 
@@ -244,6 +249,46 @@
   <footer class="foot">
     <p>Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
   </footer>
+
+</section>
+
+<section class="wrap" id="tab-notify" role="tabpanel" aria-labelledby="tab-btn-notify" tabindex="0" hidden>
+
+  <section class="card card--wide card--plain">
+    <h2 class="card__label">Проверка уведомлений</h2>
+    <p class="ntest__lead">Убедитесь, что уведомление о высоком шансе до вас дойдёт: браузер их
+      поддерживает, сайт получил разрешение, а система не глушит.</p>
+
+    <ul class="checks" id="ntest-checks"></ul>
+
+    <div class="ntest__actions">
+      <button class="btn" type="button" id="ntest-now">Отправить пробное</button>
+      <button class="btn btn--ghost" type="button" id="ntest-later">Через 10 секунд</button>
+    </div>
+    <p class="ntest__tip">«Через 10 секунд» проверяет главный сценарий: успейте свернуть
+      приложение или переключиться на другую вкладку и посмотрите, придёт ли уведомление в фоне.</p>
+
+    <p class="ntest__status" id="ntest-status" role="status"></p>
+  </section>
+
+  <section class="card card--wide card--plain">
+    <h2 class="card__label">Если уведомление не пришло</h2>
+    <ul class="help">
+      <li><b>Разрешение запрещено.</b> В Chrome и Edge нажмите значок настроек слева от адреса
+        сайта → «Уведомления» → «Разрешить» и обновите страницу. В Firefox — значок разрешений
+        там же, слева от адреса.</li>
+      <li><b>Windows.</b> Параметры → Система → Уведомления: браузер должен быть включён,
+        а режим «Не беспокоить» выключен.</li>
+      <li><b>macOS.</b> Системные настройки → Уведомления → ваш браузер → «Разрешить уведомления».</li>
+      <li><b>Android.</b> Настройки → Приложения → Chrome → Уведомления; если «Сияние»
+        установлено как приложение — то же для него. Режим экономии заряда может
+        приостанавливать свёрнутое приложение.</li>
+      <li><b>iPhone и iPad.</b> Нужна iOS 16.4 или новее, а сайт должен быть добавлен на экран
+        «Домой» через «Поделиться» и открыт оттуда — из Safari уведомления не работают.</li>
+      <li><b>Всё разрешено, но уведомления о сиянии не приходят.</b> Они работают, пока приложение
+        открыто: у сайта нет сервера push-уведомлений, и закрытая страница проснуться не может.</li>
+    </ul>
+  </section>
 
 </section>
 

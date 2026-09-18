@@ -211,6 +211,8 @@ body {
 
 .tabs__btn[aria-selected="true"] .tabs__sub { color: var(--text-dim); }
 
+.tabs__short { display: none; }
+
 /* На узком экране навигация уезжает вниз, как в мобильных приложениях */
 @media (max-width: 719px) {
   .tabs {
@@ -224,9 +226,13 @@ body {
     backdrop-filter: blur(12px);
   }
 
-  .tabs__btn { text-align: center; padding: 9px 10px; }
-  .tabs__title { font-size: 14px; }
+  .tabs__btn { text-align: center; padding: 9px 6px; }
+  .tabs__title { font-size: 13px; }
   .tabs__sub { display: none; }
+
+  /* Три кнопки в ряд: длинная подпись на 375 px переносилась бы */
+  .tabs__long { display: none; }
+  .tabs__short { display: inline; }
 
   /* чтобы панель не перекрывала последнюю карточку */
   .wrap { padding-bottom: 92px; }
@@ -534,6 +540,81 @@ body {
   line-height: 1.45;
   color: var(--text-faint);
 }
+
+/* ---------- Вкладка «Уведомления» ---------- */
+.card--plain { min-height: 0; }
+.card--plain:first-child { margin-top: 22px; }   /* как у вердикта на первой вкладке */
+
+.ntest__lead {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--text);
+}
+
+.checks {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: start;
+  gap: 4px 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.check__mark {
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--tone, var(--text-dim));
+}
+
+.check__title  { color: var(--text); }
+.check__detail { grid-column: 2 / -1; font-size: 13px; color: var(--text-dim); }
+.check .btn--mini { margin-top: 0; }
+
+.ntest__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.ntest__actions .btn--ghost { margin-top: 0; }
+
+.ntest__tip {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text-faint);
+  max-width: 70ch;
+}
+
+.ntest__status {
+  margin: 14px 0 0;
+  min-height: 1.5em;          /* место под результат, чтобы текст ниже не прыгал */
+  font-size: 14px;
+  color: var(--tone, var(--text));
+}
+
+.help {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 14px;
+  max-width: 76ch;
+}
+
+.help b { color: var(--text); font-weight: 600; }
 
 /* ---------- Окно наблюдения ---------- */
 #window-card { margin-top: 18px; min-height: 0; }
