@@ -159,7 +159,7 @@ var CLOUD_LAYERS = [
 ];
 
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
-var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null,
+var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, forecastAge: null,
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null };
 
@@ -377,6 +377,37 @@ function cacheDrop(key) {
   try {
     localStorage.removeItem(CACHE.prefix + key);
   } catch (e) { /* см. выше */ }
+}
+
+/*
+ * Подписи устаревших данных. Пока запрос в пути, сохранённые данные уже на
+ * экране — и честнее сказать «обновляем», чем «нет связи».
+ */
+var LEAD_OFFLINE = 'Нет связи. Данные';
+var LEAD_REFRESHING = 'Обновляем. Данные';
+
+function restoreKp(cached, refreshing) {
+  return {
+    value: cached.payload.value,
+    time: toDate(cached.payload.time),
+    stale: cached.age,
+    refreshing: !!refreshing
+  };
+}
+
+function restoreCloud(cached, point, refreshing) {
+  var cloud = cached.payload;
+  cloud.time = toDate(cloud.time);
+  cloud.stale = cached.age;
+  cloud.pointId = point.id;
+  cloud.refreshing = !!refreshing;
+
+  // Прогноз «через 3 часа» мог уже стать прошлым — тогда не показываем его.
+  if (cloud.soon) {
+    cloud.soon.time = toDate(cloud.soon.time);
+    if (!cloud.soon.time || cloud.soon.time.getTime() < Date.now()) cloud.soon = null;
+  }
+  return cloud;
 }
 
 /**
@@ -638,6 +669,19 @@ function readKpSeries(data) {
 }
 
 function loadKp() {
+  // Пока идёт запрос, показываем сохранённое. Иначе при медленной сети
+  // карточка стояла пустой до 50 с: основной источник с повтором, затем
+  // резервный с повтором — и только потом откат на кэш.
+  if (!state.kp) {
+    var early = cacheLoad('kp');
+    if (early) {
+      state.kp = restoreKp(early, true);
+      renderKp(state.kp);
+    }
+  } else if (state.kp.stale) {
+    state.kp.refreshing = true;
+    renderKp(state.kp);
+  }
   markLoading('kp-card');
 
   return fetchJson(URLS.kpNow)
@@ -657,14 +701,9 @@ function loadKp() {
       var cached = cacheLoad('kp');
 
       if (cached) {
-        var kp = {
-          value: cached.payload.value,
-          time: toDate(cached.payload.time),
-          stale: cached.age
-        };
-        state.kp = kp;
-        renderKp(kp);
-        return kp;
+        state.kp = restoreKp(cached, false);
+        renderKp(state.kp);
+        return state.kp;
       }
 
       state.kp = null;
@@ -704,7 +743,7 @@ function renderKp(kp) {
   }
   $('kp-time').textContent = meta;
 
-  applyFreshness('kp-card', 'kp-stale', kp.stale);
+  applyFreshness('kp-card', 'kp-stale', kp.stale, kp.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -766,9 +805,20 @@ function readLayers(source, index) {
 }
 
 function loadCloud() {
-  markLoading('cloud-card');
-
   var point = currentPoint();
+
+  // Сохранённое показываем сразу, не дожидаясь сети (до 25 с при таймауте).
+  if (!state.cloud) {
+    var early = cacheLoad(cloudCacheKey(point));
+    if (early) {
+      state.cloud = restoreCloud(early, point, true);
+      renderCloud(state.cloud);
+    }
+  } else if (state.cloud.stale) {
+    state.cloud.refreshing = true;
+    renderCloud(state.cloud);
+  }
+  markLoading('cloud-card');
 
   // Каждый запрос получает номер, и ответ применяется, только если за время
   // ожидания не ушёл более новый. Иначе при быстрой смене городов медленный
@@ -826,19 +876,9 @@ function loadCloud() {
       var cached = cacheLoad(cloudCacheKey(point));
 
       if (cached) {
-        var cloud = cached.payload;
-        cloud.time = toDate(cloud.time);
-        cloud.stale = cached.age;
-
-        // Прогноз «через 3 часа» мог уже стать прошлым — тогда не показываем его.
-        if (cloud.soon) {
-          cloud.soon.time = toDate(cloud.soon.time);
-          if (!cloud.soon.time || cloud.soon.time.getTime() < Date.now()) cloud.soon = null;
-        }
-
-        state.cloud = cloud;
-        renderCloud(cloud);
-        return cloud;
+        state.cloud = restoreCloud(cached, point, false);
+        renderCloud(state.cloud);
+        return state.cloud;
       }
 
       state.cloud = null;
@@ -916,7 +956,7 @@ function renderCloud(cloud) {
   if (cloud.time) parts.push('данные на ' + fmtTime(cloud.time));
   $('cloud-meta').textContent = parts.join(' · ');
 
-  applyFreshness('cloud-card', 'cloud-stale', cloud.stale);
+  applyFreshness('cloud-card', 'cloud-stale', cloud.stale, cloud.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
 }
 
 /** Полоски по ярусам и пояснение к весам. */
@@ -963,6 +1003,17 @@ function renderCloudLayers(cloud) {
 /* ------------------------------------------------------------------ */
 
 function loadForecast() {
+  if (!state.forecast) {
+    var early = cacheLoad('forecast');
+    var earlyRows = early ? buildForecastRows(early.payload) : [];
+    if (earlyRows.length) {
+      state.forecast = earlyRows;
+      state.forecastAge = early.age;
+      renderForecast(earlyRows, early.age, true);
+    }
+  } else if (state.forecastAge) {
+    renderForecast(state.forecast, state.forecastAge, true);
+  }
   markLoading('forecast-card');
 
   return fetchJson(URLS.kpForecast)
@@ -977,6 +1028,7 @@ function loadForecast() {
       // заново — иначе подсветка «сейчас» встанет не на ту ячейку.
       cacheSave('forecast', source);
       state.forecast = rows;
+      state.forecastAge = null;
       renderForecast(rows, null);
       return rows;
     })
@@ -987,7 +1039,8 @@ function loadForecast() {
         var rows = buildForecastRows(cached.payload);
         if (rows.length) {
           state.forecast = rows;
-          renderForecast(rows, cached.age);
+          state.forecastAge = cached.age;
+          renderForecast(rows, cached.age, false);
           return rows;
         }
         cacheDrop('forecast'); // весь сохранённый прогноз уже в прошлом
@@ -1016,7 +1069,7 @@ function buildForecastRows(source) {
   return rows;
 }
 
-function renderForecast(rows, ageMs) {
+function renderForecast(rows, ageMs, refreshing) {
   var list = $('forecast-list');
   list.innerHTML = '';
   var lastDay = '';
@@ -1046,7 +1099,8 @@ function renderForecast(rows, ageMs) {
     list.appendChild(slot);
   });
 
-  applyFreshness('forecast-card', 'forecast-stale', ageMs === undefined ? null : ageMs);
+  applyFreshness('forecast-card', 'forecast-stale', ageMs === undefined ? null : ageMs,
+    refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1267,6 +1321,13 @@ function readAllPointsHours(data) {
 }
 
 function loadTonight() {
+  if (!state.tonight) {
+    var early = cacheLoad('tonight');
+    if (early) {
+      state.tonight = { rows: early.payload, stale: early.age };
+      renderTonight();
+    }
+  }
   markLoading('best-card');
   markLoading('places-card');
 
@@ -1643,14 +1704,18 @@ function initPointSelect() {
       renderDerived();
       updateStatus();
     });
+
+    // Если по новой точке есть сохранённые данные, они уже на экране.
+    renderDerived();
   });
 }
 
 /** Всё, что считается из уже загруженных данных. */
 function renderDerived() {
-  // Пока облачность для выбранной точки в пути, вердикт и окно не трогаем:
-  // иначе на мгновение показалось бы «облачность: данных нет».
-  if (!state.cloudPending) {
+  // Пока облачность для выбранной точки в пути и показать нечего, вердикт и
+  // окно не трогаем: иначе на мгновение показалось бы «облачность: данных нет».
+  // Если на экране сохранённые данные этой точки — считаем по ним.
+  if (!(state.cloudPending && !state.cloud)) {
     renderVerdict();
     renderWindow();
   }
@@ -1690,6 +1755,10 @@ function refreshAll() {
 
   var tasks = [loadKp(), loadCloud(), loadForecast()];
   if (state.tonight) tasks.push(loadTonight());
+
+  // Загрузчики уже положили на экран сохранённые данные — вердикт и окно
+  // считаем по ним сразу, не дожидаясь сети.
+  renderDerived();
 
   state.refreshing = Promise.all(tasks)
     .then(function () {
