@@ -201,7 +201,36 @@ function $(id) { return document.getElementById(id); }
 
 function setState(cardId, value) {
   var el = $(cardId);
-  if (el) el.setAttribute('data-state', value);
+  if (!el) return;
+  el.setAttribute('data-state', value);
+  // Высота, зафиксированная на время загрузки, больше не нужна.
+  if (value !== 'loading') el.style.minHeight = '';
+}
+
+/**
+ * «Загрузка» только для пустой карточки. Если данные уже на экране, они
+ * остаются до прихода новых: раньше каждое обновление, включая
+ * автоматическое раз в 5 минут, схлопывало все карточки и раскрывало их
+ * обратно — сдвиг макета (CLS) доходил до 0,96 при норме 0,1.
+ */
+function markLoading(cardId) {
+  var el = $(cardId);
+  if (!el) return;
+  var current = el.getAttribute('data-state');
+  if (current === 'ok' || current === 'stale') return;
+  el.setAttribute('data-state', 'loading');
+}
+
+/**
+ * Данные на карточке больше не годятся — например, сменился город. Показываем
+ * загрузку, но сохраняем прежнюю высоту, чтобы страница не прыгнула.
+ */
+function replaceWithLoading(cardId) {
+  var el = $(cardId);
+  if (!el) return;
+  var height = el.getBoundingClientRect().height;
+  if (height) el.style.minHeight = Math.round(height) + 'px';
+  el.setAttribute('data-state', 'loading');
 }
 
 function setTone(el, color) {
@@ -609,7 +638,7 @@ function readKpSeries(data) {
 }
 
 function loadKp() {
-  setState('kp-card', 'loading');
+  markLoading('kp-card');
 
   return fetchJson(URLS.kpNow)
     .then(readKpSeries)
@@ -737,7 +766,7 @@ function readLayers(source, index) {
 }
 
 function loadCloud() {
-  setState('cloud-card', 'loading');
+  markLoading('cloud-card');
 
   var point = currentPoint();
 
@@ -934,7 +963,7 @@ function renderCloudLayers(cloud) {
 /* ------------------------------------------------------------------ */
 
 function loadForecast() {
-  setState('forecast-card', 'loading');
+  markLoading('forecast-card');
 
   return fetchJson(URLS.kpForecast)
     .then(function (data) {
@@ -1238,8 +1267,8 @@ function readAllPointsHours(data) {
 }
 
 function loadTonight() {
-  setState('best-card', 'loading');
-  setState('places-card', 'loading');
+  markLoading('best-card');
+  markLoading('places-card');
 
   // Смена вкладки правит хэш, а hashchange вызывает showTab повторно. Без
   // этого флага второй вызов успевал уйти в сеть до ответа на первый.
@@ -1605,8 +1634,9 @@ function initPointSelect() {
     // Облачность принадлежала прежней точке — её нельзя показывать для новой.
     // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
     state.cloud = null;
-    setState('verdict-card', 'loading');
-    setState('window-card', 'loading');
+    replaceWithLoading('cloud-card');
+    replaceWithLoading('verdict-card');
+    replaceWithLoading('window-card');
 
     loadCloud().then(function (cloud) {
       if (cloud === null && state.cloudPending) return; // ответ устарел
@@ -1655,8 +1685,8 @@ function refreshAll() {
   var btn = $('refresh');
   btn.disabled = true;
   $('updated').textContent = 'Обновляем…';
-  setState('verdict-card', 'loading');
-  setState('window-card', 'loading');
+  markLoading('verdict-card');
+  markLoading('window-card');
 
   var tasks = [loadKp(), loadCloud(), loadForecast()];
   if (state.tonight) tasks.push(loadTonight());

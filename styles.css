@@ -279,6 +279,27 @@ body {
 .card[data-state="error"]   .card__error   { display: block; }
 
 .card[data-state="error"] { border-color: rgba(255, 122, 138, 0.3); }
+
+/* Место под данные на самый первый заход, когда кэша ещё нет: карточка в
+   «загрузке» занимает примерно столько же, сколько с данными, и страница не
+   прыгает, когда они приходят. Значения сняты с живой страницы и взяты чуть
+   ниже типичных, чтобы пустая карточка не оказалась выше заполненной. */
+#verdict-card[data-state="loading"]  { min-height: 240px; }
+#window-card[data-state="loading"]   { min-height: 370px; }
+#kp-card[data-state="loading"],
+#cloud-card[data-state="loading"]    { min-height: 480px; }
+#forecast-card[data-state="loading"] { min-height: 500px; }
+#best-card[data-state="loading"]     { min-height: 290px; }
+#places-card[data-state="loading"]   { min-height: 860px; }
+
+@media (max-width: 719px) {
+  #verdict-card[data-state="loading"]  { min-height: 340px; }
+  #window-card[data-state="loading"]   { min-height: 480px; }
+  #kp-card[data-state="loading"]       { min-height: 240px; }
+  #cloud-card[data-state="loading"]    { min-height: 470px; }
+  #forecast-card[data-state="loading"] { min-height: 1000px; }
+  #places-card[data-state="loading"]  { min-height: 1300px; }
+}
 .card__error-text { margin: 0; color: var(--bad); }
 
 /* Данные из кэша: показываем, но приглушённо — видно, что они не живые */
