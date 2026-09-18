@@ -84,6 +84,17 @@ body {
   color: transparent;
 }
 
+/* Регион — второй строкой заголовка, без градиента */
+.topbar__region {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 .topbar__place {
   margin: 6px 0 0;
   color: var(--text-dim);

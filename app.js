@@ -1,4 +1,4 @@
-/* Дашборд северного сияния — Мурманск.
+/* Дашборд северного сияния — Мурманская область.
    Чистый JS, без зависимостей. Все запросы — публичные API с CORS. */
 'use strict';
 
@@ -1454,7 +1454,12 @@ function saveTab(id) {
   } catch (e) { /* выбор просто не переживёт перезагрузку */ }
 }
 
-function showTab(id, updateHash) {
+/**
+ * historyMode: 'push' — обычное переключение, с записью в историю, чтобы
+ * работали «назад/вперёд»; 'replace' — при старте и при исправлении
+ * неизвестного хэша, без новой записи.
+ */
+function showTab(id, historyMode) {
   if (TAB_IDS.indexOf(id) < 0) id = 'now';
 
   TAB_IDS.forEach(function (tab) {
@@ -1468,7 +1473,11 @@ function showTab(id, updateHash) {
 
   state.tab = id;
   saveTab(id);
-  if (updateHash !== false && location.hash !== '#' + id) location.hash = '#' + id;
+  // Адрес всегда соответствует открытой вкладке — в том числе после #foo.
+  if (location.hash !== '#' + id) {
+    if (historyMode === 'push') location.hash = '#' + id;
+    else history.replaceState(null, '', '#' + id);
+  }
 
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
   if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
@@ -1480,15 +1489,15 @@ function initTabs() {
 
   $('tabs').addEventListener('click', function (e) {
     var btn = e.target.closest ? e.target.closest('[data-tab]') : null;
-    if (btn) showTab(btn.getAttribute('data-tab'), true);
+    if (btn) showTab(btn.getAttribute('data-tab'), 'push');
   });
 
   // Ссылкой с хэшем можно поделиться, работают и кнопки «назад/вперёд».
   window.addEventListener('hashchange', function () {
-    showTab((location.hash || '').replace('#', '') || 'now', false);
+    showTab((location.hash || '').replace('#', '') || 'now', 'replace');
   });
 
-  showTab(initial, true);
+  showTab(initial, 'replace');
 }
 
 /* ------------------------------------------------------------------ */
@@ -1551,7 +1560,9 @@ function renderPointMeta() {
     ' · геомагнитная широта ' + point.geoLat.toFixed(1).replace('.', ',') + '°' +
     ' · сияние заметно от Kp ' + fmtKp(t.low);
 
-  document.title = 'Северное сияние — ' + point.name;
+  // Название приложения — в <title> и манифесте; во вкладке браузера
+  // впереди выбранная точка, чтобы несколько открытых вкладок различались.
+  document.title = point.name + ' · Северное сияние';
 }
 
 function initPointSelect() {
