@@ -161,7 +161,8 @@ var CLOUD_LAYERS = [
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
 var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, forecastAge: null,
               tonight: null, tonightLoading: false, lastOk: null,
-              cloudSeq: 0, cloudPending: false, refreshing: null };
+              cloudSeq: 0, cloudPending: false, refreshing: null,
+              lastLevel: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -610,10 +611,14 @@ function computeVerdict(kp, cloud) {
   if (partial) hint += ' Оценка неполная: часть данных не загрузилась.';
 
   return {
+    level: level,
     label: level === 'high' ? 'Высокий' : (level === 'mid' ? 'Средний' : 'Низкий'),
     tone:  level === 'high' ? TONE.ok  : (level === 'mid' ? TONE.mid  : TONE.bad),
     hint: hint,
-    factors: factors
+    factors: factors,
+    // Посчитан ли хоть частично по сохранённым данным — от этого зависит,
+    // можно ли по нему будить человека уведомлением.
+    stale: !!((kp && kp.stale) || (cloud && cloud.stale))
   };
 }
 
@@ -1543,6 +1548,172 @@ function renderPlaces(list) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Уведомления о высоком шансе                                        */
+/*                                                                     */
+/*  У сайта нет сервера push-уведомлений, поэтому закрытая страница     */
+/*  проснуться не может: уведомления работают, пока приложение открыто  */
+/*  — во вкладке, в том числе фоновой, или в установленном окне.        */
+/*  Проверка идёт на каждом пересчёте вердикта, то есть при             */
+/*  автообновлении раз в 5 минут.                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Суббури идут волнами с интервалом в 2–3 часа. Уведомление на каждую
+ * волну было бы шумом, но новый эпизод позже ночью заслуживает сигнала.
+ */
+var NOTIFY_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+
+function notifySupported() {
+  return 'Notification' in window;
+}
+
+function notifyEnabled() {
+  try {
+    return localStorage.getItem(CACHE.prefix + 'notify') === 'on';
+  } catch (e) {
+    return false;
+  }
+}
+
+function setNotifyEnabled(on) {
+  try {
+    localStorage.setItem(CACHE.prefix + 'notify', on ? 'on' : 'off');
+  } catch (e) { /* без хранилища включение не переживёт перезагрузку */ }
+}
+
+/** Время последнего уведомления по точке — хранится, чтобы пережить перезагрузку. */
+function lastNotifiedAt(pointId) {
+  try {
+    return Number(localStorage.getItem(CACHE.prefix + 'notified.' + pointId)) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function markNotified(pointId) {
+  try {
+    localStorage.setItem(CACHE.prefix + 'notified.' + pointId, String(Date.now()));
+  } catch (e) { /* в худшем случае уведомление повторится после перезагрузки */ }
+}
+
+/**
+ * Показ через service worker: на Android конструктор new Notification()
+ * не работает вовсе. Если воркера нет — обычный конструктор.
+ */
+function showAppNotification(title, options) {
+  options.icon = new URL('icons/icon-192.png', location.href).href;
+  options.badge = options.icon;
+  options.lang = 'ru';
+  options.data = { url: location.href.split('#')[0] + '#now' };
+
+  var direct = function () {
+    try { new Notification(title, options); } catch (e) { /* не удалось — не страшно */ }
+  };
+
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    return navigator.serviceWorker.ready
+      .then(function (reg) { return reg.showNotification(title, options); })
+      .catch(direct);
+  }
+  direct();
+  return Promise.resolve();
+}
+
+/**
+ * Вызывается при каждом пересчёте вердикта. Шлёт уведомление при переходе
+ * выбранной точки в «Высокий», соблюдая все ограничения ниже.
+ */
+function checkHighChance(verdict) {
+  // По сохранённым данным не будим: устаревший «высокий» — не повод. Такой
+  // расчёт не становится и точкой отсчёта — ею служит первый свежий.
+  if (!verdict || verdict.stale) return;
+
+  var point = currentPoint();
+  var prev = state.lastLevel;
+  state.lastLevel = { pointId: point.id, level: verdict.level };
+
+  if (verdict.level !== 'high') return;
+  // Первый свежий расчёт после открытия или смены точки — только точка
+  // отсчёта: высокий шанс и так на экране.
+  if (!prev || prev.pointId !== point.id) return;
+  // Шанс уже был высоким — о нём уже сообщили или он был на экране.
+  if (prev.level === 'high') return;
+
+  if (!notifySupported() || !notifyEnabled() || Notification.permission !== 'granted') return;
+  // Вкладка в фокусе — вердикт и так перед глазами.
+  if (document.hasFocus()) return;
+  if (Date.now() - lastNotifiedAt(point.id) < NOTIFY_COOLDOWN_MS) return;
+
+  markNotified(point.id);
+  showAppNotification('Высокий шанс увидеть сияние — ' + point.name, {
+    body: verdict.factors.slice(0, 3).join(' · ') + '. Смотрите на север.',
+    tag: 'aurora-high-' + point.id  // новое уведомление по точке заменяет старое
+  });
+}
+
+/** Разрешение: современный вариант с промисом и старый с колбэком (Safari). */
+function askNotificationPermission() {
+  return new Promise(function (resolve) {
+    var result = Notification.requestPermission(resolve);
+    if (result && result.then) result.then(resolve);
+  });
+}
+
+function renderNotifyControl() {
+  var btn = $('notify-btn');
+  var hint = $('notify-hint');
+
+  if (!notifySupported()) {
+    btn.hidden = true;
+    hint.textContent = 'Этот браузер не поддерживает уведомления. На iPhone они работают ' +
+      'только в приложении, добавленном на экран «Домой».';
+    return;
+  }
+
+  btn.hidden = false;
+  var permission = Notification.permission;
+  var on = notifyEnabled() && permission === 'granted';
+
+  btn.disabled = (permission === 'denied');
+  btn.setAttribute('aria-pressed', String(on));
+  btn.textContent = on ? 'Уведомления включены' : 'Сообщить о высоком шансе';
+
+  if (permission === 'denied') {
+    hint.textContent = 'Уведомления запрещены в настройках браузера для этого сайта.';
+  } else if (on) {
+    hint.textContent = 'Сообщим, когда в выбранной точке шанс станет высоким, — не чаще раза ' +
+      'в 3 часа. Работает, пока приложение открыто. Нажмите, чтобы выключить.';
+  } else {
+    hint.textContent = 'Работает, пока приложение открыто — во вкладке или в фоне.';
+  }
+}
+
+function initNotifications() {
+  renderNotifyControl();
+
+  $('notify-btn').addEventListener('click', function () {
+    if (notifyEnabled() && Notification.permission === 'granted') {
+      setNotifyEnabled(false);
+      renderNotifyControl();
+      return;
+    }
+
+    askNotificationPermission().then(function (permission) {
+      if (permission === 'granted') {
+        setNotifyEnabled(true);
+        // Пробное уведомление: сразу видно, что система их пропускает.
+        showAppNotification('Уведомления включены', {
+          body: 'Сообщим, когда в точке «' + currentPoint().name + '» шанс увидеть сияние ' +
+            'станет высоким. Пока приложение открыто.',
+          tag: 'aurora-test'
+        });
+      }
+      renderNotifyControl();
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Вкладки                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -1634,6 +1805,7 @@ function initTabs() {
 
 function renderVerdict() {
   var v = computeVerdict(state.kp, state.cloud);
+  checkHighChance(v);
 
   if (!v) {
     setState('verdict-card', 'error');
@@ -1800,6 +1972,7 @@ function init() {
 
   initPointSelect();
   initTabs();
+  initNotifications();
   $('cloud-model').textContent = 'Модель прогноза: ' + weatherModelLabel();
   $('refresh').addEventListener('click', refreshAll);
 

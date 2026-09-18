@@ -509,6 +509,32 @@ body {
   padding: 5px 13px;
 }
 
+/* ---------- Уведомления ---------- */
+.notify {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.notify .btn--mini { margin-top: 0; }
+
+.notify .btn[aria-pressed="true"] {
+  color: var(--aurora-green);
+  border-color: rgba(77, 255, 184, 0.45);
+  background: rgba(77, 255, 184, 0.08);
+}
+
+.notify__hint {
+  flex: 1 1 240px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
 /* ---------- Окно наблюдения ---------- */
 #window-card { margin-top: 18px; min-height: 0; }
 

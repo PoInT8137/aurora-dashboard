@@ -11,7 +11,7 @@
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v4';
+var CACHE_VERSION = 'v5';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -79,6 +79,23 @@ self.addEventListener('fetch', function (event) {
         }
         return Response.error();
       });
+    })
+  );
+});
+
+/* Нажатие на уведомление: открыть приложение или вернуть фокус открытому. */
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || self.registration.scope;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (windows) {
+      for (var i = 0; i < windows.length; i++) {
+        if (windows[i].url.indexOf(self.registration.scope) === 0 && 'focus' in windows[i]) {
+          return windows[i].focus();
+        }
+      }
+      return self.clients.openWindow(url);
     })
   );
 });
