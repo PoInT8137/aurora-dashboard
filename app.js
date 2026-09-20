@@ -6,50 +6,6 @@
 /*  Настройки                                                          */
 /* ------------------------------------------------------------------ */
 
-/*
- * Точки наблюдения в Мурманской области.
- *
- * Координаты проверены по открытому геокодеру Open-Meteo (данные GeoNames).
- *
- * geoLat — геомагнитная широта в дипольном приближении IGRF (эпоха ~2025,
- * северный геомагнитный полюс 80.7° с. ш., 72.7° з. д.):
- *
- *   sin(φm) = sin(φ)·sin(φp) + cos(φ)·cos(φp)·cos(λ − λp)
- *
- * Это не строгая скорректированная геомагнитная широта (CGM), которой
- * пользуются в авроральной науке: в этом регионе расхождение до полуградуса,
- * то есть до четверти единицы Kp — меньше шага самих данных NOAA.
- *
- * Заметная деталь: Териберка географически севернее Мурманска, а геомагнитно
- * чуть южнее — геомагнитная сетка наклонена, и Териберка лежит восточнее.
- * Её преимущество перед городом не в широте, а в отсутствии засветки.
- *
- * light — уровень засветки, в расчёт не входит: только пояснение к вердикту.
- *
- * km и drive — приблизительное расстояние по автодорогам от Мурманска и время
- * в пути летом. Маршрутный API намеренно не подключён: значения меняются редко,
- * а зависимость от ещё одного сервиса стоила бы дороже точности.
- */
-var POINTS = [
-  { id: 'murmansk',    name: 'Мурманск',   lat: 68.9678, lon: 33.0992, geoLat: 64.87, light: 'high',    km: 0,   drive: null,   note: '' },
-  { id: 'teriberka',   name: 'Териберка',  lat: 69.1609, lon: 35.1453, geoLat: 64.78, light: 'minimal', km: 120, drive: '2,5 ч', note: 'последний участок грунтовый' },
-  { id: 'monchegorsk', name: 'Мончегорск', lat: 67.9397, lon: 32.8739, geoLat: 63.94, light: 'medium',  km: 110, drive: '1,5 ч', note: '' },
-  { id: 'lovozero',    name: 'Ловозеро',   lat: 68.0056, lon: 35.0187, geoLat: 63.72, light: 'low',     km: 175, drive: '2,5 ч', note: '' },
-  { id: 'kirovsk',     name: 'Кировск',    lat: 67.6148, lon: 33.6727, geoLat: 63.53, light: 'medium',  km: 205, drive: '3 ч',   note: '' },
-  { id: 'apatity',     name: 'Апатиты',    lat: 67.5827, lon: 33.4134, geoLat: 63.53, light: 'medium',  km: 185, drive: '2,5 ч', note: '' },
-  { id: 'kandalaksha', name: 'Кандалакша', lat: 67.1512, lon: 32.4128, geoLat: 63.26, light: 'medium',  km: 280, drive: '4 ч',   note: '' }
-];
-
-var LIGHT_POLLUTION = {
-  high:    { label: 'сильная',    hint: 'Городская засветка сильная: за городом, в 15–20 км от огней, слабое сияние видно заметно лучше.' },
-  medium:  { label: 'заметная',   hint: 'Засветка заметная — стоит отъехать на несколько километров от освещённых улиц.' },
-  low:     { label: 'слабая',     hint: 'Засветка слабая — достаточно отойти от фонарей.' },
-  minimal: { label: 'минимальная', hint: 'Засветки практически нет — условия для наблюдения идеальные.' }
-};
-
-/* Точка, под которую подобраны пороги баллов за Kp: от неё считается сдвиг. */
-var REFERENCE_POINT_ID = 'murmansk';
-
 var CONFIG = {
   tz: 'Europe/Moscow',
   timeoutMs: 12000,        // таймаут одного запроса
@@ -91,7 +47,7 @@ var CONFIG = {
    * Перекрёстная проверка на противоречивость (CLOUD_CONFLICT_LIMIT)
    * оставлена как страховка на случай, если и здесь поля разойдутся.
    */
-  weatherModel: 'icon_eu'
+  weatherModel: WEATHER_MODEL   // значение — в core.js: одна модель для сайта и сервера уведомлений
 };
 
 /** Человекочитаемые названия моделей для подписи в карточке. */
@@ -110,13 +66,6 @@ var WEATHER_MODEL_LABELS = {
 function weatherModelLabel() {
   return WEATHER_MODEL_LABELS[CONFIG.weatherModel] || CONFIG.weatherModel;
 }
-
-/*
- * Порог противоречивости: если оценка по ярусам и суммарная облачность
- * расходятся сильнее, доверять данным нельзя — показываем предупреждение
- * и не ставим высокий балл за облачность.
- */
-var CLOUD_CONFLICT_LIMIT = 30;
 
 var URLS = {
   kpNow:      'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json',
@@ -144,36 +93,15 @@ function weatherUrl(point) {
     + '&forecast_days=2&timezone=UTC';
 }
 
-/**
- * Веса ярусов облачности. Сияние светится на высоте 100–300 км, выше любых
- * облаков, поэтому важна только прозрачность слоя:
- *   нижний  — водяной, оптически плотный, за stratus не видно ничего;
- *   средний — тоже в основном непрозрачен, но altocumulus чаще рваный;
- *   верхний — ледяные кристаллы, перистые облака сияние просвечивает,
- *             теряя контраст, но не скрывая полностью.
- */
-var CLOUD_LAYERS = [
-  { key: 'low',  field: 'cloud_cover_low',  label: 'Нижний',  weight: 1.0 },
-  { key: 'mid',  field: 'cloud_cover_mid',  label: 'Средний', weight: 0.8 },
-  { key: 'high', field: 'cloud_cover_high', label: 'Верхний', weight: 0.35 }
-];
-
 // Текущее состояние: null — данных нет (ошибка или ещё не загрузились).
 var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, forecastAge: null,
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
-              lastLevel: null };
+              lastLevel: null, pushBusy: false, pushHealth: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
 /* ------------------------------------------------------------------ */
-
-function findPoint(id) {
-  for (var i = 0; i < POINTS.length; i++) {
-    if (POINTS[i].id === id) return POINTS[i];
-  }
-  return POINTS[0];
-}
 
 function currentPoint() {
   return state.point || POINTS[0];
@@ -261,16 +189,6 @@ function fetchJson(url, attempt) {
       throw err;
     })
     .finally(function () { clearTimeout(timer); });
-}
-
-/** "2026-09-17 15:00:00" (UTC, без указания зоны) -> Date */
-function parseUtc(str) {
-  if (!str) return null;
-  if (str instanceof Date) return isNaN(str.getTime()) ? null : str;
-  var iso = String(str).trim().replace(' ', 'T');
-  if (!/(Z|[+-]\d{2}:?\d{2})$/.test(iso)) iso += 'Z';
-  var d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d;
 }
 
 function fmtTime(date) {
@@ -430,66 +348,14 @@ function applyFreshness(cardId, staleId, ageMs, lead) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Высота Солнца — чтобы не обещать сияние в полярный день.           */
-/*  Упрощённый алгоритм NOAA, точность около 0,1°.                     */
-/* ------------------------------------------------------------------ */
-
-function solarAltitude(date, lat, lon) {
-  var rad = Math.PI / 180;
-  var d = (date.getTime() - Date.UTC(2000, 0, 1, 12)) / 86400000; // дней от J2000
-
-  var g = (357.529 + 0.98560028 * d) * rad;                       // средняя аномалия
-  var q = 280.459 + 0.98564736 * d;                               // средняя долгота
-  var L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad;
-  var e = (23.439 - 0.00000036 * d) * rad;                        // наклон эклиптики
-
-  var dec = Math.asin(Math.sin(e) * Math.sin(L));
-  var ra  = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
-
-  var gmst = (18.697374558 + 24.06570982441908 * d) % 24;
-  var lst = (((gmst + 24) % 24) + lon / 15) * 15 * rad;
-  var H = lst - ra;
-
-  var alt = Math.asin(
-    Math.sin(lat * rad) * Math.sin(dec) +
-    Math.cos(lat * rad) * Math.cos(dec) * Math.cos(H)
-  );
-  return alt / rad;
-}
-
-/* ------------------------------------------------------------------ */
 /*  Шкалы и оценки                                                     */
 /* ------------------------------------------------------------------ */
 
 var TONE = { ok: '#4dffb8', mid: '#ffd166', bad: '#ff7a8a' };
 
-/**
- * Пороги баллов за Kp для точки наблюдения.
- *
- * Экваториальная граница аврорального овала опускается примерно на 2°
- * геомагнитной широты на каждую единицу Kp, то есть овал оказывается над
- * головой при Kp ≈ (67° − φm) / 2. Для Мурманска это ≈ 1,1, и пороги 1/2/3,
- * подобранные под него, уже это отражают. Поэтому шкала не считается заново,
- * а якорится на Мурманск и сдвигается для остальных точек:
- *
- *   сдвиг = (φm Мурманска − φm точки) / 2
- *
- * Кандалакше, например, нужно почти на целую единицу Kp больше, чем
- * Мурманску, — это соответствует 200 км разницы по меридиану.
- */
-function kpThresholds(point) {
-  var reference = findPoint(REFERENCE_POINT_ID);
-  var shift = (reference.geoLat - point.geoLat) / 2;
-  return { low: 1 + shift, mid: 2 + shift, high: 3 + shift };
-}
-
-/** Балл за Kp (0..3) для выбранной точки. */
+/** Балл за Kp (0..3) для точки; без точки — для выбранной. */
 function kpScore(kp, point) {
-  var t = kpThresholds(point || currentPoint());
-  if (kp >= t.high) return 3;
-  if (kp >= t.mid) return 2;
-  if (kp >= t.low) return 1;
-  return 0;
+  return kpScoreAt(kp, point || currentPoint());
 }
 
 function kpText(kp, point) {
@@ -512,21 +378,6 @@ function kpTone(kp, point) {
   if (score === 3) return TONE.ok;
   if (score >= 1) return TONE.mid;
   return TONE.bad;
-}
-
-/**
- * Балл за облачность (0..3). При противоречивых данных высокий балл не
- * ставим: ярусы могут говорить о чистом небе, а суммарный показатель той же
- * модели — о сплошной облачности, и какой из них верен, мы не знаем.
- */
-function cloudScore(pct, conflict) {
-  var score;
-  if (pct <= 25) score = 3;
-  else if (pct <= 50) score = 2;
-  else if (pct <= 75) score = 1;
-  else score = 0;
-
-  return conflict ? Math.min(2, score) : score;
 }
 
 function cloudText(pct) {
@@ -560,27 +411,15 @@ function computeVerdict(kp, cloud) {
   factors.push(cs !== null ? 'Облачность ' + cloud.value + '%' : 'Облачность: данных нет');
   if (cloud && cloud.conflict) factors.push('Данные об облачности противоречивы');
 
-  var level;
-  if (partial) {
-    // Считаем по одному доступному фактору и не завышаем вердикт.
-    var only = (ks !== null) ? ks : cs;
-    level = only >= 1 ? 'mid' : 'low';
-  } else {
-    var product = ks * cs; // 0..9
-    level = product >= 6 ? 'high' : (product >= 2 ? 'mid' : 'low');
-  }
-
-  // Освещённость неба
   var point = currentPoint();
   var alt = solarAltitude(new Date(), point.lat, point.lon);
-  var tooLight = false;
+  var level = verdictLevel(ks, cs, alt);
+  var tooLight = alt > DARK_USABLE;
 
-  if (alt > -6) {
-    tooLight = true;
-    level = 'low';
+  // Освещённость неба
+  if (tooLight) {
     factors.push(alt > 0 ? 'Солнце над горизонтом' : 'Светлые сумерки');
-  } else if (alt > -12) {
-    if (level === 'high') level = 'mid';
+  } else if (alt > DARK_FULL) {
     factors.push('Неполная темнота');
   } else {
     factors.push('Тёмное небо');
@@ -625,53 +464,6 @@ function computeVerdict(kp, cloud) {
 /* ------------------------------------------------------------------ */
 /*  Kp: текущее значение                                               */
 /* ------------------------------------------------------------------ */
-
-/**
- * NOAA отдаёт данные в двух форматах: массив объектов (/json/...) и массив
- * массивов с заголовком в первой строке (/products/..., исторический формат).
- * Приводим оба к массиву объектов с ключами в нижнем регистре.
- */
-function normalizeRows(data) {
-  if (!Array.isArray(data) || !data.length) throw new Error('пустой ответ');
-
-  var rows = data;
-  if (Array.isArray(data[0])) {
-    var head = data[0].map(function (h) { return String(h).toLowerCase(); });
-    rows = data.slice(1).map(function (row) {
-      var obj = {};
-      head.forEach(function (key, i) { obj[key] = row[i]; });
-      return obj;
-    });
-  } else {
-    rows = data.map(function (row) {
-      var obj = {};
-      Object.keys(row).forEach(function (key) { obj[key.toLowerCase()] = row[key]; });
-      return obj;
-    });
-  }
-
-  if (!rows.length) throw new Error('нет строк с данными');
-  return rows;
-}
-
-/** Значение Kp из строки ряда: сперва дробная оценка, затем целый индекс. */
-function pickKpValue(row) {
-  var candidates = [row.estimated_kp, row.kp, row.kp_index];
-  for (var i = 0; i < candidates.length; i++) {
-    var value = parseFloat(candidates[i]);
-    if (isFinite(value)) return value;
-  }
-  return NaN;
-}
-
-/** Последнее измерение ряда. */
-function readKpSeries(data) {
-  var rows = normalizeRows(data);
-  var last = rows[rows.length - 1];
-  var value = pickKpValue(last);
-  if (!isFinite(value)) throw new Error('некорректное значение Kp');
-  return { value: value, time: parseUtc(last.time_tag) };
-}
 
 function loadKp() {
   // Пока идёт запрос, показываем сохранённое. Иначе при медленной сети
@@ -755,60 +547,6 @@ function renderKp(kp) {
 /*  Облачность                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Число из ответа API или null. */
-function num(value) {
-  if (value === undefined || value === null) return null;
-  var parsed = parseFloat(value);
-  return isFinite(parsed) ? parsed : null;
-}
-
-/**
- * Эффективная облачность — доля неба, сквозь которую сияние не пробьётся.
- *
- * Модель случайного перекрытия ярусов: каждый ярус перекрывает направление
- * с вероятностью «покрытие × вес», прозрачность неба — произведение
- * прозрачностей ярусов:
- *
- *   итог = 1 − (1 − low) · (1 − 0,8·mid) · (1 − 0,35·high)
- *
- * Простое сложение процентов дважды считает перекрытие: оно эквивалентно
- * допущению, что ярусы расходятся и закрывают максимум неба, а реальная
- * многоярусная облачность обычно фронтальная и вертикально скоррелированная.
- * На сплошных ярусах обе формулы совпадают, но в смешанном небе сумма
- * упиралась в потолок 100 % на 57 % пространства значений и теряла
- * различающую способность там, где она как раз нужна.
- *
- * Произведение при весах ≤ 1 само не выходит за 100 %, поэтому ограничение
- * сверху больше не требуется.
- *
- * Если API не отдал ярусы, возвращаем null, и вызывающий код берёт общий
- * показатель облачности.
- */
-function effectiveCloud(layers) {
-  var clear = 1; // доля неба, через которую сияние ещё видно
-  var known = 0;
-
-  CLOUD_LAYERS.forEach(function (layer) {
-    var value = layers[layer.key];
-    if (value === null) return;
-    clear *= 1 - layer.weight * value / 100;
-    known++;
-  });
-
-  if (!known) return null;
-  return Math.round(100 * (1 - clear));
-}
-
-/** Ярусы облачности из объекта current или строки hourly. */
-function readLayers(source, index) {
-  var layers = {};
-  CLOUD_LAYERS.forEach(function (layer) {
-    var raw = source[layer.field];
-    layers[layer.key] = num(index === undefined ? raw : (raw ? raw[index] : null));
-  });
-  return layers;
-}
-
 function loadCloud() {
   var point = currentPoint();
 
@@ -835,27 +573,17 @@ function loadCloud() {
   return fetchJson(weatherUrl(point))
     .then(function (data) {
       var cur = data && data.current;
-      var total = cur ? num(cur.cloud_cover) : null;
-      var layers = cur ? readLayers(cur) : {};
-      var effective = cur ? effectiveCloud(layers) : null;
+      var parsed = cloudFromCurrent(cur);
 
       // Без ярусов оценка всё равно возможна — по общей облачности.
-      if (effective === null && total === null) {
-        throw new Error('в ответе нет облачности');
-      }
-
-      // Оценка по ярусам и суммарное поле модели должны быть согласованы.
-      // Сильное расхождение означает, что одно из полей врёт, а какое —
-      // неизвестно, поэтому данным доверяем лишь частично.
-      var conflict = (effective !== null && total !== null)
-        && Math.abs(effective - total) > CLOUD_CONFLICT_LIMIT;
+      if (parsed === null) throw new Error('в ответе нет облачности');
 
       var cloud = {
-        value: effective !== null ? effective : total,
-        byLayers: effective !== null,
-        conflict: conflict,
-        total: total,
-        layers: layers,
+        value: parsed.value,
+        byLayers: parsed.byLayers,
+        conflict: parsed.conflict,
+        total: parsed.total,
+        layers: parsed.layers,
         temp: num(cur.temperature_2m) === null ? null : Math.round(num(cur.temperature_2m)),
         time: parseUtc(cur.time),
         soon: pickCloudIn(data, 3),
@@ -1114,9 +842,6 @@ function renderForecast(rows, ageMs, refreshing) {
 /*  Новых запросов не требует: почасовая облачность и трёхчасовой      */
 /*  прогноз Kp уже загружены, высота Солнца считается локально.        */
 /* ------------------------------------------------------------------ */
-
-var DARK_USABLE = -6;  // ниже этой высоты Солнца сияние уже различимо
-var DARK_FULL = -12;   // полная темнота
 
 /** Прогнозное Kp на момент time: последняя трёхчасовка, начавшаяся до него. */
 function kpAt(time, rows, fallback) {
@@ -1644,6 +1369,8 @@ function checkHighChance(verdict) {
   if (prev.level === 'high') return;
 
   if (!notifySupported() || !notifyEnabled() || Notification.permission !== 'granted') return;
+  // Уведомления с сервера включены — они придут и без страницы; свои не дублируем.
+  if (pushIsActive()) return;
   // Вкладка в фокусе — вердикт и так перед глазами.
   if (document.hasFocus()) return;
   if (Date.now() - lastNotifiedAt(point.id) < NOTIFY_COOLDOWN_MS) return;
@@ -1684,6 +1411,9 @@ function renderNotifyControl() {
 
   if (permission === 'denied') {
     hint.textContent = 'Уведомления запрещены в настройках браузера для этого сайта.';
+  } else if (pushIsActive()) {
+    hint.textContent = 'Включены уведомления с сервера: они приходят и при закрытом приложении. ' +
+      'Настройка — на вкладке «Уведомления».';
   } else if (on) {
     hint.textContent = 'Сообщим, когда в выбранной точке шанс станет высоким, — не чаще раза ' +
       'в 3 часа. Работает, пока приложение открыто. Нажмите, чтобы выключить.';
@@ -1781,6 +1511,27 @@ function notifyChecks() {
     toggle: supported && permission !== 'denied' ? (on ? 'Выключить' : 'Включить') : null
   });
 
+  if (pushConfigured()) {
+    var serverOn = pushIsActive();
+    checks.push(pushSupported()
+      ? { state: 'ok', title: 'Браузер поддерживает push с сервера' }
+      : { state: 'fail', title: 'Браузер не поддерживает push с сервера',
+          detail: 'Уведомления о сиянии будут приходить только пока приложение открыто.' });
+
+    checks.push(serverOn
+      ? { state: 'ok', title: 'Подписка на сервер уведомлений оформлена',
+          detail: 'Для точки «' + currentPoint().name + '». Уведомления придут и при закрытом приложении.' }
+      : { state: 'warn', title: 'Подписка на сервер уведомлений не оформлена',
+          detail: 'Включите её в блоке выше — тогда уведомления придут и при закрытом приложении.' });
+
+    checks.push(state.pushHealth === true
+      ? { state: 'ok', title: 'Сервер уведомлений отвечает' }
+      : state.pushHealth === false
+        ? { state: 'fail', title: 'Сервер уведомлений не отвечает',
+            detail: 'Проверьте интернет и повторите позже. Пока сервер недоступен, подписка не работает.' }
+        : { state: 'warn', title: 'Проверяем сервер уведомлений…' });
+  }
+
   if (isIOS() && !isStandalone()) {
     checks.push({ state: 'fail', title: 'Открыто в браузере, а не как приложение',
       detail: 'На iPhone добавьте сайт на экран «Домой» через «Поделиться» и откройте оттуда.' });
@@ -1839,6 +1590,8 @@ function renderNotifyDiagnostics() {
   var denied = notifySupported() && Notification.permission === 'denied';
   $('ntest-now').disabled = !notifySupported() || denied;
   $('ntest-later').disabled = !notifySupported() || denied;
+
+  renderPushCard();
 }
 
 function setTestStatus(text, tone) {
@@ -1907,6 +1660,151 @@ function initNotifyTab() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Уведомления с сервера (при закрытом приложении)                    */
+/*  Подписка и обращения к серверу — в push.js, здесь только интерфейс. */
+/* ------------------------------------------------------------------ */
+
+/** Ошибка подписки или обращения к серверу — человеческим языком. */
+function pushErrorText(error) {
+  // У DOMException поле code числовое (у AbortError это 20), а наши коды — строки.
+  var code = (error && typeof error.code === 'string') ? error.code : '';
+  var name = error && error.name;
+
+  if (code.indexOf('permission_') === 0 || name === 'NotAllowedError') {
+    return 'Разрешение на уведомления не выдано — браузер не сможет их показывать.';
+  }
+  if (name === 'AbortError' && !code) {
+    // Chrome в режиме инкогнито отклоняет подписку так же, как при сбое сети, и определить
+    // приватный режим сайт не может (намеренно), поэтому называем оба возможных объяснения.
+    return 'Браузер не смог связаться со своим сервисом push. Проверьте интернет и попробуйте ещё раз. ' +
+      'В режиме инкогнито push не работает.';
+  }
+  if (code === 'subscribe_timeout') return 'Браузер не отвечает на подписку. Проверьте интернет и попробуйте ещё раз.';
+  if (code === 'no_service_worker') return 'Приложение ещё не готово к работе без сети: обновите страницу и повторите.';
+  if (code === 'limit') return 'Сервер сейчас не принимает новые подписки. Попробуйте позже.';
+  if (code === 'too_often') return 'Слишком часто: подождите 20 секунд.';
+  if (code === 'not_subscribed') return 'Подписка на сервере не найдена — выключите и включите уведомления заново.';
+  // По имени, а не instanceof: ошибка из другого окружения (iframe, воркер) под instanceof не подойдёт.
+  if (name === 'TypeError' || name === 'AbortError') return 'Сервер уведомлений недоступен. Проверьте интернет.';
+  return 'Не получилось: ' + ((error && error.message) || error) + '.';
+}
+
+function setPushStatus(text, tone) {
+  var el = $('push-status');
+  el.textContent = text;
+  setTone(el, tone || null);
+}
+
+function renderPushCard() {
+  var card = $('push-card');
+  if (!card) return;
+
+  if (!pushConfigured()) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  var supported = pushSupported();
+  var permission = notifySupported() ? Notification.permission : 'denied';
+  var active = pushIsActive();
+  var busy = !!state.pushBusy;
+
+  var toggle = $('push-toggle');
+  toggle.textContent = active ? 'Выключить' : 'Включить уведомления';
+  toggle.setAttribute('aria-pressed', String(active));
+  toggle.disabled = busy || !supported || (permission === 'denied' && !active);
+  $('push-test').disabled = busy || !active;
+  $('push-test-later').disabled = busy || !active;
+
+  var hint = $('push-hint');
+  if (!supported) {
+    hint.textContent = (isIOS() && !isStandalone())
+      ? 'На iPhone уведомления работают только в приложении, добавленном на экран «Домой».'
+      : 'Этот браузер не поддерживает push-уведомления.';
+  } else if (permission === 'denied' && !active) {
+    hint.textContent = 'Уведомления запрещены в настройках браузера для этого сайта: разрешите их и обновите страницу.';
+  } else if (active) {
+    hint.textContent = 'Включено для точки «' + currentPoint().name + '». Уведомление придёт, когда шанс станет ' +
+      'высоким, — не чаще раза в 3 часа. Точку меняет выбор в шапке.';
+  } else {
+    hint.textContent = 'Подписка привязывается к выбранной сейчас точке — «' + currentPoint().name + '».';
+  }
+}
+
+/** Операция с индикацией: блокирует кнопки, пишет статус, ошибку показывает человеку. */
+function runPushAction(label, action, done) {
+  state.pushBusy = true;
+  renderPushCard();
+  setPushStatus(label, TONE.mid);
+
+  return action().then(function (result) {
+    state.pushBusy = false;
+    done(result);
+    renderPushCard();
+    renderNotifyControl();
+    renderNotifyDiagnostics();
+  }, function (error) {
+    state.pushBusy = false;
+    setPushStatus(pushErrorText(error), TONE.bad);
+    renderPushCard();
+    renderNotifyDiagnostics();
+  }).catch(function (unexpected) {
+    // Страховка: ошибка в самом обработчике не должна оставлять кнопки
+    // заблокированными, а статус — застрявшим на «Включаем…».
+    state.pushBusy = false;
+    setPushStatus('Не получилось: ' + ((unexpected && unexpected.message) || unexpected) + '.', TONE.bad);
+    renderPushCard();
+  });
+}
+
+function refreshPushHealth() {
+  if (!pushConfigured()) return;
+  state.pushHealth = null;
+  renderNotifyDiagnostics();
+  pushHealth().then(function (ok) {
+    state.pushHealth = ok;
+    renderNotifyDiagnostics();
+  });
+}
+
+function initPushCard() {
+  $('push-toggle').addEventListener('click', function () {
+    if (pushIsActive()) {
+      runPushAction('Выключаем…', pushUnsubscribe, function () {
+        setPushStatus('Уведомления с сервера выключены.');
+      });
+    } else {
+      runPushAction('Включаем…', function () { return pushSubscribe(currentPoint().id); }, function () {
+        setPushStatus('Готово. Проверьте кнопкой «Пробное с сервера».', TONE.ok);
+      });
+    }
+  });
+
+  $('push-test').addEventListener('click', function () {
+    runPushAction('Просим сервер отправить уведомление…', function () { return pushTest(0); }, function (result) {
+      if (result && result.ok) setPushStatus('Сервер отправил, push-сервис браузера принял. Уведомление должно появиться.', TONE.ok);
+      else setPushStatus('Push-сервис браузера отклонил сообщение (статус ' + (result && result.status) + ').', TONE.bad);
+    });
+  });
+
+  $('push-test-later').addEventListener('click', function () {
+    runPushAction('Договариваемся с сервером…', function () { return pushTest(20); }, function () {
+      setPushStatus('Закройте приложение совсем — через 20 секунд сервер пришлёт уведомление.', TONE.mid);
+    });
+  });
+
+  renderPushCard();
+
+  // Разрешение или подписку могли поменять вне приложения — сверяемся при открытии.
+  pushSync(currentPoint().id).then(function () {
+    renderPushCard();
+    renderNotifyControl();
+    renderNotifyDiagnostics();
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Вкладки                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -1958,7 +1856,10 @@ function showTab(id, historyMode) {
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
   if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
-  if (id === 'notify') renderNotifyDiagnostics();
+  if (id === 'notify') {
+    renderNotifyDiagnostics();
+    refreshPushHealth();
+  }
 }
 
 function initTabs() {
@@ -2077,6 +1978,11 @@ function initPointSelect() {
   select.addEventListener('change', function () {
     state.point = findPoint(select.value);
     savePointId(state.point.id);
+    // Серверные уведомления привязаны к точке: подписка переезжает вместе с выбором.
+    pushSync(state.point.id).then(function () {
+      renderPushCard();
+      renderNotifyDiagnostics();
+    });
     renderPointMeta();
 
     // Облачность принадлежала прежней точке — её нельзя показывать для новой.
@@ -2168,6 +2074,7 @@ function init() {
   initPointSelect();
   initNotifications();
   initNotifyTab();
+  initPushCard();
   initTabs();
   $('cloud-model').textContent = 'Модель прогноза: ' + weatherModelLabel();
   $('refresh').addEventListener('click', refreshAll);

@@ -9,9 +9,13 @@
  */
 'use strict';
 
+// Адрес сервера уведомлений. Файл общий со страницей; если его не удалось загрузить,
+// service worker всё равно должен запуститься: остальное приложение от него не зависит.
+try { importScripts('config.js'); } catch (e) { /* без настроек push просто не работает */ }
+
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v7';
+var CACHE_VERSION = 'v8';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -19,6 +23,9 @@ var APP_SHELL = [
   'index.html',
   'styles.css',
   'app.js',
+  'core.js',
+  'config.js',
+  'push.js',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -99,3 +106,53 @@ self.addEventListener('notificationclick', function (event) {
     })
   );
 });
+
+/**
+ * Пришёл push. Полезной нагрузки в нём нет (сервер шлёт пустой push), поэтому текст
+ * запрашиваем у сервера сами. Если сервер недоступен — показываем общее уведомление:
+ * браузеры требуют показывать уведомление на каждый push, иначе покажут своё.
+ */
+self.addEventListener('push', function (event) {
+  event.waitUntil(showPushNotification());
+});
+
+function showPushNotification() {
+  var api = (typeof AURORA_CONFIG !== 'undefined' && AURORA_CONFIG.pushApi) || '';
+  var fallback = {
+    title: 'Возможно северное сияние',
+    body: 'Условия для наблюдения изменились — откройте приложение.'
+  };
+
+  return self.registration.pushManager.getSubscription()
+    .then(function (subscription) {
+      if (!subscription || !api) return null;
+      return fetch(api + '/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+        cache: 'no-store'
+      }).then(function (res) { return res.ok ? res.json() : null; });
+    })
+    .catch(function () { return null; })
+    .then(function (message) {
+      var msg = message || fallback;
+
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (windows) {
+        // Приложение открыто и перед глазами — уведомление лишнее. Пробное показываем
+        // всегда: человек как раз проверяет, что оно доходит.
+        var inFront = windows.some(function (w) { return w.visibilityState === 'visible' && w.focused; });
+        if (inFront && !msg.test) return null;
+
+        var icon = new URL('icons/icon-192.png', self.registration.scope).href;
+        return self.registration.showNotification(msg.title, {
+          body: msg.body,
+          icon: icon,
+          badge: icon,
+          lang: 'ru',
+          tag: msg.test ? 'aurora-test' : 'aurora-high',
+          renotify: true,
+          data: { url: self.registration.scope + '#now' }
+        });
+      });
+    });
+}

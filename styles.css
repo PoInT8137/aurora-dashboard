@@ -616,6 +616,13 @@ body {
 
 .help b { color: var(--text); font-weight: 600; }
 
+/* Переключатель серверных уведомлений: включённое состояние читается и без цвета — по тексту кнопки */
+#push-toggle[aria-pressed="true"] {
+  color: var(--aurora-green);
+  border-color: rgba(77, 255, 184, 0.45);
+  background: rgba(77, 255, 184, 0.08);
+}
+
 /* ---------- Окно наблюдения ---------- */
 #window-card { margin-top: 18px; min-height: 0; }
 
