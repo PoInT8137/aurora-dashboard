@@ -1,0 +1,27 @@
+name = "aurora-push"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Публичный адрес worker'а — только основной на workers.dev. Preview-адреса
+# (отдельный публичный адрес на каждую версию) не нужны и лишь расширяют доступ.
+workers_dev = true
+preview_urls = false
+
+# Раз в 10 минут: проверка условий и рассылка (см. src/check.js).
+[triggers]
+crons = ["*/10 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "aurora-push"
+database_id = "5c764ab7-c5bd-427e-b720-44482b86f167"
+
+[vars]
+# Открытый ключ VAPID (base64url) — тот же, что vapidPublicKey в config.js.
+VAPID_PUBLIC = "BIf53FBOesY08hzxQbzCYoZhtZMzNlPAiYKbOKBamvifzu-V305wdH74jysaERFMF36bB2DB6mqne8n55y7pmaw"
+# Откуда принимаются запросы браузера.
+ALLOWED_ORIGINS = "https://auroramurmansk.ru,http://localhost:8765"
+VAPID_SUBJECT = "https://auroramurmansk.ru"
+
+# Секрет VAPID_PRIVATE_KEY (закрытый ключ, 43 символа base64url) задаётся командой
+# `wrangler secret put VAPID_PRIVATE_KEY` и в репозиторий не попадает.

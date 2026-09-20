@@ -1,0 +1,170 @@
+// Проверка по расписанию: раз в 10 минут считает вердикт по каждой точке, на
+// которую есть подписчики, и шлёт push при переходе в «Высокий».
+//
+// Уровень считает общее ядро (core.js) — то же, что на сайте, поэтому
+// уведомление не может расходиться с тем, что человек увидит в приложении.
+
+import '../../core.js';
+import { sendPush } from './push.js';
+
+const Core = globalThis.AuroraCore;
+
+/** Не чаще раза в 3 часа на человека: суббури идут волнами с таким интервалом. */
+export const COOLDOWN_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * На бесплатном тарифе у worker'а лимит 50 внешних запросов за запуск.
+ * Часть уходит на данные и базу, остальное — на отправку. Если подписчиков
+ * больше, остальные получат push при следующем запуске (через 10 минут).
+ */
+export const MAX_SENDS_PER_RUN = 35;
+
+/** Данные старше этого не годятся, чтобы будить человека. */
+const KP_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+
+/** После стольких неудач подряд подписка считается мёртвой. */
+const MAX_FAILS = 5;
+
+const URL_KP = 'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json';
+const URL_KP_ALT = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json';
+
+async function loadKp(nowMs, fetchFn) {
+  for (const url of [URL_KP, URL_KP_ALT]) {
+    try {
+      const res = await fetchFn(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) continue;
+      const kp = Core.readKpSeries(await res.json());
+      // Устаревшее значение хуже отсутствующего: по нему нельзя будить.
+      if (kp.time && nowMs - kp.time.getTime() <= KP_MAX_AGE_MS) return kp;
+    } catch { /* пробуем резервный источник */ }
+  }
+  return null;
+}
+
+/** Облачность по всем точкам одним запросом; массив в порядке points. */
+async function loadClouds(points, fetchFn) {
+  const url = 'https://api.open-meteo.com/v1/forecast'
+    + '?latitude=' + points.map(p => p.lat).join(',')
+    + '&longitude=' + points.map(p => p.lon).join(',')
+    + '&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
+    + '&models=' + Core.WEATHER_MODEL
+    + '&timezone=UTC';
+
+  try {
+    const res = await fetchFn(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    // Для одной точки API отдаёт объект, для нескольких — массив.
+    const list = Array.isArray(data) ? data : [data];
+    if (list.length !== points.length) return null;
+    return list.map(item => Core.cloudFromCurrent(item && item.current));
+  } catch {
+    return null;
+  }
+}
+
+export function alertMessage(point, kp, cloud, nowMs) {
+  return {
+    title: 'Высокий шанс увидеть сияние — ' + point.name,
+    body: 'Kp ' + kp.value.toFixed(1).replace('.', ',') + ' · облачность ' + cloud.value +
+      '% · тёмное небо. Смотрите на север.',
+    at: nowMs
+  };
+}
+
+/**
+ * Один проход. nowMs и fetchFn подменяются в тестах.
+ * Возвращает сводку для журнала и тестов.
+ */
+export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
+  const { results: rows } = await env.DB.prepare('SELECT DISTINCT point FROM subs').all();
+  const points = rows
+    .map(r => Core.POINTS.find(p => p.id === r.point))
+    .filter(Boolean);
+
+  // Нет подписчиков — нет и запросов к внешним сервисам.
+  if (!points.length) return { skipped: 'нет подписчиков' };
+
+  const [kp, clouds] = await Promise.all([loadKp(nowMs, fetchFn), loadClouds(points, fetchFn)]);
+
+  // При неполных данных уровень не считаем вовсе: он вышел бы «средним», а на
+  // следующем удачном проходе «высокий» выглядел бы переходом и разбудил зря.
+  if (kp === null) return { skipped: 'нет свежего Kp' };
+  if (clouds === null) return { skipped: 'нет данных об облачности' };
+
+  const { results: stateRows } = await env.DB.prepare('SELECT point, level, high_since FROM point_state').all();
+  const prevState = new Map(stateRows.map(r => [r.point, r]));
+
+  const summary = { levels: {}, sent: 0, gone: 0, failed: 0 };
+  const stateWrites = [];
+  const targets = [];   // { point, cloud, alt, highSince }
+
+  points.forEach((point, i) => {
+    const cloud = clouds[i];
+    const q = Core.quickLevel(kp.value, cloud, point, new Date(nowMs));
+    if (!q || !cloud) return;                       // по этой точке считать не из чего
+
+    const prev = prevState.get(point.id);
+    summary.levels[point.id] = q.level;
+
+    // Момент начала «высокого»: переход из другого уровня. Первое наблюдение
+    // за точкой — только точка отсчёта (0): подписчиков не будим тем, что
+    // «высокий» просто оказался на месте, когда мы начали смотреть.
+    let highSince = prev ? prev.high_since : 0;
+    if (q.level === 'high' && prev && prev.level !== 'high') highSince = nowMs;
+
+    stateWrites.push(env.DB.prepare(
+      'INSERT INTO point_state(point, level, high_since, updated) VALUES(?, ?, ?, ?) ' +
+      'ON CONFLICT(point) DO UPDATE SET level = excluded.level, ' +
+      'high_since = excluded.high_since, updated = excluded.updated'
+    ).bind(point.id, q.level, highSince, nowMs));
+
+    if (q.level === 'high' && highSince > 0) targets.push({ point, cloud, alt: q.alt, highSince });
+  });
+
+  if (stateWrites.length) await env.DB.batch(stateWrites);
+
+  // Кому слать: подписался до начала этого «высокого», ещё не получал о нём
+  // сообщения и не получал ничего в последние 3 часа. Выборка повторяется на
+  // каждом проходе, поэтому лимит на число отправок просто растягивает рассылку
+  // на несколько проходов, а не теряет получателей.
+  const updates = [];
+  let budget = MAX_SENDS_PER_RUN;
+
+  for (const t of targets) {
+    if (budget <= 0) break;
+
+    const { results: subs } = await env.DB.prepare(
+      'SELECT id, endpoint FROM subs WHERE point = ? AND created < ? AND last_sent < ? ' +
+      'AND ? - last_sent >= ? ORDER BY last_sent LIMIT ?'
+    ).bind(t.point.id, t.highSince, t.highSince, nowMs, COOLDOWN_MS, budget).all();
+
+    if (!subs.length) continue;
+    budget -= subs.length;
+
+    const msg = JSON.stringify(alertMessage(t.point, kp, t.cloud, nowMs));
+    const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
+
+    subs.forEach((sub, i) => {
+      const status = statuses[i];
+      if (status >= 200 && status < 300) {
+        summary.sent++;
+        updates.push(env.DB.prepare('UPDATE subs SET last_sent = ?, msg = ?, fails = 0 WHERE id = ?')
+          .bind(nowMs, msg, sub.id));
+      } else if (status === 404 || status === 410) {
+        summary.gone++;                               // человек отозвал подписку или сменил браузер
+        updates.push(env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(sub.id));
+      } else {
+        summary.failed++;
+        updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
+      }
+    });
+  }
+
+  if (updates.length) {
+    updates.push(env.DB.prepare('DELETE FROM subs WHERE fails >= ?').bind(MAX_FAILS));
+    await env.DB.batch(updates);
+  }
+
+  return summary;
+}
