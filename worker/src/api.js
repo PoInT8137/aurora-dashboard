@@ -1,6 +1,7 @@
 // Сервер уведомлений о северном сиянии (Cloudflare Worker).
 //
-//   POST /subscribe    { endpoint, point, lang? } оформить подписку, сменить точку или язык
+//   POST /subscribe    { endpoint, point, lang?, quiet?, tz? } оформить подписку, сменить точку,
+//                                              язык или тихие часы (quiet: {from, to} или null)
 //   POST /unsubscribe  { endpoint }            удалить подписку
 //   POST /message      { endpoint }            текст последнего уведомления — его
 //                                              забирает service worker при push
@@ -14,7 +15,7 @@
 
 import '../../core.js';
 import { checkEndpoint, sendPush } from './push.js';
-import { normalizeLang, testMessage } from './messages.js';
+import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './messages.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -109,12 +110,20 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
       // Язык уведомлений — тот, что выбран на сайте. Не указан (старая версия страницы) —
       // у новой подписки русский, а у существующей остаётся прежний.
       const lang = normalizeLang(body.lang);
+      // Тихие часы и пояс: не присланное (старая версия страницы) не трогаем, quiet: null выключает.
+      const quiet = normalizeQuiet(body);
+      const tz = normalizeZone(body.tz);
       await env.DB.prepare(
-        "INSERT INTO subs(id, endpoint, point, created, lang) VALUES(?, ?, ?, ?, COALESCE(?, 'ru')) " +
+        "INSERT INTO subs(id, endpoint, point, created, lang, quiet_from, quiet_to, tz) " +
+        "VALUES(?, ?, ?, ?, COALESCE(?, 'ru'), ?, ?, ?) " +
         'ON CONFLICT(id) DO UPDATE SET ' +
         'created = CASE WHEN subs.point != excluded.point THEN excluded.created ELSE subs.created END, ' +
-        'point = excluded.point, lang = COALESCE(?, subs.lang)'
-      ).bind(id, endpoint, point.id, nowMs, lang, lang).run();
+        'point = excluded.point, lang = COALESCE(?, subs.lang), ' +
+        'quiet_from = CASE WHEN ? THEN ? ELSE subs.quiet_from END, ' +
+        'quiet_to = CASE WHEN ? THEN ? ELSE subs.quiet_to END, ' +
+        'tz = COALESCE(?, subs.tz)'
+      ).bind(id, endpoint, point.id, nowMs, lang, quiet.from ?? null, quiet.to ?? null, tz,
+        lang, quiet.set ? 1 : 0, quiet.from ?? null, quiet.set ? 1 : 0, quiet.to ?? null, tz).run();
 
       return reply({ ok: true, point: point.id }, 200, cors);
     }

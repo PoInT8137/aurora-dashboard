@@ -6,6 +6,16 @@
 <title>Северное сияние — Мурманская область</title>
 <meta name="description" content="Прогноз северного сияния для семи точек Мурманской области: Kp-индекс, облачность по ярусам, лучшее время наблюдения и подсказка, куда ехать этой ночью.">
 <meta name="theme-color" content="#060b14">
+<script>
+/* Тема и размер текста применяются до первой отрисовки. Та же логика — в applyAppearance() (app.js). */
+try {
+  var saved = JSON.parse(localStorage.getItem('aurora.settings') || '{}') || {};
+  var root = document.documentElement, theme = saved.theme;
+  if (theme === 'auto') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
+  if (saved.size === 'large' || saved.size === 'xlarge') root.setAttribute('data-size', saved.size);
+} catch (e) { /* без хранилища — оформление по умолчанию */ }
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -301,8 +311,47 @@
           <button class="seg__btn" type="button" data-value="0" aria-pressed="false" data-i18n="pref.refresh.0">Выкл</button>
         </div>
       </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-theme" data-i18n="pref.theme">Тема</span>
+        <div class="seg" role="group" aria-labelledby="pref-theme" data-pref="theme">
+          <button class="seg__btn" type="button" data-value="dark" aria-pressed="false" data-i18n="pref.theme.dark">Тёмная</button>
+          <button class="seg__btn" type="button" data-value="light" aria-pressed="false" data-i18n="pref.theme.light">Светлая</button>
+          <button class="seg__btn" type="button" data-value="auto" aria-pressed="false" data-i18n="pref.theme.auto">Как в системе</button>
+        </div>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-size" data-i18n="pref.size">Размер текста</span>
+        <div class="seg" role="group" aria-labelledby="pref-size" data-pref="size">
+          <button class="seg__btn" type="button" data-value="normal" aria-pressed="false" data-i18n="pref.size.normal">Обычный</button>
+          <button class="seg__btn" type="button" data-value="large" aria-pressed="false" data-i18n="pref.size.large">Крупный</button>
+          <button class="seg__btn" type="button" data-value="xlarge" aria-pressed="false" data-i18n="pref.size.xlarge">Очень крупный</button>
+        </div>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-start" data-i18n="pref.start">Открывать на вкладке</span>
+        <div class="seg" role="group" aria-labelledby="pref-start" data-pref="start">
+          <button class="seg__btn" type="button" data-value="last" aria-pressed="false" data-i18n="pref.start.last">Где закрыл</button>
+          <button class="seg__btn" type="button" data-value="now" aria-pressed="false" data-i18n="pref.start.now">Сейчас</button>
+          <button class="seg__btn" type="button" data-value="tonight" aria-pressed="false" data-i18n="pref.start.tonight">Куда ехать</button>
+        </div>
+      </div>
     </div>
     <button class="btn btn--ghost" type="button" id="prefs-reset" data-i18n="prefs.reset">Сбросить настройки</button>
+  </section>
+
+  <!-- Тихие часы: действуют и на уведомления страницы, и на уведомления с сервера -->
+  <section class="card card--wide card--plain" id="quiet-card">
+    <h2 class="card__label" data-i18n="quiet.title">Тихие часы</h2>
+      <div class="pref">
+        <span class="pref__name" id="pref-quiet" data-i18n="pref.quiet">Не беспокоить</span>
+        <div class="seg" role="group" aria-labelledby="pref-quiet" data-pref="quiet">
+          <button class="seg__btn" type="button" data-value="off" aria-pressed="false" data-i18n="pref.quiet.off">Выкл</button>
+          <button class="seg__btn" type="button" data-value="22-08" aria-pressed="false" data-i18n="pref.quiet.22-08">22–08</button>
+          <button class="seg__btn" type="button" data-value="23-07" aria-pressed="false" data-i18n="pref.quiet.23-07">23–07</button>
+          <button class="seg__btn" type="button" data-value="00-06" aria-pressed="false" data-i18n="pref.quiet.00-06">00–06</button>
+        </div>
+        <p class="pref__hint" data-i18n="pref.quiet.hint">В эти часы уведомления о сиянии не присылаются. Время — по выбранному выше часовому поясу. Пробные уведомления приходят всегда.</p>
+      </div>
   </section>
 
   <!-- Уведомления с сервера: видны, только если в config.js задан адрес сервера -->

@@ -128,10 +128,18 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
   for (const t of targets) {
     if (budget <= 0) break;
 
-    const { results: subs } = await env.DB.prepare(
-      'SELECT id, endpoint, lang FROM subs WHERE point = ? AND created < ? AND last_sent < ? ' +
-      'AND ? - last_sent >= ? ORDER BY last_sent LIMIT ?'
-    ).bind(t.point.id, t.highSince, t.highSince, nowMs, COOLDOWN_MS, budget).all();
+    // Тихие часы считаются по поясу подписчика, а он лежит в базе строкой, поэтому отбор по ним —
+    // здесь, а не в SQL. Отложенные не теряются: пока «высокий» держится, они остаются подходящими
+    // и получат сигнал первым же проходом после тихих часов. Пропущенные не тратят лимит отправок.
+    const { results: candidates } = await env.DB.prepare(
+      'SELECT id, endpoint, lang, quiet_from, quiet_to, tz FROM subs WHERE point = ? AND created < ? ' +
+      'AND last_sent < ? AND ? - last_sent >= ? ORDER BY last_sent'
+    ).bind(t.point.id, t.highSince, t.highSince, nowMs, COOLDOWN_MS).all();
+
+    const date = new Date(nowMs);
+    const subs = candidates
+      .filter(c => !Core.inQuietHours(date, c.tz || undefined, c.quiet_from, c.quiet_to))
+      .slice(0, budget);
 
     if (!subs.length) continue;
     budget -= subs.length;

@@ -106,7 +106,7 @@ function usedKeys() {
     for (const m of arg.matchAll(/'([a-z_0-9]+(?:\.[a-z_0-9]+)+)'/g)) used.add(m[1]);
   }
   for (const m of app.matchAll(/'(lead\.[\w.]+|check\.\w+)'/g)) used.add(m[1]);   // ключи, переданные значением
-  for (const m of html.matchAll(/data-i18n="([\w.]+)"/g)) used.add(m[1]);
+  for (const m of html.matchAll(/data-i18n="([\w.-]+)"/g)) used.add(m[1]);
   for (const m of html.matchAll(/data-i18n-attr="([^"]+)"/g)) {
     for (const pair of m[1].split(';')) used.add(pair.split(':')[1].trim());
   }
@@ -229,6 +229,8 @@ const element = () => ({
   set innerHTML(value) { if (value === '') this.children = []; },
   get innerHTML() { return ''; }
 });
+
+const plainCopy = value => JSON.parse(JSON.stringify(value));
 
 function page(nowIso = '2026-09-26T22:00:00Z', extra = {}) {
   const elements = new Map();
@@ -447,7 +449,8 @@ test('оболочка service worker: движок и все словари л�
 test('подписка на сервер уведомлений несёт язык страницы; без движка переводов язык не указывается', () => {
   const { ctx } = page();
   ctx.setLang('zh');
-  assert.deepEqual({ ...ctx.pushSubscription('https://e.example/1', 'teriberka') }, { endpoint: 'https://e.example/1', point: 'teriberka', lang: 'zh' });
+  const body = plainCopy(ctx.pushSubscription('https://e.example/1', 'teriberka'));
+  assert.deepEqual({ ...body, tz: typeof body.tz }, { endpoint: 'https://e.example/1', point: 'teriberka', lang: 'zh', quiet: null, tz: 'string' });
 
   const bare = loadApp([['push.js', read('push.js')]], {});
   assert.deepEqual({ ...bare.pushSubscription('https://e.example/1', 'teriberka') }, { endpoint: 'https://e.example/1', point: 'teriberka' });

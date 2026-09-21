@@ -16,9 +16,63 @@
   --mid:   #ffd166;
   --bad:   #ff7a8a;
 
+  /* Тройки RGB для полупрозрачных подложек: rgba(var(--tint), 0.12) */
+  --tint:    53, 214, 232;     /* акцент: кнопки, выбранное */
+  --fill:    255, 255, 255;    /* лёгкая подложка на карточках */
+  --ok-rgb:  77, 255, 184;
+  --mid-rgb: 255, 209, 102;
+  --bad-rgb: 255, 122, 138;
+
+  --tab-bg:    rgba(17, 27, 43, 0.6);
+  --nav-bg:    rgba(6, 11, 20, 0.92);
+  --option-bg: #0f1c2e;
+  --text-stale: #aab6c0;
+
   --radius: 18px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
 }
+
+/* ---------- Светлая тема: только переопределения переменных ---------- */
+html[data-theme="light"] {
+  --bg:            #eef4f8;
+  --bg-card:       rgba(255, 255, 255, 0.8);
+  --border:        rgba(20, 60, 80, 0.16);
+  --text:          #12232f;
+  --text-dim:      #485d6f;
+  --text-faint:    #556a7d;
+
+  --aurora-green:  #087a55;
+  --aurora-teal:   #0a7086;
+  --aurora-violet: #5b3fc4;
+  --aurora-pink:   #b8306f;
+
+  --ok:    #07704b;
+  --mid:   #8a5d00;
+  --bad:   #b8283f;
+
+  --tint:    0, 122, 144;
+  --fill:    20, 50, 70;
+  --ok-rgb:  7, 112, 75;
+  --mid-rgb: 138, 93, 0;
+  --bad-rgb: 184, 40, 63;
+
+  --tab-bg:    rgba(255, 255, 255, 0.7);
+  --nav-bg:    rgba(238, 244, 248, 0.94);
+  --option-bg: #ffffff;
+  --text-stale: #465664;
+
+  --shadow: 0 12px 32px rgba(20, 50, 70, 0.12);
+  color-scheme: light;
+}
+
+html[data-theme="light"] .aurora-bg { opacity: 0.4; }
+/* Свечение вокруг цифр красиво на тёмном и размывает текст на светлом */
+html[data-theme="light"] * { text-shadow: none !important; }
+
+/* ---------- Размер текста: увеличивается вся страница целиком ---------- */
+html[data-size="large"]  body { zoom: 1.15; }
+html[data-size="xlarge"] body { zoom: 1.3; }
 
 * { box-sizing: border-box; }
 
@@ -45,7 +99,7 @@ body {
   background:
     radial-gradient(60% 45% at 20% 10%, rgba(77, 255, 184, 0.16), transparent 70%),
     radial-gradient(55% 40% at 70% 0%,  rgba(155, 123, 255, 0.16), transparent 70%),
-    radial-gradient(45% 35% at 45% 25%, rgba(53, 214, 232, 0.12), transparent 70%);
+    radial-gradient(45% 35% at 45% 25%, rgba(var(--tint), 0.12), transparent 70%);
   filter: blur(30px);
   animation: drift 26s ease-in-out infinite alternate;
 }
@@ -122,7 +176,7 @@ body {
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
-  background: rgba(53, 214, 232, 0.1);
+  background: rgba(var(--tint), 0.1);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 6px 12px;
@@ -130,11 +184,11 @@ body {
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
-.point__select:hover { background: rgba(53, 214, 232, 0.18); border-color: rgba(53, 214, 232, 0.45); }
+.point__select:hover { background: rgba(var(--tint), 0.18); border-color: rgba(var(--tint), 0.45); }
 .point__select:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
 
 /* Список вариантов рисует система — задаём тёмный фон явно */
-.point__select option { background: #0f1c2e; color: var(--text); }
+.point__select option { background: var(--option-bg); color: var(--text); }
 
 .topbar__actions {
   display: flex;
@@ -148,14 +202,17 @@ body {
 .lang,
 .seg {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(53, 214, 232, 0.06);
+  background: rgba(var(--tint), 0.06);
 }
 
 .lang__btn,
 .seg__btn {
+  white-space: nowrap;
   font: inherit;
   font-size: 13px;
   color: var(--text-dim);
@@ -171,7 +228,7 @@ body {
 .lang__btn:hover,
 .seg__btn:hover { color: var(--text); }
 .lang__btn[aria-pressed="true"],
-.seg__btn[aria-pressed="true"] { background: rgba(53, 214, 232, 0.22); color: var(--text); font-weight: 600; }
+.seg__btn[aria-pressed="true"] { background: rgba(var(--tint), 0.22); color: var(--text); font-weight: 600; }
 .lang__btn:focus-visible,
 .seg__btn:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
 
@@ -225,7 +282,7 @@ html[lang="zh-CN"] .card__label {
   font: inherit;
   font-size: 14px;
   color: var(--text);
-  background: rgba(53, 214, 232, 0.12);
+  background: rgba(var(--tint), 0.12);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 8px 18px;
@@ -233,7 +290,7 @@ html[lang="zh-CN"] .card__label {
   transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
-.btn:hover  { background: rgba(53, 214, 232, 0.22); border-color: rgba(53, 214, 232, 0.45); }
+.btn:hover  { background: rgba(var(--tint), 0.22); border-color: rgba(var(--tint), 0.45); }
 
 .btn:active { transform: translateY(1px); }
 .btn[disabled] { opacity: 0.5; cursor: progress; }
@@ -263,7 +320,7 @@ html[lang="zh-CN"] .card__label {
   font: inherit;
   text-align: left;
   color: var(--text-dim);
-  background: rgba(17, 27, 43, 0.6);
+  background: var(--tab-bg);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 11px 16px;
@@ -271,12 +328,12 @@ html[lang="zh-CN"] .card__label {
   transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
-.tabs__btn:hover { background: rgba(53, 214, 232, 0.12); }
+.tabs__btn:hover { background: rgba(var(--tint), 0.12); }
 
 .tabs__btn[aria-selected="true"] {
   color: var(--text);
-  background: rgba(53, 214, 232, 0.16);
-  border-color: rgba(53, 214, 232, 0.5);
+  background: rgba(var(--tint), 0.16);
+  border-color: rgba(var(--tint), 0.5);
 }
 
 .tabs__title { display: block; font-size: 15px; font-weight: 650; }
@@ -294,7 +351,7 @@ html[lang="zh-CN"] .card__label {
     margin: 0;
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
     gap: 8px;
-    background: rgba(6, 11, 20, 0.92);
+    background: var(--nav-bg);
     border-top: 1px solid var(--border);
     backdrop-filter: blur(12px);
   }
@@ -365,7 +422,7 @@ html[lang="zh-CN"] .card__label {
 .card[data-state="ok"]      .card__body    { display: block; }
 .card[data-state="error"]   .card__error   { display: block; }
 
-.card[data-state="error"] { border-color: rgba(255, 122, 138, 0.3); }
+.card[data-state="error"] { border-color: rgba(var(--bad-rgb), 0.3); }
 
 /* Место под данные на самый первый заход, когда кэша ещё нет: карточка в
    «загрузке» занимает примерно столько же, сколько с данными, и страница не
@@ -390,7 +447,7 @@ html[lang="zh-CN"] .card__label {
 .card__error-text { margin: 0; color: var(--bad); }
 
 /* Данные из кэша: показываем, но приглушённо — видно, что они не живые */
-.card[data-state="stale"] { border-color: rgba(255, 209, 102, 0.28); }
+.card[data-state="stale"] { border-color: rgba(var(--mid-rgb), 0.28); }
 
 .card[data-state="stale"] .card__body {
   display: block;
@@ -398,7 +455,7 @@ html[lang="zh-CN"] .card__label {
      падал до контраста 3,7:1, а мелкий — до 1,6:1. Серый вместо белого и
      выцветшие оценки читаются как «не живые данные», но весь текст держит
      не меньше 4,9:1. */
-  --text: #aab6c0;
+  --text: var(--text-stale);
   filter: saturate(0.35);
 }
 
@@ -456,7 +513,7 @@ html[lang="zh-CN"] .card__label {
 .scale__cell {
   height: 10px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(var(--fill), 0.07);
 }
 
 .scale__cell--on { background: var(--tone, var(--aurora-teal)); }
@@ -466,7 +523,7 @@ html[lang="zh-CN"] .card__label {
   margin-top: 16px;
   height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(var(--fill), 0.07);
   overflow: hidden;
 }
 
@@ -501,7 +558,7 @@ html[lang="zh-CN"] .card__label {
 .layer__bar {
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(var(--fill), 0.07);
   overflow: hidden;
 }
 
@@ -526,8 +583,8 @@ html[lang="zh-CN"] .card__label {
   font-size: 13px;
   line-height: 1.45;
   color: var(--mid);
-  background: rgba(255, 209, 102, 0.08);
-  border: 1px solid rgba(255, 209, 102, 0.25);
+  background: rgba(var(--mid-rgb), 0.08);
+  border: 1px solid rgba(var(--mid-rgb), 0.25);
   border-radius: 10px;
 }
 
@@ -582,7 +639,7 @@ html[lang="zh-CN"] .card__label {
 .verdict__factors li {
   font-size: 13px;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--fill), 0.05);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 5px 13px;
@@ -603,8 +660,8 @@ html[lang="zh-CN"] .card__label {
 
 .notify .btn[aria-pressed="true"] {
   color: var(--aurora-green);
-  border-color: rgba(77, 255, 184, 0.45);
-  background: rgba(77, 255, 184, 0.08);
+  border-color: rgba(var(--ok-rgb), 0.45);
+  background: rgba(var(--ok-rgb), 0.08);
 }
 
 .notify__hint {
@@ -638,7 +695,7 @@ html[lang="zh-CN"] .card__label {
   align-items: start;
   gap: 4px 10px;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--fill), 0.04);
   border: 1px solid var(--border);
   border-radius: 12px;
 }
@@ -692,8 +749,8 @@ html[lang="zh-CN"] .card__label {
 /* Переключатель серверных уведомлений: включённое состояние читается и без цвета — по тексту кнопки */
 #push-toggle[aria-pressed="true"] {
   color: var(--aurora-green);
-  border-color: rgba(77, 255, 184, 0.45);
-  background: rgba(77, 255, 184, 0.08);
+  border-color: rgba(var(--ok-rgb), 0.45);
+  background: rgba(var(--ok-rgb), 0.08);
 }
 
 /* ---------- Окно наблюдения ---------- */
@@ -724,7 +781,7 @@ html[lang="zh-CN"] .card__label {
 }
 
 .hour {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--fill), 0.04);
   border: 1px solid var(--border);
   border-radius: 11px;
   padding: 9px 10px;
@@ -763,7 +820,7 @@ html[lang="zh-CN"] .card__label {
   gap: 4px 16px;
   align-items: baseline;
   padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--fill), 0.04);
   border: 1px solid var(--border);
   border-radius: 14px;
   border-left: 3px solid var(--tone, var(--border));
@@ -810,7 +867,7 @@ html[lang="zh-CN"] .card__label {
 }
 
 .slot {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--fill), 0.04);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 12px;
@@ -853,7 +910,7 @@ html[lang="zh-CN"] .card__label {
 /* Панель вкладки фокусируется с клавиатуры (Tab из вкладок ведёт в неё),
    но кольцо вокруг всей страницы было бы шумом — показываем тонкую линию. */
 [role="tabpanel"]:focus-visible {
-  outline: 1px solid rgba(53, 214, 232, 0.35);
+  outline: 1px solid rgba(var(--tint), 0.35);
   outline-offset: 4px;
   border-radius: 12px;
 }

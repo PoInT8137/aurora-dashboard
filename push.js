@@ -186,12 +186,16 @@ function pushSubscribe(pointId) {
 }
 
 /**
- * Тело запроса на подписку: адрес, точка и язык страницы — на нём сервер пришлёт уведомление.
- * Без движка переводов (getLang не определён) язык не указывается, и сервер оставляет прежний.
+ * Тело запроса на подписку: адрес, точка и предпочтения страницы — язык уведомления, тихие часы
+ * и пояс, по которому они считаются (pushPreferences() из app.js). Без страницы предпочтений
+ * нет, и сервер оставляет прежние.
  */
 function pushSubscription(endpoint, pointId) {
   var body = { endpoint: endpoint, point: pointId };
-  if (typeof getLang === 'function') body.lang = getLang();
+  if (typeof pushPreferences === 'function') {
+    var preferences = pushPreferences();
+    Object.keys(preferences).forEach(function (key) { body[key] = preferences[key]; });
+  }
   return body;
 }
 

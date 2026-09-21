@@ -37,7 +37,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 test('по умолчанию всё как было до появления настроек: Москва, 24 часа, км, °C, 5 минут', () => {
   const { ctx } = page();
-  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5' });
+  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5', theme: 'dark', size: 'normal', start: 'last', quiet: 'off' });
   assert.equal(ctx.fmtTime(new Date('2026-09-26T16:05:00Z')), '19:05');
   assert.equal(ctx.distText(120), '120 км');
   assert.equal(ctx.tempText(3), '+3 °C');
@@ -57,7 +57,7 @@ test('испорченное или чужое хранилище не лома�
   }
   const { ctx } = page();
   put(ctx, '{"tz":"device","clock":"13","dist":"mi"}');
-  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'device', clock: '24', dist: 'mi', temp: 'c', refresh: '5' }, 'годное сохраняется, негодное — умолчание');
+  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'device', clock: '24', dist: 'mi', temp: 'c', refresh: '5', theme: 'dark', size: 'normal', start: 'last', quiet: 'off' }, 'годное сохраняется, негодное — умолчание');
 });
 
 test('хранилище недоступно: настройки работают, просто не переживают перезагрузку', () => {
@@ -205,7 +205,7 @@ test('нажатие на кнопку настройки: значение пр
   const { ctx, el } = page();
   ctx.initSettings();
 
-  const press = (name, value) => el('prefs').listeners.click({
+  const press = (name, value) => el('tab-settings').listeners.click({
     target: { closest: sel => (sel === '[data-value]' ? { getAttribute: () => value, closest: () => ({ getAttribute: () => name }) } : null) }
   });
 
@@ -254,7 +254,7 @@ test('разметка: уведомления лежат внутри вкла�
   const groups = [...panel.matchAll(/data-pref="(\w+)">([\s\S]*?)<\/div>/g)];
   assert.deepEqual(groups.map(g => g[1]).sort(), Object.keys(choices).sort(), 'по группе на каждую настройку');
   for (const [, name, body] of groups) {
-    const values = [...body.matchAll(/data-value="(\w+)"/g)].map(m => m[1]);
+    const values = [...body.matchAll(/data-value="([\w-]+)"/g)].map(m => m[1]);
     assert.deepEqual(values.sort(), [...choices[name]].sort(), `кнопки настройки ${name}`);
   }
 });
@@ -296,7 +296,7 @@ test('смена периода автообновления кнопкой ср
   ctx.initSettings();
   vm.runInContext("var log = []; var next = 100; setInterval = function (fn, ms) { log.push(['set', ms]); return ++next; }; " +
     "clearInterval = function (id) { log.push(['clear', id]); };", ctx);
-  const press = (name, value) => el('prefs').listeners.click({
+  const press = (name, value) => el('tab-settings').listeners.click({
     target: { closest: sel => (sel === '[data-value]' ? { getAttribute: () => value, closest: () => ({ getAttribute: () => name }) } : null) }
   });
   ctx.armRefresh();

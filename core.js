@@ -173,6 +173,29 @@ function cloudScore(pct, conflict) {
   return conflict ? Math.min(2, score) : score;
 }
 
+/**
+ * Тихие часы: попадает ли момент в окно [from, to) по местным часам пояса tz.
+ * Окно может переходить через полночь (23 → 7). from === to — окна нет.
+ * tz — название пояса IANA; без него берётся пояс машины. Неизвестный пояс — не тихо:
+ * лучше лишнее уведомление, чем пропущенное сияние.
+ */
+function inQuietHours(date, tz, from, to) {
+  if (typeof from !== 'number' || typeof to !== 'number' || from === to) return false;
+  if (!(from >= 0 && from <= 23 && to >= 0 && to <= 23)) return false;
+
+  var hour;
+  try {
+    var options = { hour: '2-digit', hourCycle: 'h23' };
+    if (tz) options.timeZone = tz;
+    hour = Number(new Intl.DateTimeFormat('en-GB', options).format(date));
+  } catch (e) {
+    return false;
+  }
+  if (!isFinite(hour)) return false;
+
+  return from < to ? (hour >= from && hour < to) : (hour >= from || hour < to);
+}
+
 /** Ошибка с кодом: страница показывает перевод по коду, сообщение остаётся для журнала. */
 function codedError(code, message) {
   var error = new Error(message);
@@ -641,6 +664,7 @@ globalThis.AuroraCore = {
   POINTS: POINTS,
   LIGHT_LEVELS: LIGHT_LEVELS,
   codedError: codedError,
+  inQuietHours: inQuietHours,
   REFERENCE_POINT_ID: REFERENCE_POINT_ID,
   CLOUD_CONFLICT_LIMIT: CLOUD_CONFLICT_LIMIT,
   CLOUD_LAYERS: CLOUD_LAYERS,

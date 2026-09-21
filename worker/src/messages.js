@@ -12,6 +12,34 @@ export function normalizeLang(value) {
   return LANGS.includes(value) ? value : null;
 }
 
+/** Пояс IANA, который знает Intl: иначе null (мусор, слишком длинная строка). */
+export function normalizeZone(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 64) return null;
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: value });
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Тихие часы из запроса: { from, to } — целые 0–23, не равные друг другу.
+ * Возвращает { set: false }, если поле не присылали или оно негодное (прежнее значение остаётся),
+ * { set: true, from: null, to: null } для явного null (выключить) и { set: true, from, to }.
+ */
+export function normalizeQuiet(body) {
+  if (!Object.prototype.hasOwnProperty.call(body, 'quiet')) return { set: false };
+  if (body.quiet === null) return { set: true, from: null, to: null };
+
+  const q = body.quiet;
+  const hour = v => Number.isInteger(v) && v >= 0 && v <= 23;
+  if (q && typeof q === 'object' && hour(q.from) && hour(q.to) && q.from !== q.to) {
+    return { set: true, from: q.from, to: q.to };
+  }
+  return { set: false };
+}
+
 /** Название точки на языке подписчика. */
 export function pointName(point, lang) {
   return (point.names && point.names[lang]) || point.name;

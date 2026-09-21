@@ -432,7 +432,8 @@ function moonWindowText(summary) {
 /*  Шкалы и оценки                                                     */
 /* ------------------------------------------------------------------ */
 
-var TONE = { ok: '#4dffb8', mid: '#ffd166', bad: '#ff7a8a' };
+/* Тона — ссылки на переменные CSS: в светлой теме те же слова дают тёмные оттенки, и перерисовка не нужна. */
+var TONE = { ok: 'var(--ok)', mid: 'var(--mid)', bad: 'var(--bad)' };
 
 /** Балл за Kp (0..3) для точки; без точки — для выбранной. */
 function kpScore(kp, point) {
@@ -1454,6 +1455,8 @@ function checkHighChance(verdict) {
   if (pushIsActive()) return;
   // Вкладка в фокусе — вердикт и так перед глазами.
   if (document.hasFocus()) return;
+  // Тихие часы: не беспокоим, этот переход пропускается.
+  if (inQuietNow()) return;
   if (Date.now() - lastNotifiedAt(point.id) < NOTIFY_COOLDOWN_MS) return;
 
   markNotified(point.id);
@@ -1930,8 +1933,7 @@ function showTab(id, historyMode) {
 }
 
 function initTabs() {
-  var fromHash = tabFromName((location.hash || '').replace('#', ''));
-  var initial = TAB_IDS.indexOf(fromHash) >= 0 ? fromHash : tabFromName(savedTab() || 'now');
+  var initial = startTab(tabFromName((location.hash || '').replace('#', '')), tabFromName(savedTab() || 'now'));
 
   $('tabs').addEventListener('click', function (e) {
     var btn = e.target.closest ? e.target.closest('[data-tab]') : null;
@@ -2158,13 +2160,18 @@ function refreshAll() {
 /*  запись не должна ломать страницу. По умолчанию всё как было раньше. */
 /* ------------------------------------------------------------------ */
 
-var SETTINGS_DEFAULTS = { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5' };
+var SETTINGS_DEFAULTS = { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5',
+                          theme: 'dark', size: 'normal', start: 'last', quiet: 'off' };
 var SETTINGS_CHOICES = {
   tz: ['murmansk', 'device'],
   clock: ['24', '12'],
   dist: ['km', 'mi'],
   temp: ['c', 'f'],
-  refresh: ['5', '10', '30', '0']   // минуты; 0 — не обновлять само
+  refresh: ['5', '10', '30', '0'],  // минуты; 0 — не обновлять само
+  theme: ['dark', 'light', 'auto'],
+  size: ['normal', 'large', 'xlarge'],
+  start: ['last', 'now', 'tonight'],  // last — вкладка, на которой закрыли
+  quiet: ['off', '22-08', '23-07', '00-06']   // часы, когда уведомления о сиянии не присылаются
 };
 
 function loadSettings() {
@@ -2207,6 +2214,62 @@ function resetSettings() {
   try {
     localStorage.removeItem(CACHE.prefix + 'settings');
   } catch (e) { /* см. выше */ }
+}
+
+/** Тема с учётом «авто»: по настройке системы. */
+function resolvedTheme() {
+  var theme = setting('theme');
+  if (theme !== 'auto') return theme;
+  var light = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  return light ? 'light' : 'dark';
+}
+
+var THEME_COLORS = { dark: '#060b14', light: '#eef4f8' };
+
+/** Тема и размер текста — атрибутами страницы; цвет строки состояния браузера — в тон теме. */
+function applyAppearance() {
+  var root = document.documentElement;
+  var theme = resolvedTheme();
+  root.setAttribute('data-theme', theme);
+  root.setAttribute('data-size', setting('size'));
+
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
+}
+
+/** Окно тихих часов {from, to} или null, если выключено. */
+function quietWindow() {
+  var value = setting('quiet');
+  var match = /^(\d\d)-(\d\d)$/.exec(value);
+  return match ? { from: Number(match[1]), to: Number(match[2]) } : null;
+}
+
+/** Часовой пояс, по которому считаются тихие часы: тот же, что показан на экране. */
+function quietZone() {
+  return displayZone() || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/** Сейчас тихие часы? Уведомления страницы в это время не показываются. */
+function inQuietNow() {
+  var quiet = quietWindow();
+  return !!quiet && inQuietHours(new Date(), quietZone(), quiet.from, quiet.to);
+}
+
+/**
+ * Что страница сообщает серверу уведомлений сверх точки: язык, тихие часы и пояс, по которому
+ * они считаются. Вызывается из push.js при подписке и синхронизации.
+ */
+function pushPreferences() {
+  var quiet = quietWindow();
+  return { lang: getLang(), quiet: quiet, tz: quietZone() };
+}
+
+/** Вкладка при открытии: адрес важнее всего, затем настройка, затем последняя открытая. */
+function startTab(fromHash, saved) {
+  if (TAB_IDS.indexOf(fromHash) >= 0) return fromHash;
+  var choice = setting('start');
+  if (choice !== 'last') return choice;
+  return TAB_IDS.indexOf(saved) >= 0 ? saved : 'now';
 }
 
 /** Период автообновления в мс; 0 — выключено. */
@@ -2253,22 +2316,34 @@ function renderSettings() {
 }
 
 /** Всё, что показано, перерисовывается: единицы и время меняются повсюду. */
-function afterSettingsChange() {
+/** changed — имя изменённой настройки (или 'reset'): на сервер нужно сообщать только пояс и тихие часы. */
+function afterSettingsChange(changed) {
   armRefresh();
+  applyAppearance();
   renderLocalized();
+  if (changed === 'tz' || changed === 'quiet' || changed === 'reset') {
+    pushSync(currentPoint().id).then(renderNotifyDiagnostics);
+  }
 }
 
 function initSettings() {
-  $('prefs').addEventListener('click', function (e) {
+  // Тема «авто» следует за системой: переключили — перекрашиваемся.
+  try {
+    var scheme = window.matchMedia('(prefers-color-scheme: light)');
+    if (scheme.addEventListener) scheme.addEventListener('change', applyAppearance);
+  } catch (e) { /* без matchMedia остаётся выбор при загрузке */ }
+
+  $('tab-settings').addEventListener('click', function (e) {
     var btn = e.target.closest ? e.target.closest('[data-value]') : null;
     var group = btn && btn.closest ? btn.closest('[data-pref]') : null;
     if (!btn || !group) return;
-    if (setSetting(group.getAttribute('data-pref'), btn.getAttribute('data-value'))) afterSettingsChange();
+    var name = group.getAttribute('data-pref');
+    if (setSetting(name, btn.getAttribute('data-value'))) afterSettingsChange(name);
   });
 
   $('prefs-reset').addEventListener('click', function () {
     resetSettings();
-    afterSettingsChange();
+    afterSettingsChange('reset');
   });
 }
 
@@ -2375,6 +2450,7 @@ function init() {
   cacheDrop('cloud');
 
   initLanguage();
+  applyAppearance();
   initSettings();
   initPointSelect();
   initNotifications();
