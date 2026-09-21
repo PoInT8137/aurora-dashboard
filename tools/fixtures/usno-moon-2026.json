@@ -1,0 +1,586 @@
+{
+ "source": "U.S. Naval Observatory, Astronomical Applications API (aa.usno.navy.mil/api), общедоступные данные",
+ "fetched": "2026-09-21",
+ "note": "phases — моменты фаз Луны по UTC; days — восходы и заходы Луны по UTC и освещённость диска для точки",
+ "places": [
+  {
+   "id": "murmansk",
+   "lat": 68.9678,
+   "lon": 33.0992
+  },
+  {
+   "id": "kandalaksha",
+   "lat": 67.1512,
+   "lon": 32.4128
+  }
+ ],
+ "phases": [
+  {
+   "phase": "Full Moon",
+   "at": "2026-01-03T10:03Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-01-10T15:48Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-01-18T19:52Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-01-26T04:47Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-02-01T22:09Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-02-09T12:43Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-02-17T12:01Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-02-24T12:27Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-03-03T11:38Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-03-11T09:38Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-03-19T01:23Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-03-25T19:18Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-04-02T02:12Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-04-10T04:51Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-04-17T11:52Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-04-24T02:32Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-05-01T17:23Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-05-09T21:10Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-05-16T20:01Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-05-23T11:11Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-05-31T08:45Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-06-08T10:00Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-06-15T02:54Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-06-21T21:55Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-06-29T23:56Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-07-07T19:29Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-07-14T09:43Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-07-21T11:05Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-07-29T14:36Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-08-06T02:21Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-08-12T17:37Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-08-20T02:46Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-08-28T04:18Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-09-04T07:51Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-09-11T03:27Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-09-18T20:44Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-09-26T16:49Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-10-03T13:25Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-10-10T15:50Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-10-18T16:12Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-10-26T04:12Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-11-01T20:28Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-11-09T07:02Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-11-17T11:48Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-11-24T14:53Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-12-01T06:08Z"
+  },
+  {
+   "phase": "New Moon",
+   "at": "2026-12-09T00:52Z"
+  },
+  {
+   "phase": "First Quarter",
+   "at": "2026-12-17T05:42Z"
+  },
+  {
+   "phase": "Full Moon",
+   "at": "2026-12-24T01:28Z"
+  },
+  {
+   "phase": "Last Quarter",
+   "at": "2026-12-30T18:59Z"
+  }
+ ],
+ "days": [
+  {
+   "place": "murmansk",
+   "date": "2026-01-05",
+   "illumination": 0.94,
+   "events": [
+    {
+     "type": "set",
+     "time": "10:11"
+    },
+    {
+     "type": "rise",
+     "time": "13:56"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-02-11",
+   "illumination": 0.32,
+   "events": [],
+   "alwaysUp": false,
+   "alwaysDown": true
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-03-03",
+   "illumination": 1,
+   "events": [
+    {
+     "type": "set",
+     "time": "05:12"
+    },
+    {
+     "type": "rise",
+     "time": "15:09"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-03-20",
+   "illumination": 0.03,
+   "events": [
+    {
+     "type": "rise",
+     "time": "03:17"
+    },
+    {
+     "type": "set",
+     "time": "19:34"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-04-14",
+   "illumination": 0.11,
+   "events": [
+    {
+     "type": "rise",
+     "time": "02:28"
+    },
+    {
+     "type": "set",
+     "time": "12:25"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-05-09",
+   "illumination": 0.54,
+   "events": [
+    {
+     "type": "rise",
+     "time": "02:20"
+    },
+    {
+     "type": "set",
+     "time": "05:03"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-06-21",
+   "illumination": 0.46,
+   "events": [
+    {
+     "type": "rise",
+     "time": "09:17"
+    },
+    {
+     "type": "set",
+     "time": "21:19"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-07-30",
+   "illumination": 0.99,
+   "events": [
+    {
+     "type": "rise",
+     "time": "19:50"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-08-12",
+   "illumination": 0,
+   "events": [
+    {
+     "type": "set",
+     "time": "18:56"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-09-26",
+   "illumination": 1,
+   "events": [
+    {
+     "type": "set",
+     "time": "03:14"
+    },
+    {
+     "type": "rise",
+     "time": "14:54"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-10-10",
+   "illumination": 0,
+   "events": [
+    {
+     "type": "rise",
+     "time": "04:31"
+    },
+    {
+     "type": "set",
+     "time": "13:36"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-11-08",
+   "illumination": 0.01,
+   "events": [
+    {
+     "type": "rise",
+     "time": "06:15"
+    },
+    {
+     "type": "set",
+     "time": "10:52"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-12-21",
+   "illumination": 0.9,
+   "events": [],
+   "alwaysUp": true,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-12-30",
+   "illumination": 0.53,
+   "events": [
+    {
+     "type": "set",
+     "time": "08:30"
+    },
+    {
+     "type": "rise",
+     "time": "23:15"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-06-05",
+   "illumination": 0.78,
+   "events": [
+    {
+     "type": "rise",
+     "time": "23:43"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-03-15",
+   "illumination": 0.14,
+   "events": [
+    {
+     "type": "rise",
+     "time": "06:42"
+    },
+    {
+     "type": "set",
+     "time": "07:39"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-12-06",
+   "illumination": 0.06,
+   "events": [
+    {
+     "type": "rise",
+     "time": "06:43"
+    },
+    {
+     "type": "set",
+     "time": "07:54"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-04-04",
+   "illumination": 0.94,
+   "events": [
+    {
+     "type": "set",
+     "time": "01:19"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "murmansk",
+   "date": "2026-05-01",
+   "illumination": 1,
+   "events": [
+    {
+     "type": "rise",
+     "time": "20:38"
+    },
+    {
+     "type": "set",
+     "time": "22:39"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "kandalaksha",
+   "date": "2026-01-05",
+   "illumination": 0.94,
+   "events": [
+    {
+     "type": "set",
+     "time": "09:38"
+    },
+    {
+     "type": "rise",
+     "time": "14:34"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "kandalaksha",
+   "date": "2026-02-11",
+   "illumination": 0.32,
+   "events": [],
+   "alwaysUp": false,
+   "alwaysDown": true
+  },
+  {
+   "place": "kandalaksha",
+   "date": "2026-03-03",
+   "illumination": 1,
+   "events": [
+    {
+     "type": "set",
+     "time": "05:07"
+    },
+    {
+     "type": "rise",
+     "time": "15:17"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "kandalaksha",
+   "date": "2026-03-20",
+   "illumination": 0.03,
+   "events": [
+    {
+     "type": "rise",
+     "time": "03:27"
+    },
+    {
+     "type": "set",
+     "time": "19:22"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  },
+  {
+   "place": "kandalaksha",
+   "date": "2026-04-14",
+   "illumination": 0.11,
+   "events": [
+    {
+     "type": "rise",
+     "time": "02:23"
+    },
+    {
+     "type": "set",
+     "time": "12:33"
+    }
+   ],
+   "alwaysUp": false,
+   "alwaysDown": false
+  }
+ ]
+}

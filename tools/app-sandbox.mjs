@@ -15,7 +15,7 @@ const stub = () => new Proxy(function () {}, {
 /**
  * sources — список [имя файла, исходный код] в порядке подключения.
  * options.now — зафиксированный момент (мс) или options.clock = { now } — меняемый;
- * options.fetch — подмена fetch; options.getElement(id) — подмена document.getElementById.
+ * options.fetch — подмена fetch; options.getElement(id) — подмена document.getElementById; options.createElement — подмена document.createElement.
  */
 export function loadApp(sources, options = {}) {
   const store = new Map();
@@ -42,7 +42,9 @@ export function loadApp(sources, options = {}) {
     document: new Proxy({}, {
       get: (target, prop) => prop === 'getElementById'
         ? (id => (options.getElement && options.getElement(id)) || stub())
-        : (prop in target ? target[prop] : (prop === 'then' ? undefined : stub()))
+        : (prop === 'createElement' && options.createElement)
+          ? options.createElement
+          : (prop in target ? target[prop] : (prop === 'then' ? undefined : stub()))
     }),
     window: { addEventListener() {}, matchMedia: () => ({ matches: false }), navigator: { userAgent: '', platform: '', maxTouchPoints: 0 } },
     navigator: { userAgent: '', platform: '', maxTouchPoints: 0 },

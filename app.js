@@ -348,6 +348,54 @@ function applyFreshness(cardId, staleId, ageMs, lead) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Луна: тексты. Расчёт — в core.js.                                  */
+/* ------------------------------------------------------------------ */
+
+function moonPercent(illumination) {
+  return Math.round(illumination * 100) + '%';
+}
+
+/** Фактор в вердикте: «Луна: 92%, над горизонтом». */
+function moonFactor(info) {
+  return 'Луна: ' + moonPercent(info.illumination) + (info.up ? ', над горизонтом' : ', под горизонтом');
+}
+
+/** Пояснение — только когда Луна действительно мешает. */
+function moonHint(impact) {
+  if (impact === 'strong') {
+    return 'Яркая Луна над горизонтом: слабое сияние будет выцветать, сильное видно и так. ' +
+      'Смотрите на север, спиной к Луне.';
+  }
+  if (impact === 'moderate') {
+    return 'Луна заметно подсвечивает небо — слабое сияние будет бледнее.';
+  }
+  return '';
+}
+
+/**
+ * Луна за интервал окна наблюдения одной строкой: «Луна 92%, над горизонтом»,
+ * «Луна 92%, зайдёт в 03:14», «Луна 3%, под горизонтом».
+ */
+function moonWindowText(summary) {
+  var head = 'Луна ' + moonPercent(summary.illumination);
+
+  if (summary.upShare === 0) return head + ', под горизонтом';
+  if (summary.upShare === 1) return head + ', над горизонтом';
+
+  // И восход, и заход внутри окна: интервал видимости назван целиком, иначе строка
+  // «взойдёт в 19:50» умолчала бы, что через четыре часа Луна уже зайдёт.
+  if (summary.rise && summary.set) {
+    if (summary.rise < summary.set) {
+      return head + ', над горизонтом ' + fmtTime(summary.rise) + '–' + fmtTime(summary.set);
+    }
+    return head + ', зайдёт в ' + fmtTime(summary.set) + ', взойдёт в ' + fmtTime(summary.rise);
+  }
+  if (summary.set) return head + ', зайдёт в ' + fmtTime(summary.set);
+  if (summary.rise) return head + ', взойдёт в ' + fmtTime(summary.rise);
+  return head;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Шкалы и оценки                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -446,6 +494,12 @@ function computeVerdict(kp, cloud) {
   var light = LIGHT_POLLUTION[point.light];
   factors.push('Засветка: ' + light.label);
   if (light && !tooLight && level !== 'low') hint += ' ' + light.hint;
+
+  // Луна, как и засветка, в расчёт уровня не входит — это фактор и пояснение.
+  // Упоминаем её, когда небо в принципе стоит смотреть.
+  var moon = moonInfo(new Date(), point.lat, point.lon);
+  factors.push(moonFactor(moon));
+  if (!tooLight && level !== 'low' && moonHint(moon.impact)) hint += ' ' + moonHint(moon.impact);
 
   if (partial) hint += ' Оценка неполная: часть данных не загрузилась.';
 
@@ -992,6 +1046,7 @@ function renderWindow() {
   var parts = [quality, cloudText];
   if (win.kpMax !== null) parts.push('Kp до ' + fmtKp(win.kpMax));
   parts.push(win.fullDark ? 'полная темнота' : 'неполная темнота');
+  parts.push(moonWindowText(moonSummary(win.from, win.to, win.point.lat, win.point.lon)));
 
   hintEl.textContent = parts.join(' · ') + '.';
 
@@ -1211,7 +1266,8 @@ function renderBest(list) {
   [
     'Засветка: ' + LIGHT_POLLUTION[best.point.light].label,
     'Порог Kp здесь: ' + fmtKp(kpThresholds(best.point).low),
-    win.fullDark ? 'Полная темнота' : 'Неполная темнота'
+    win.fullDark ? 'Полная темнота' : 'Неполная темнота',
+    moonWindowText(moonSummary(win.from, win.to, best.point.lat, best.point.lon))
   ].forEach(function (text) {
     var li = document.createElement('li');
     li.textContent = text;
