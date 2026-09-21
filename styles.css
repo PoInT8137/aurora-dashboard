@@ -144,8 +144,9 @@ body {
   gap: 12px;
 }
 
-/* Переключатель языка */
-.lang {
+/* Переключатели из кнопок: язык в шапке и настройки на третьей вкладке */
+.lang,
+.seg {
   display: inline-flex;
   padding: 2px;
   border: 1px solid var(--border);
@@ -153,7 +154,8 @@ body {
   background: rgba(53, 214, 232, 0.06);
 }
 
-.lang__btn {
+.lang__btn,
+.seg__btn {
   font: inherit;
   font-size: 13px;
   color: var(--text-dim);
@@ -166,12 +168,40 @@ body {
   transition: background 0.18s ease, color 0.18s ease;
 }
 
-.lang__btn:hover { color: var(--text); }
-.lang__btn[aria-pressed="true"] { background: rgba(53, 214, 232, 0.22); color: var(--text); font-weight: 600; }
-.lang__btn:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
+.lang__btn:hover,
+.seg__btn:hover { color: var(--text); }
+.lang__btn[aria-pressed="true"],
+.seg__btn[aria-pressed="true"] { background: rgba(53, 214, 232, 0.22); color: var(--text); font-weight: 600; }
+.lang__btn:focus-visible,
+.seg__btn:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
 
 @media (max-width: 480px) {
-  .lang__btn { min-height: 40px; padding: 6px 14px; }
+  .lang__btn,
+  .seg__btn { min-height: 40px; padding: 6px 14px; }
+}
+
+/* Строки настроек */
+.prefs {
+  display: grid;
+  gap: 18px;
+  margin: 4px 0 18px;
+}
+
+.pref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pref__name { color: var(--text-dim); font-size: 15px; }
+
+.pref__hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13px;
 }
 
 /* Китайский: свой набор шрифтов; разрядка и верхний регистр иероглифам не нужны */

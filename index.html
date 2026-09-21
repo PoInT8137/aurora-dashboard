@@ -49,10 +49,10 @@
     <span class="tabs__title"><span class="tabs__long" data-i18n="tab.tonight.long">Куда ехать ночью</span><span class="tabs__short" data-i18n="tab.tonight.short">Куда ехать</span></span>
     <span class="tabs__sub" data-i18n="tab.tonight.sub">сравнение семи точек</span>
   </button>
-  <button class="tabs__btn" type="button" role="tab" id="tab-btn-notify" data-tab="notify"
-          aria-controls="tab-notify" aria-selected="false" tabindex="-1">
-    <span class="tabs__title" data-i18n="tab.notify">Уведомления</span>
-    <span class="tabs__sub" data-i18n="tab.notify.sub">проверка и настройка</span>
+  <button class="tabs__btn" type="button" role="tab" id="tab-btn-settings" data-tab="settings"
+          aria-controls="tab-settings" aria-selected="false" tabindex="-1">
+    <span class="tabs__title" data-i18n="tab.settings">Настройки</span>
+    <span class="tabs__sub" data-i18n="tab.settings.sub">вид и уведомления</span>
   </button>
 </div>
 
@@ -187,7 +187,7 @@
 
     <div class="card__body">
       <div class="forecast" id="forecast-list"></div>
-      <p class="card__meta" data-i18n="forecast.note">Время местное (UTC+3), шаг 3 часа. Источник: NOAA SWPC 3-day forecast. Прогнозные значения усреднены по трёхчасовкам и могут отличаться от текущей оценки Kp выше.</p>
+      <p class="card__meta" id="forecast-note">Время местное (UTC+3), шаг 3 часа. Источник: NOAA SWPC 3-day forecast. Прогнозные значения усреднены по трёхчасовкам и могут отличаться от текущей оценки Kp выше.</p>
     </div>
 
     <p class="card__stale" id="forecast-stale">
@@ -204,7 +204,7 @@
   <footer class="foot">
     <p><span data-i18n="foot.data">Данные:</span> <a href="https://www.swpc.noaa.gov/" target="_blank" rel="noopener">NOAA SWPC</a> ·
        <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
-       <span data-i18n="foot.refresh">Обновление автоматически каждые 5 минут.</span></p>
+       <span id="foot-refresh">Обновление автоматически каждые 5 минут.</span></p>
     <p class="foot__note" data-i18n="foot.note">Оценка ориентировочная. Засветка показана в факторах и пояснении, но в расчёт шанса не входит: это свойство места, а не прогноз. Туман и локальные разрывы облаков модель не видит.</p>
   </footer>
 
@@ -257,7 +257,53 @@
 
 </section>
 
-<section class="wrap" id="tab-notify" role="tabpanel" aria-labelledby="tab-btn-notify" tabindex="0" hidden>
+<section class="wrap" id="tab-settings" role="tabpanel" aria-labelledby="tab-btn-settings" tabindex="0" hidden>
+
+  <!-- Вид и единицы: хранятся в браузере, по умолчанию всё как раньше -->
+  <section class="card card--wide card--plain" id="prefs">
+    <h2 class="card__label" data-i18n="prefs.title">Вид и единицы</h2>
+    <div class="prefs">
+      <div class="pref">
+        <span class="pref__name" id="pref-tz" data-i18n="pref.tz">Часовой пояс</span>
+        <div class="seg" role="group" aria-labelledby="pref-tz" data-pref="tz">
+          <button class="seg__btn" type="button" data-value="murmansk" aria-pressed="false" data-i18n="pref.tz.murmansk">Мурманск (МСК)</button>
+          <button class="seg__btn" type="button" data-value="device" aria-pressed="false" data-i18n="pref.tz.device">Моё устройство</button>
+        </div>
+        <p class="pref__hint" data-i18n="pref.tz.hint">Все времена на сайте показываются в выбранном поясе. Мурманская область живёт по московскому времени (UTC+3).</p>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-clock" data-i18n="pref.clock">Формат времени</span>
+        <div class="seg" role="group" aria-labelledby="pref-clock" data-pref="clock">
+          <button class="seg__btn" type="button" data-value="24" aria-pressed="false" data-i18n="pref.clock.24">24 часа</button>
+          <button class="seg__btn" type="button" data-value="12" aria-pressed="false" data-i18n="pref.clock.12">12 часов</button>
+        </div>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-dist" data-i18n="pref.dist">Расстояния</span>
+        <div class="seg" role="group" aria-labelledby="pref-dist" data-pref="dist">
+          <button class="seg__btn" type="button" data-value="km" aria-pressed="false" data-i18n="pref.dist.km">Километры</button>
+          <button class="seg__btn" type="button" data-value="mi" aria-pressed="false" data-i18n="pref.dist.mi">Мили</button>
+        </div>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-temp" data-i18n="pref.temp">Температура</span>
+        <div class="seg" role="group" aria-labelledby="pref-temp" data-pref="temp">
+          <button class="seg__btn" type="button" data-value="c" aria-pressed="false">°C</button>
+          <button class="seg__btn" type="button" data-value="f" aria-pressed="false">°F</button>
+        </div>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-refresh" data-i18n="pref.refresh">Автообновление</span>
+        <div class="seg" role="group" aria-labelledby="pref-refresh" data-pref="refresh">
+          <button class="seg__btn" type="button" data-value="5" aria-pressed="false" data-i18n="pref.refresh.5">5 мин</button>
+          <button class="seg__btn" type="button" data-value="10" aria-pressed="false" data-i18n="pref.refresh.10">10 мин</button>
+          <button class="seg__btn" type="button" data-value="30" aria-pressed="false" data-i18n="pref.refresh.30">30 мин</button>
+          <button class="seg__btn" type="button" data-value="0" aria-pressed="false" data-i18n="pref.refresh.0">Выкл</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn--ghost" type="button" id="prefs-reset" data-i18n="prefs.reset">Сбросить настройки</button>
+  </section>
 
   <!-- Уведомления с сервера: видны, только если в config.js задан адрес сервера -->
   <section class="card card--wide card--plain" id="push-card" hidden>

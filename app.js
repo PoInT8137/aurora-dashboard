@@ -10,7 +10,6 @@ var CONFIG = {
   tz: 'Europe/Moscow',
   timeoutMs: 12000,        // таймаут одного запроса
   retries: 1,              // одна автоматическая повторная попытка
-  refreshMs: 5 * 60 * 1000, // автообновление раз в 5 минут
 
   /*
    * Модель Open-Meteo указывается явно, а не оставляется на best_match.
@@ -87,7 +86,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null,
-              status: null, errors: {} };
+              status: null, errors: {}, settings: null, timer: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -214,20 +213,44 @@ function fetchJson(url, attempt) {
     .finally(function () { clearTimeout(timer); });
 }
 
+/** Часовой пояс отображения: московский (по умолчанию) или пояс устройства (undefined). */
+function displayZone() {
+  return setting('tz') === 'device' ? undefined : CONFIG.tz;
+}
+
+function clockCycle() {
+  return setting('clock') === '12' ? 'h12' : 'h23';
+}
+
 function fmtTime(date) {
   return new Intl.DateTimeFormat(langLocale(), {
-    timeZone: CONFIG.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    timeZone: displayZone(), hour: '2-digit', minute: '2-digit', hourCycle: clockCycle()
   }).format(date);
 }
 
 function fmtDayKey(date) {
   return new Intl.DateTimeFormat(langLocale(), {
-    timeZone: CONFIG.tz, day: 'numeric', month: 'numeric'
+    timeZone: displayZone(), day: 'numeric', month: 'numeric'
   }).format(date);
 }
 
 function fmtWeekday(date) {
-  return new Intl.DateTimeFormat(langLocale(), { timeZone: CONFIG.tz, weekday: 'short' }).format(date);
+  return new Intl.DateTimeFormat(langLocale(), { timeZone: displayZone(), weekday: 'short' }).format(date);
+}
+
+/** Расстояние в выбранных единицах: «120 км» / «75 миль». */
+function distText(km) {
+  if (setting('dist') === 'mi') return t('unit.mi', { n: Math.round(km * 0.621371) });
+  return t('unit.km', { n: km });
+}
+
+/**
+ * Температура из целых градусов Цельсия в выбранных единицах: «+3 °C» / «37 °F».
+ * Плюс — привычка шкалы Цельсия, где важен переход через ноль; во Фаренгейте нулём служит 32.
+ */
+function tempText(celsius) {
+  if (setting('temp') === 'f') return Math.round(celsius * 9 / 5 + 32) + ' °F';
+  return (celsius > 0 ? '+' : '') + celsius + ' °C';
 }
 
 function fmtKp(value) {
@@ -743,7 +766,7 @@ function renderCloud(cloud) {
   }
 
   var parts = [];
-  if (cloud.temp !== null) parts.push((cloud.temp > 0 ? '+' : '') + cloud.temp + ' °C');
+  if (cloud.temp !== null) parts.push(tempText(cloud.temp));
   if (cloud.soon) parts.push(t('cloud.meta.soon', { time: fmtTime(cloud.soon.time), v: cloud.soon.value }));
   if (cloud.time) parts.push(t('cloud.meta.time', { time: fmtTime(cloud.time) }));
   $('cloud-meta').textContent = parts.join(' · ');
@@ -1264,7 +1287,7 @@ function renderBest(list) {
 
   hintEl.textContent = levelWord(win.level).toLowerCase() + t('sep.dot') + cloudRangeText(win) +
     (win.kpMax !== null ? t('sep.dot') + t('win.kp_max', { v: fmtKp(win.kpMax) }) : '') +
-    (best.point.km ? t('best.travel', { km: best.point.km, drive: driveText(best.point) })
+    (best.point.km ? t('best.travel', { dist: distText(best.point.km), drive: driveText(best.point) })
                    : t('best.here'));
 
   [
@@ -1316,7 +1339,7 @@ function renderPlaces(list) {
     var travel = document.createElement('div');
     travel.className = 'place__travel';
     var travelParts = point.km
-      ? [t('place.travel', { km: point.km, drive: driveText(point) })]
+      ? [t('place.travel', { dist: distText(point.km), drive: driveText(point) })]
       : [t('place.origin')];
     if (point.noteKey) travelParts.push(t('note.' + point.noteKey));
     travelParts.push(t('place.light', { v: t('light.' + point.light + '.label') }));
@@ -1668,7 +1691,7 @@ function sendTestNotification(delayMs) {
         tag: 'aurora-test'
       }).then(function (how) {
         setTestStatus(t('ntest.sent', {
-          time: new Date().toLocaleTimeString(langLocale(), { hourCycle: 'h23' }),
+          time: new Date().toLocaleTimeString(langLocale(), { timeZone: displayZone(), hourCycle: clockCycle() }),
           how: t('how.' + how)
         }), TONE.ok);
       }, function (err) {
@@ -1846,7 +1869,12 @@ function initPushCard() {
 /*  Вкладки                                                            */
 /* ------------------------------------------------------------------ */
 
-var TAB_IDS = ['now', 'tonight', 'notify'];
+var TAB_IDS = ['now', 'tonight', 'settings'];
+
+/** Вкладка «Уведомления» стала частью «Настроек»: старые ссылки #notify и сохранённый выбор ведут туда. */
+function tabFromName(name) {
+  return name === 'notify' ? 'settings' : name;
+}
 
 function savedTab() {
   try {
@@ -1868,6 +1896,7 @@ function saveTab(id) {
  * неизвестного хэша, без новой записи.
  */
 function showTab(id, historyMode) {
+  id = tabFromName(id);
   if (TAB_IDS.indexOf(id) < 0) id = 'now';
 
   TAB_IDS.forEach(function (tab) {
@@ -1894,15 +1923,15 @@ function showTab(id, historyMode) {
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
   if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
-  if (id === 'notify') {
+  if (id === 'settings') {
     renderNotifyDiagnostics();
     refreshPushHealth();
   }
 }
 
 function initTabs() {
-  var fromHash = (location.hash || '').replace('#', '');
-  var initial = TAB_IDS.indexOf(fromHash) >= 0 ? fromHash : (savedTab() || 'now');
+  var fromHash = tabFromName((location.hash || '').replace('#', ''));
+  var initial = TAB_IDS.indexOf(fromHash) >= 0 ? fromHash : tabFromName(savedTab() || 'now');
 
   $('tabs').addEventListener('click', function (e) {
     var btn = e.target.closest ? e.target.closest('[data-tab]') : null;
@@ -2058,14 +2087,18 @@ function renderDerived() {
   if (state.tonight) renderTonight();
 }
 
-/** Строка статуса в шапке. Запоминаем ключ, чтобы перевести её при смене языка. */
-function setStatus(key, params) {
-  state.status = { key: key, params: params || null };
-  $('updated').textContent = t(key, params || undefined);
+/**
+ * Строка статуса в шапке. Запоминаем ключ и момент, а не готовый текст: язык, формат
+ * времени и пояс можно сменить, и строка должна пересобраться.
+ */
+function setStatus(key, at) {
+  state.status = { key: key, at: at || null };
+  renderStatus();
 }
 
 function renderStatus() {
-  if (state.status) $('updated').textContent = t(state.status.key, state.status.params || undefined);
+  if (!state.status) return;
+  $('updated').textContent = t(state.status.key, state.status.at ? { time: fmtTime(state.status.at) } : undefined);
 }
 
 /** Строка статуса в шапке по текущему состоянию данных. */
@@ -2076,11 +2109,11 @@ function updateStatus() {
 
   if (fresh) {
     state.lastOk = new Date();
-    setStatus('status.updated', { time: fmtTime(state.lastOk) });
+    setStatus('status.updated', state.lastOk);
   } else if (state.kp || state.cloud) {
     setStatus('status.offline_saved');
   } else if (state.lastOk) {
-    setStatus('status.offline_last', { time: fmtTime(state.lastOk) });
+    setStatus('status.offline_last', state.lastOk);
   } else {
     setStatus('status.offline_none');
   }
@@ -2115,6 +2148,128 @@ function refreshAll() {
     });
 
   return state.refreshing;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Настройки отображения                                              */
+/*                                                                     */
+/*  Хранятся одной записью в localStorage; любое значение, которого нет */
+/*  среди допустимых, заменяется значением по умолчанию — испорченная   */
+/*  запись не должна ломать страницу. По умолчанию всё как было раньше. */
+/* ------------------------------------------------------------------ */
+
+var SETTINGS_DEFAULTS = { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5' };
+var SETTINGS_CHOICES = {
+  tz: ['murmansk', 'device'],
+  clock: ['24', '12'],
+  dist: ['km', 'mi'],
+  temp: ['c', 'f'],
+  refresh: ['5', '10', '30', '0']   // минуты; 0 — не обновлять само
+};
+
+function loadSettings() {
+  var saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(CACHE.prefix + 'settings') || '{}') || {};
+  } catch (e) { /* нет хранилища или запись испорчена — работаем со значениями по умолчанию */ }
+
+  var out = {};
+  Object.keys(SETTINGS_DEFAULTS).forEach(function (name) {
+    out[name] = SETTINGS_CHOICES[name].indexOf(saved[name]) >= 0 ? saved[name] : SETTINGS_DEFAULTS[name];
+  });
+  return out;
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(CACHE.prefix + 'settings', JSON.stringify(state.settings));
+  } catch (e) { /* без хранилища выбор просто не переживёт перезагрузку */ }
+}
+
+function setting(name) {
+  if (!state.settings) state.settings = loadSettings();
+  return state.settings[name];
+}
+
+/** Возвращает true, если значение допустимо и применено. */
+function setSetting(name, value) {
+  // hasOwnProperty: имя вроде «__proto__» не должно находить чужие свойства объекта.
+  if (!Object.prototype.hasOwnProperty.call(SETTINGS_CHOICES, name) || SETTINGS_CHOICES[name].indexOf(value) < 0) return false;
+  setting(name);
+  state.settings[name] = value;
+  saveSettings();
+  return true;
+}
+
+function resetSettings() {
+  state.settings = {};
+  Object.keys(SETTINGS_DEFAULTS).forEach(function (name) { state.settings[name] = SETTINGS_DEFAULTS[name]; });
+  try {
+    localStorage.removeItem(CACHE.prefix + 'settings');
+  } catch (e) { /* см. выше */ }
+}
+
+/** Период автообновления в мс; 0 — выключено. */
+function refreshMs() {
+  return Number(setting('refresh')) * 60 * 1000;
+}
+
+/**
+ * Пора ли обновить данные при возврате на вкладку: только если автообновление включено
+ * и с последнего удачного обновления прошло больше его периода. Выключено — только по кнопке.
+ */
+function refreshDue() {
+  var every = refreshMs();
+  return every > 0 && (!state.lastOk || Date.now() - state.lastOk.getTime() > every);
+}
+
+/** (Пере)запускает автообновление по текущей настройке. */
+function armRefresh() {
+  if (state.timer) clearInterval(state.timer);
+  state.timer = null;
+  var every = refreshMs();
+  if (every) state.timer = setInterval(refreshAll, every);
+}
+
+/** Кнопки настроек: выбранное значение отмечено для скринридеров и для глаз. */
+function renderSettings() {
+  var groups = document.querySelectorAll('[data-pref]');
+  Array.prototype.forEach.call(groups, function (group) {
+    var name = group.getAttribute('data-pref');
+    Array.prototype.forEach.call(group.querySelectorAll('[data-value]'), function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-value') === setting(name)));
+    });
+  });
+
+  // Подписи, которые зависят от настроек: в каком поясе время и как часто идёт обновление.
+  var note = $('forecast-note');
+  if (note) note.textContent = t('forecast.note', { zone: t('tz.' + setting('tz')) });
+
+  var foot = $('foot-refresh');
+  if (foot) {
+    var every = refreshMs();
+    foot.textContent = every ? t('foot.refresh', { every: t('unit.minutes', { n: every / 60000 }) }) : t('foot.refresh_off');
+  }
+}
+
+/** Всё, что показано, перерисовывается: единицы и время меняются повсюду. */
+function afterSettingsChange() {
+  armRefresh();
+  renderLocalized();
+}
+
+function initSettings() {
+  $('prefs').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-value]') : null;
+    var group = btn && btn.closest ? btn.closest('[data-pref]') : null;
+    if (!btn || !group) return;
+    if (setSetting(group.getAttribute('data-pref'), btn.getAttribute('data-value'))) afterSettingsChange();
+  });
+
+  $('prefs-reset').addEventListener('click', function () {
+    resetSettings();
+    afterSettingsChange();
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -2164,6 +2319,17 @@ function applyLanguage() {
 
   renderLangSwitch();
 
+  // Сообщения о ходе операции остались бы на прежнем языке — убираем.
+  $('ntest-status').textContent = '';
+  $('push-status').textContent = '';
+
+  renderLocalized();
+}
+
+/** Всё, что зависит от языка и настроек и берётся из уже загруженных данных. */
+function renderLocalized() {
+  renderSettings();
+
   // Названия городов в выпадающем списке.
   var select = $('point');
   Array.prototype.forEach.call(select.options || [], function (option) {
@@ -2171,10 +2337,6 @@ function applyLanguage() {
   });
   renderPointMeta();
   $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });
-
-  // Сообщения о ходе операции остались бы на прежнем языке — убираем.
-  $('ntest-status').textContent = '';
-  $('push-status').textContent = '';
 
   if (state.kp) renderKp(state.kp);
   if (state.cloud) renderCloud(state.cloud);
@@ -2213,6 +2375,7 @@ function init() {
   cacheDrop('cloud');
 
   initLanguage();
+  initSettings();
   initPointSelect();
   initNotifications();
   initNotifyTab();
@@ -2233,7 +2396,7 @@ function init() {
 
   applyLanguage();
   refreshAll();
-  setInterval(refreshAll, CONFIG.refreshMs);
+  armRefresh();
 
   // Вернулись на вкладку после долгого отсутствия — обновляем сразу.
   document.addEventListener('visibilitychange', function () {
@@ -2243,10 +2406,7 @@ function init() {
       renderNotifyDiagnostics();
     }
 
-    if (document.visibilityState === 'visible' &&
-        (!state.lastOk || Date.now() - state.lastOk.getTime() > CONFIG.refreshMs)) {
-      refreshAll();
-    }
+    if (document.visibilityState === 'visible' && refreshDue()) refreshAll();
   });
 }
 
