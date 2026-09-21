@@ -2,6 +2,7 @@
 // расчёты на тысячах комбинаций входных данных. DOM заменён заглушкой,
 // которая принимает любые вызовы, — расчёты от него не зависят.
 import vm from 'node:vm';
+import fs from 'node:fs';
 
 /** Заглушка «что угодно»: любое свойство и любой вызов дают ещё одну заглушку. */
 const stub = () => new Proxy(function () {}, {
@@ -11,6 +12,22 @@ const stub = () => new Proxy(function () {}, {
   set: () => true,
   has: () => true
 });
+
+/** Движок переводов и словари страницы — в том же порядке, что и в index.html. */
+const I18N_FILES = ['i18n.js', 'lang/ru.js', 'lang/en.js', 'lang/zh.js'];
+
+/**
+ * Тесты перечисляют скрипты по старинке: config, core, push, app. Движок переводов и словари
+ * нужны app.js всегда, поэтому вставляются перед ним, если тест их не указал сам.
+ */
+function withI18n(sources) {
+  const names = sources.map(([name]) => name);
+  if (!names.includes('app.js') || names.includes('i18n.js')) return sources;
+
+  const extra = I18N_FILES.map(name => [name, fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8')]);
+  const at = names.indexOf('app.js');
+  return [...sources.slice(0, at), ...extra, ...sources.slice(at)];
+}
 
 /**
  * sources — список [имя файла, исходный код] в порядке подключения.
@@ -56,7 +73,7 @@ export function loadApp(sources, options = {}) {
   };
 
   const ctx = vm.createContext(sandbox);
-  for (const [name, code] of sources) vm.runInContext(code, ctx, { filename: name });
+  for (const [name, code] of withI18n(sources)) vm.runInContext(code, ctx, { filename: name });
   return ctx;
 }
 

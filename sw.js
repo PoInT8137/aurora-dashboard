@@ -15,7 +15,7 @@ try { importScripts('config.js'); } catch (e) { /* без настроек push 
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v9';
+var CACHE_VERSION = 'v10';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -24,6 +24,10 @@ var APP_SHELL = [
   'styles.css',
   'app.js',
   'core.js',
+  'i18n.js',
+  'lang/ru.js',
+  'lang/en.js',
+  'lang/zh.js',
   'config.js',
   'push.js',
   'manifest.json',
@@ -116,12 +120,26 @@ self.addEventListener('push', function (event) {
   event.waitUntil(showPushNotification());
 });
 
+/* Общий текст на случай, когда сервер не ответил. Выбранный на сайте язык воркеру недоступен
+   (localStorage у него нет), поэтому ориентируемся на язык браузера; уведомление,
+   которое собрал сам сервер, приходит уже на языке подписки. */
+var FALLBACK_TEXT = {
+  ru: { title: 'Возможно северное сияние', body: 'Условия для наблюдения изменились — откройте приложение.' },
+  en: { title: 'Northern lights possible', body: 'Viewing conditions have changed — open the app.' },
+  zh: { title: '可能出现极光', body: '观测条件已发生变化——请打开应用查看。' }
+};
+
+function browserLang() {
+  var tag = String((self.navigator && self.navigator.language) || '').toLowerCase();
+  if (tag.indexOf('ru') === 0) return 'ru';
+  if (tag.indexOf('zh') === 0) return 'zh';
+  return 'en';
+}
+
 function showPushNotification() {
   var api = (typeof AURORA_CONFIG !== 'undefined' && AURORA_CONFIG.pushApi) || '';
-  var fallback = {
-    title: 'Возможно северное сияние',
-    body: 'Условия для наблюдения изменились — откройте приложение.'
-  };
+  var lang = browserLang();
+  var fallback = FALLBACK_TEXT[lang];
 
   return self.registration.pushManager.getSubscription()
     .then(function (subscription) {
@@ -148,7 +166,7 @@ function showPushNotification() {
           body: msg.body,
           icon: icon,
           badge: icon,
-          lang: 'ru',
+          lang: msg.lang || lang,
           tag: msg.test ? 'aurora-test' : 'aurora-high',
           renotify: true,
           data: { url: self.registration.scope + '#now' }

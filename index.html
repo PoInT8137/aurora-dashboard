@@ -20,34 +20,39 @@
 
 <header class="topbar">
   <div class="topbar__title">
-    <h1>Северное сияние <span class="topbar__region">Мурманская область</span></h1>
+    <h1><span data-i18n="app.title">Северное сияние</span> <span class="topbar__region" data-i18n="app.region">Мурманская область</span></h1>
     <div class="point">
-      <label class="point__label" for="point">Точка наблюдения</label>
+      <label class="point__label" for="point" data-i18n="point.label">Точка наблюдения</label>
       <select class="point__select" id="point"></select>
     </div>
     <p class="topbar__place" id="point-meta"></p>
   </div>
   <div class="topbar__actions">
-    <span id="updated" class="updated" role="status">Загрузка…</span>
-    <button id="refresh" class="btn" type="button">Обновить</button>
+    <div class="lang" id="lang" role="group" aria-label="Language · Язык · 语言">
+      <button class="lang__btn" type="button" data-lang="ru" lang="ru" aria-pressed="false">Русский</button>
+      <button class="lang__btn" type="button" data-lang="en" lang="en" aria-pressed="false">English</button>
+      <button class="lang__btn" type="button" data-lang="zh" lang="zh-CN" aria-pressed="false">中文</button>
+    </div>
+    <span id="updated" class="updated" role="status" data-i18n="status.loading">Загрузка…</span>
+    <button id="refresh" class="btn" type="button" data-i18n="btn.refresh">Обновить</button>
   </div>
 </header>
 
-<div class="tabs" id="tabs" role="tablist" aria-label="Разделы">
+<div class="tabs" id="tabs" role="tablist" aria-label="Разделы" data-i18n-attr="aria-label:tabs.aria">
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-now" data-tab="now"
           aria-controls="tab-now" aria-selected="true" tabindex="0">
-    <span class="tabs__title">Сейчас</span>
-    <span class="tabs__sub">условия в точке</span>
+    <span class="tabs__title" data-i18n="tab.now">Сейчас</span>
+    <span class="tabs__sub" data-i18n="tab.now.sub">условия в точке</span>
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-tonight" data-tab="tonight"
           aria-controls="tab-tonight" aria-selected="false" tabindex="-1">
-    <span class="tabs__title"><span class="tabs__long">Куда ехать ночью</span><span class="tabs__short">Куда ехать</span></span>
-    <span class="tabs__sub">сравнение семи точек</span>
+    <span class="tabs__title"><span class="tabs__long" data-i18n="tab.tonight.long">Куда ехать ночью</span><span class="tabs__short" data-i18n="tab.tonight.short">Куда ехать</span></span>
+    <span class="tabs__sub" data-i18n="tab.tonight.sub">сравнение семи точек</span>
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-notify" data-tab="notify"
           aria-controls="tab-notify" aria-selected="false" tabindex="-1">
-    <span class="tabs__title">Уведомления</span>
-    <span class="tabs__sub">проверка и настройка</span>
+    <span class="tabs__title" data-i18n="tab.notify">Уведомления</span>
+    <span class="tabs__sub" data-i18n="tab.notify.sub">проверка и настройка</span>
   </button>
 </div>
 
@@ -57,9 +62,9 @@
 
   <!-- Итоговый вердикт -->
   <section class="card card--verdict" id="verdict-card" data-state="loading">
-    <h2 class="card__label">Шанс увидеть сияние</h2>
+    <h2 class="card__label" data-i18n="verdict.title">Шанс увидеть сияние</h2>
 
-    <div class="card__loading">Считаем…</div>
+    <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
 
     <div class="card__body">
       <p class="verdict__value" id="verdict-value">—</p>
@@ -71,20 +76,20 @@
 
     <div class="notify">
       <button class="btn btn--ghost btn--mini" type="button" id="notify-btn" aria-pressed="false"
-              aria-describedby="notify-hint">Сообщить о высоком шансе</button>
+              aria-describedby="notify-hint" data-i18n="notify.btn.off">Сообщить о высоком шансе</button>
       <span class="notify__hint" id="notify-hint"></span>
     </div>
 
     <div class="card__error">
-      <p>Не удалось рассчитать оценку — нет данных.</p>
+      <p data-i18n="verdict.error">Не удалось рассчитать оценку — нет данных.</p>
     </div>
   </section>
 
   <!-- Окно наблюдения -->
   <section class="card card--wide" id="window-card" data-state="loading">
-    <h2 class="card__label">Лучшее время этой ночью</h2>
+    <h2 class="card__label" data-i18n="window.title">Лучшее время этой ночью</h2>
 
-    <div class="card__loading">Считаем…</div>
+    <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
 
     <div class="card__body">
       <p class="window__value" id="window-value">—</p>
@@ -96,7 +101,7 @@
     <p class="card__stale" id="window-stale"><span class="stale__text"></span></p>
 
     <div class="card__error">
-      <p>Окно наблюдения не рассчитать — нет почасовых данных об облачности.</p>
+      <p data-i18n="window.error">Окно наблюдения не рассчитать — нет почасовых данных об облачности.</p>
     </div>
   </section>
 
@@ -104,9 +109,9 @@
 
     <!-- Kp -->
     <section class="card" id="kp-card" data-state="loading">
-      <h2 class="card__label">Kp-индекс</h2>
+      <h2 class="card__label" data-i18n="kp.title">Kp-индекс</h2>
 
-      <div class="card__loading">Запрашиваем NOAA SWPC…</div>
+      <div class="card__loading" data-i18n="kp.loading">Запрашиваем NOAA SWPC…</div>
 
       <div class="card__body">
         <p class="bignum" id="kp-value">—</p>
@@ -117,20 +122,20 @@
 
       <p class="card__stale" id="kp-stale">
         <span class="stale__text"></span>
-        <button class="btn btn--ghost btn--mini" type="button" data-retry="kp">Повторить</button>
+        <button class="btn btn--ghost btn--mini" type="button" data-retry="kp" data-i18n="btn.retry">Повторить</button>
       </p>
 
       <div class="card__error">
-        <p class="card__error-text" id="kp-error">Нет связи с NOAA SWPC.</p>
-        <button class="btn btn--ghost" type="button" data-retry="kp">Повторить</button>
+        <p class="card__error-text" id="kp-error" data-i18n="kp.error.default">Нет связи с NOAA SWPC.</p>
+        <button class="btn btn--ghost" type="button" data-retry="kp" data-i18n="btn.retry">Повторить</button>
       </div>
     </section>
 
     <!-- Облачность -->
     <section class="card" id="cloud-card" data-state="loading">
-      <h2 class="card__label">Облачность</h2>
+      <h2 class="card__label" data-i18n="cloud.title">Облачность</h2>
 
-      <div class="card__loading">Запрашиваем Open-Meteo…</div>
+      <div class="card__loading" data-i18n="cloud.loading">Запрашиваем Open-Meteo…</div>
 
       <div class="card__body">
         <p class="bignum" id="cloud-value">—</p>
@@ -139,17 +144,17 @@
 
         <div class="layers" id="cloud-layers">
           <div class="layer" data-layer="low">
-            <span class="layer__name">Нижний <span class="layer__alt">0–2 км</span></span>
+            <span class="layer__name"><span data-i18n="layer.low">Нижний</span> <span class="layer__alt" data-i18n="layer.low.alt">0–2 км</span></span>
             <div class="layer__bar"><div class="layer__fill"></div></div>
             <span class="layer__val">—</span>
           </div>
           <div class="layer" data-layer="mid">
-            <span class="layer__name">Средний <span class="layer__alt">2–7 км</span></span>
+            <span class="layer__name"><span data-i18n="layer.mid">Средний</span> <span class="layer__alt" data-i18n="layer.mid.alt">2–7 км</span></span>
             <div class="layer__bar"><div class="layer__fill"></div></div>
             <span class="layer__val">—</span>
           </div>
           <div class="layer" data-layer="high">
-            <span class="layer__name">Верхний <span class="layer__alt">7–12 км</span></span>
+            <span class="layer__name"><span data-i18n="layer.high">Верхний</span> <span class="layer__alt" data-i18n="layer.high.alt">7–12 км</span></span>
             <div class="layer__bar"><div class="layer__fill"></div></div>
             <span class="layer__val">—</span>
           </div>
@@ -163,12 +168,12 @@
 
       <p class="card__stale" id="cloud-stale">
         <span class="stale__text"></span>
-        <button class="btn btn--ghost btn--mini" type="button" data-retry="cloud">Повторить</button>
+        <button class="btn btn--ghost btn--mini" type="button" data-retry="cloud" data-i18n="btn.retry">Повторить</button>
       </p>
 
       <div class="card__error">
-        <p class="card__error-text" id="cloud-error">Нет связи с Open-Meteo.</p>
-        <button class="btn btn--ghost" type="button" data-retry="cloud">Повторить</button>
+        <p class="card__error-text" id="cloud-error" data-i18n="cloud.error.default">Нет связи с Open-Meteo.</p>
+        <button class="btn btn--ghost" type="button" data-retry="cloud" data-i18n="btn.retry">Повторить</button>
       </div>
     </section>
 
@@ -176,31 +181,31 @@
 
   <!-- Прогноз Kp -->
   <section class="card card--wide" id="forecast-card" data-state="loading">
-    <h2 class="card__label">Прогноз Kp на трое суток</h2>
+    <h2 class="card__label" data-i18n="forecast.title">Прогноз Kp на трое суток</h2>
 
-    <div class="card__loading">Загружаем прогноз…</div>
+    <div class="card__loading" data-i18n="forecast.loading">Загружаем прогноз…</div>
 
     <div class="card__body">
       <div class="forecast" id="forecast-list"></div>
-      <p class="card__meta">Время местное (UTC+3), шаг 3 часа. Источник: NOAA SWPC 3-day forecast. Прогнозные значения усреднены по трёхчасовкам и могут отличаться от текущей оценки Kp выше.</p>
+      <p class="card__meta" data-i18n="forecast.note">Время местное (UTC+3), шаг 3 часа. Источник: NOAA SWPC 3-day forecast. Прогнозные значения усреднены по трёхчасовкам и могут отличаться от текущей оценки Kp выше.</p>
     </div>
 
     <p class="card__stale" id="forecast-stale">
       <span class="stale__text"></span>
-      <button class="btn btn--ghost btn--mini" type="button" data-retry="forecast">Повторить</button>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="forecast" data-i18n="btn.retry">Повторить</button>
     </p>
 
     <div class="card__error">
-      <p class="card__error-text" id="forecast-error">Прогноз недоступен.</p>
-      <button class="btn btn--ghost" type="button" data-retry="forecast">Повторить</button>
+      <p class="card__error-text" id="forecast-error" data-i18n="forecast.error.default">Прогноз недоступен.</p>
+      <button class="btn btn--ghost" type="button" data-retry="forecast" data-i18n="btn.retry">Повторить</button>
     </div>
   </section>
 
   <footer class="foot">
-    <p>Данные: <a href="https://www.swpc.noaa.gov/" target="_blank" rel="noopener">NOAA SWPC</a> ·
+    <p><span data-i18n="foot.data">Данные:</span> <a href="https://www.swpc.noaa.gov/" target="_blank" rel="noopener">NOAA SWPC</a> ·
        <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.
-       Обновление автоматически каждые 5 минут.</p>
-    <p class="foot__note">Оценка ориентировочная. Засветка показана в факторах и пояснении, но в расчёт шанса не входит: это свойство места, а не прогноз. Туман и локальные разрывы облаков модель не видит.</p>
+       <span data-i18n="foot.refresh">Обновление автоматически каждые 5 минут.</span></p>
+    <p class="foot__note" data-i18n="foot.note">Оценка ориентировочная. Засветка показана в факторах и пояснении, но в расчёт шанса не входит: это свойство места, а не прогноз. Туман и локальные разрывы облаков модель не видит.</p>
   </footer>
 
 </section>
@@ -209,9 +214,9 @@
 
   <!-- Ответ: куда ехать -->
   <section class="card card--verdict" id="best-card" data-state="loading">
-    <h2 class="card__label">Куда ехать этой ночью</h2>
+    <h2 class="card__label" data-i18n="best.title">Куда ехать этой ночью</h2>
 
-    <div class="card__loading">Считаем по семи точкам…</div>
+    <div class="card__loading" data-i18n="best.loading">Считаем по семи точкам…</div>
 
     <div class="card__body">
       <p class="verdict__value" id="best-value">—</p>
@@ -221,33 +226,33 @@
 
     <p class="card__stale" id="best-stale">
       <span class="stale__text"></span>
-      <button class="btn btn--ghost btn--mini" type="button" data-retry="tonight">Повторить</button>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="tonight" data-i18n="btn.retry">Повторить</button>
     </p>
 
     <div class="card__error">
-      <p class="card__error-text" id="best-error">Не удалось загрузить прогноз по точкам.</p>
-      <button class="btn btn--ghost" type="button" data-retry="tonight">Повторить</button>
+      <p class="card__error-text" id="best-error" data-i18n="best.error.default">Не удалось загрузить прогноз по точкам.</p>
+      <button class="btn btn--ghost" type="button" data-retry="tonight" data-i18n="btn.retry">Повторить</button>
     </div>
   </section>
 
   <!-- Список точек -->
   <section class="card card--wide" id="places-card" data-state="loading">
-    <h2 class="card__label">Все точки по убыванию оценки</h2>
+    <h2 class="card__label" data-i18n="places.title">Все точки по убыванию оценки</h2>
 
-    <div class="card__loading">Загружаем облачность…</div>
+    <div class="card__loading" data-i18n="places.loading">Загружаем облачность…</div>
 
     <div class="card__body">
       <div class="places" id="places-list"></div>
-      <p class="card__meta">Расстояния и время в пути — приблизительные, по автодорогам от Мурманска и для летних условий. Зимой, в метель и на грунтовке до Териберки дорога занимает заметно больше.</p>
+      <p class="card__meta" data-i18n="places.note">Расстояния и время в пути — приблизительные, по автодорогам от Мурманска и для летних условий. Зимой, в метель и на грунтовке до Териберки дорога занимает заметно больше.</p>
     </div>
 
     <div class="card__error">
-      <p class="card__error-text">Список недоступен — нет данных об облачности.</p>
+      <p class="card__error-text" data-i18n="places.error">Список недоступен — нет данных об облачности.</p>
     </div>
   </section>
 
   <footer class="foot">
-    <p>Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
+    <p data-i18n="foot.tonight">Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
   </footer>
 
 </section>
@@ -256,57 +261,50 @@
 
   <!-- Уведомления с сервера: видны, только если в config.js задан адрес сервера -->
   <section class="card card--wide card--plain" id="push-card" hidden>
-    <h2 class="card__label">Уведомления при закрытом приложении</h2>
-    <p class="ntest__lead">Сервер проверяет условия раз в 10 минут и присылает уведомление, когда в
+    <h2 class="card__label" data-i18n="push.title">Уведомления при закрытом приложении</h2>
+    <p class="ntest__lead" data-i18n="push.lead">Сервер проверяет условия раз в 10 минут и присылает уведомление, когда в
       выбранной точке шанс увидеть сияние становится высоким, — даже если приложение закрыто.</p>
 
     <div class="ntest__actions">
-      <button class="btn" type="button" id="push-toggle" aria-pressed="false">Включить уведомления</button>
-      <button class="btn btn--ghost" type="button" id="push-test">Пробное с сервера</button>
-      <button class="btn btn--ghost" type="button" id="push-test-later">Через 20 секунд</button>
+      <button class="btn" type="button" id="push-toggle" aria-pressed="false" data-i18n="push.toggle.on">Включить уведомления</button>
+      <button class="btn btn--ghost" type="button" id="push-test" data-i18n="push.test">Пробное с сервера</button>
+      <button class="btn btn--ghost" type="button" id="push-test-later" data-i18n="push.test_later">Через 20 секунд</button>
     </div>
 
     <p class="ntest__tip" id="push-hint"></p>
-    <p class="ntest__tip">Проверка закрытого приложения: нажмите «Через 20 секунд» и сразу закройте
+    <p class="ntest__tip" data-i18n="push.tip.close">Проверка закрытого приложения: нажмите «Через 20 секунд» и сразу закройте
       приложение совсем — уведомление придёт с сервера.</p>
     <p class="ntest__status" id="push-status" role="status"></p>
-    <p class="ntest__tip">Сервер хранит только адрес вашего браузера для уведомлений и выбранную точку.
+    <p class="ntest__tip" data-i18n="push.tip.privacy">Сервер хранит только адрес вашего браузера для уведомлений и выбранную точку.
       Выключите уведомления — запись удалится.</p>
   </section>
 
   <section class="card card--wide card--plain">
-    <h2 class="card__label">Проверка уведомлений</h2>
-    <p class="ntest__lead">Убедитесь, что уведомление о высоком шансе до вас дойдёт: браузер их
+    <h2 class="card__label" data-i18n="ntest.title">Проверка уведомлений</h2>
+    <p class="ntest__lead" data-i18n="ntest.lead">Убедитесь, что уведомление о высоком шансе до вас дойдёт: браузер их
       поддерживает, сайт получил разрешение, а система не глушит.</p>
 
     <ul class="checks" id="ntest-checks"></ul>
 
     <div class="ntest__actions">
-      <button class="btn" type="button" id="ntest-now">Отправить пробное</button>
-      <button class="btn btn--ghost" type="button" id="ntest-later">Через 10 секунд</button>
+      <button class="btn" type="button" id="ntest-now" data-i18n="ntest.now">Отправить пробное</button>
+      <button class="btn btn--ghost" type="button" id="ntest-later" data-i18n="ntest.later_btn">Через 10 секунд</button>
     </div>
-    <p class="ntest__tip">«Через 10 секунд» проверяет главный сценарий: успейте свернуть
+    <p class="ntest__tip" data-i18n="ntest.tip">«Через 10 секунд» проверяет главный сценарий: успейте свернуть
       приложение или переключиться на другую вкладку и посмотрите, придёт ли уведомление в фоне.</p>
 
     <p class="ntest__status" id="ntest-status" role="status"></p>
   </section>
 
   <section class="card card--wide card--plain">
-    <h2 class="card__label">Если уведомление не пришло</h2>
+    <h2 class="card__label" data-i18n="help.title">Если уведомление не пришло</h2>
     <ul class="help">
-      <li><b>Разрешение запрещено.</b> В Chrome и Edge нажмите значок настроек слева от адреса
-        сайта → «Уведомления» → «Разрешить» и обновите страницу. В Firefox — значок разрешений
-        там же, слева от адреса.</li>
-      <li><b>Windows.</b> Параметры → Система → Уведомления: браузер должен быть включён,
-        а режим «Не беспокоить» выключен.</li>
-      <li><b>macOS.</b> Системные настройки → Уведомления → ваш браузер → «Разрешить уведомления».</li>
-      <li><b>Android.</b> Настройки → Приложения → Chrome → Уведомления; если «Сияние»
-        установлено как приложение — то же для него. Режим экономии заряда может
-        приостанавливать свёрнутое приложение.</li>
-      <li><b>iPhone и iPad.</b> Нужна iOS 16.4 или новее, а сайт должен быть добавлен на экран
-        «Домой» через «Поделиться» и открыт оттуда — из Safari уведомления не работают.</li>
-      <li><b>Всё разрешено, но уведомления о сиянии не приходят.</b> Они работают, пока приложение
-        открыто: у сайта нет сервера push-уведомлений, и закрытая страница проснуться не может.</li>
+      <li><b data-i18n="help.1.t">Разрешение запрещено.</b> <span data-i18n="help.1.d">В Chrome и Edge нажмите значок настроек слева от адреса сайта → «Уведомления» → «Разрешить» и обновите страницу. В Firefox — значок разрешений там же, слева от адреса.</span></li>
+      <li><b data-i18n="help.2.t">Windows.</b> <span data-i18n="help.2.d">Параметры → Система → Уведомления: браузер должен быть включён, а режим «Не беспокоить» выключен.</span></li>
+      <li><b data-i18n="help.3.t">macOS.</b> <span data-i18n="help.3.d">Системные настройки → Уведомления → ваш браузер → «Разрешить уведомления».</span></li>
+      <li><b data-i18n="help.4.t">Android.</b> <span data-i18n="help.4.d">Настройки → Приложения → Chrome → Уведомления; если «Сияние» установлено как приложение — то же для него. Режим экономии заряда может приостанавливать свёрнутое приложение.</span></li>
+      <li><b data-i18n="help.5.t">iPhone и iPad.</b> <span data-i18n="help.5.d">Нужна iOS 16.4 или новее, а сайт должен быть добавлен на экран «Домой» через «Поделиться» и открыт оттуда — из Safari уведомления не работают.</span></li>
+      <li><b data-i18n="help.6.t">Всё разрешено, но уведомления о сиянии не приходят.</b> <span data-i18n="help.6.d">Уведомления самой страницы работают, пока приложение открыто. Чтобы получать их и при закрытом приложении, включите уведомления с сервера в блоке выше.</span></li>
     </ul>
   </section>
 
@@ -316,6 +314,10 @@
 
 <script src="config.js"></script>
 <script src="core.js"></script>
+<script src="i18n.js"></script>
+<script src="lang/ru.js"></script>
+<script src="lang/en.js"></script>
+<script src="lang/zh.js"></script>
 <script src="push.js"></script>
 <script src="app.js"></script>
 </body>

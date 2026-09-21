@@ -13,12 +13,13 @@ const SCOPE = 'https://auroramurmansk.ru/';
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/device-1';
 
 /** Окружение service worker: события собираются, всё внешнее — подделки. */
-function worker({ subscription = { endpoint: ENDPOINT }, message, serverStatus = 200, windows = [], config = configCode, importFails = false } = {}) {
+function worker({ subscription = { endpoint: ENDPOINT }, message, serverStatus = 200, windows = [], config = configCode, importFails = false, language = 'ru-RU' } = {}) {
   const w = { handlers: {}, shown: [], fetched: [], opened: [], focused: [], cached: [], cachePuts: [] };
 
   const sandbox = {
     console, URL, Response, Request, Promise, Error, JSON,
     location: { origin: 'https://auroramurmansk.ru' },
+    navigator: { language },
     importScripts(name) {
       if (importFails) throw new Error('не удалось загрузить ' + name);
       vm.runInContext(config, w.ctx, { filename: name });
@@ -194,4 +195,29 @@ test('каждый скрипт из index.html лежит в оболочке s
   assert.ok(scripts.length >= 4);
   const shell = swCode.slice(swCode.indexOf('var APP_SHELL'), swCode.indexOf('];', swCode.indexOf('var APP_SHELL')));
   for (const s of scripts) assert.ok(shell.includes("'" + s + "'"), s + ' не в APP_SHELL: офлайн-режим сломается');
+});
+
+test('push: общее уведомление — на языке браузера, чужие языки получают английский', async () => {
+  const cases = [
+    ['ru-RU', 'Возможно северное сияние', 'ru'],
+    ['zh-CN', '可能出现极光', 'zh'],
+    ['zh-Hans', '可能出现极光', 'zh'],
+    ['en-US', 'Northern lights possible', 'en'],
+    ['fr-FR', 'Northern lights possible', 'en'],
+    ['', 'Northern lights possible', 'en']
+  ];
+  for (const [language, title, lang] of cases) {
+    const w = worker({ message: null, language });
+    await w.fire('push');
+    assert.equal(w.shown[0].title, title, language);
+    assert.equal(w.shown[0].options.lang, lang, language);
+    assert.doesNotMatch(w.shown[0].options.body, language.startsWith('ru') ? /^$/ : /[А-Яа-я]/, language);
+  }
+});
+
+test('push: текст, который собрал сервер, показывается как есть, а язык уведомления берётся из ответа', async () => {
+  const w = worker({ message: { title: 'High chance of aurora — Murmansk', body: 'Kp 5.0', lang: 'en' }, language: 'ru-RU' });
+  await w.fire('push');
+  assert.equal(w.shown[0].title, 'High chance of aurora — Murmansk');
+  assert.equal(w.shown[0].options.lang, 'en');
 });

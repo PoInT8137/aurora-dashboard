@@ -1,6 +1,6 @@
 // Сервер уведомлений о северном сиянии (Cloudflare Worker).
 //
-//   POST /subscribe    { endpoint, point }     оформить подписку или сменить точку
+//   POST /subscribe    { endpoint, point, lang? } оформить подписку, сменить точку или язык
 //   POST /unsubscribe  { endpoint }            удалить подписку
 //   POST /message      { endpoint }            текст последнего уведомления — его
 //                                              забирает service worker при push
@@ -14,6 +14,7 @@
 
 import '../../core.js';
 import { checkEndpoint, sendPush } from './push.js';
+import { normalizeLang, testMessage } from './messages.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -105,12 +106,15 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
 
       // Смена точки начинает отсчёт заново: по новой точке человек не получит
       // сообщения о «высоком», которое уже идёт, — только о следующем.
+      // Язык уведомлений — тот, что выбран на сайте. Не указан (старая версия страницы) —
+      // у новой подписки русский, а у существующей остаётся прежний.
+      const lang = normalizeLang(body.lang);
       await env.DB.prepare(
-        'INSERT INTO subs(id, endpoint, point, created) VALUES(?, ?, ?, ?) ' +
+        "INSERT INTO subs(id, endpoint, point, created, lang) VALUES(?, ?, ?, ?, COALESCE(?, 'ru')) " +
         'ON CONFLICT(id) DO UPDATE SET ' +
         'created = CASE WHEN subs.point != excluded.point THEN excluded.created ELSE subs.created END, ' +
-        'point = excluded.point'
-      ).bind(id, endpoint, point.id, nowMs).run();
+        'point = excluded.point, lang = COALESCE(?, subs.lang)'
+      ).bind(id, endpoint, point.id, nowMs, lang, lang).run();
 
       return reply({ ok: true, point: point.id }, 200, cors);
     }
@@ -130,19 +134,13 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     }
 
     case '/test': {
-      const row = await env.DB.prepare('SELECT point, last_test FROM subs WHERE id = ?').bind(id).first();
+      const row = await env.DB.prepare('SELECT point, last_test, lang FROM subs WHERE id = ?').bind(id).first();
       if (!row) return reply({ error: 'not_subscribed' }, 404, cors);
       if (nowMs - row.last_test < TEST_MIN_INTERVAL_MS) return reply({ error: 'too_often' }, 429, cors);
 
       const delay = Math.min(Math.max(Math.round(Number(body.delay) || 0), 0), MAX_TEST_DELAY_S);
       const point = Core.POINTS.find(p => p.id === row.point);
-      const msg = JSON.stringify({
-        title: 'Пробное уведомление',
-        body: 'Сервер уведомлений работает. О высоком шансе в точке «' + (point ? point.name : row.point) +
-          '» сообщим так же — даже когда приложение закрыто.',
-        test: true,
-        at: nowMs
-      });
+      const msg = JSON.stringify(testMessage(point || row.point, nowMs, row.lang));
 
       await env.DB.prepare('UPDATE subs SET msg = ?, last_test = ? WHERE id = ?').bind(msg, nowMs, id).run();
 

@@ -138,8 +138,51 @@ body {
 
 .topbar__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
+}
+
+/* Переключатель языка */
+.lang {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(53, 214, 232, 0.06);
+}
+
+.lang__btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 32px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.lang__btn:hover { color: var(--text); }
+.lang__btn[aria-pressed="true"] { background: rgba(53, 214, 232, 0.22); color: var(--text); font-weight: 600; }
+.lang__btn:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  .lang__btn { min-height: 40px; padding: 6px 14px; }
+}
+
+/* Китайский: свой набор шрифтов; разрядка и верхний регистр иероглифам не нужны */
+html[lang="zh-CN"] body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", system-ui, sans-serif;
+}
+html[lang="zh-CN"] .topbar__region,
+html[lang="zh-CN"] .point__label,
+html[lang="zh-CN"] .card__label {
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 
 .updated {

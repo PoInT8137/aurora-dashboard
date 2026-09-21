@@ -50,21 +50,10 @@ var CONFIG = {
   weatherModel: WEATHER_MODEL   // значение — в core.js: одна модель для сайта и сервера уведомлений
 };
 
-/** Человекочитаемые названия моделей для подписи в карточке. */
-var WEATHER_MODEL_LABELS = {
-  best_match:           'автовыбор Open-Meteo',
-  icon_eu:              'ICON-EU · DWD, сетка 7 км',
-  icon_seamless:        'ICON · DWD',
-  icon_global:          'ICON Global · DWD, 13 км',
-  metno_seamless:       'MET Nordic · MET Norway',
-  ecmwf_ifs025:         'IFS 0,25° · ECMWF',
-  gfs_seamless:         'GFS · NOAA',
-  ukmo_seamless:        'UKMO · Met Office',
-  meteofrance_seamless: 'ARPEGE/AROME · Météo-France'
-};
-
+/** Название модели для подписи в карточке: model.<id> в словарях, иначе сам идентификатор. */
 function weatherModelLabel() {
-  return WEATHER_MODEL_LABELS[CONFIG.weatherModel] || CONFIG.weatherModel;
+  var key = 'model.' + CONFIG.weatherModel;
+  return hasKey(key) ? t(key) : CONFIG.weatherModel;
 }
 
 var URLS = {
@@ -97,7 +86,8 @@ function weatherUrl(point) {
 var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, forecastAge: null,
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
-              lastLevel: null, pushBusy: false, pushHealth: null };
+              lastLevel: null, pushBusy: false, pushHealth: null,
+              status: null, errors: {} };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -166,7 +156,39 @@ function setTone(el, color) {
   if (el) el.style.setProperty('--tone', color);
 }
 
-/** fetch с таймаутом и повторами. Бросает Error с понятным текстом. */
+/** Ошибка с кодом и параметрами: текст по ней строит errorText() на языке интерфейса. */
+function appError(code, params) {
+  var error = codedError(code, code);
+  error.params = params || {};
+  return error;
+}
+
+/** Причина сбоя словами на текущем языке; неизвестное показываем как есть. */
+function errorText(error) {
+  if (error && typeof error.code === 'string' && hasKey('err.' + error.code)) {
+    return t('err.' + error.code, error.params || {});
+  }
+  return (error && error.message) || String(error);
+}
+
+/**
+ * Показать ошибку в карточке и запомнить её: при смене языка текст строится заново.
+ * key — ключ шаблона с {reason}.
+ */
+function showError(elementId, key, error) {
+  state.errors[elementId] = { key: key, error: error };
+  $(elementId).textContent = t(key, { reason: errorText(error) });
+}
+
+function refreshErrors() {
+  Object.keys(state.errors).forEach(function (id) {
+    var entry = state.errors[id];
+    var el = $(id);
+    if (el) el.textContent = t(entry.key, { reason: errorText(entry.error) });
+  });
+}
+
+/** fetch с таймаутом и повторами. Бросает ошибку с кодом — понятный текст строит errorText(). */
 function fetchJson(url, attempt) {
   attempt = attempt || 0;
 
@@ -176,7 +198,7 @@ function fetchJson(url, attempt) {
   // cache: 'no-store' — чтобы браузер не отдал вчерашний Kp из кэша
   return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
     .then(function (res) {
-      if (!res.ok) throw new Error('сервер ответил ' + res.status);
+      if (!res.ok) throw appError('http', { status: res.status });
       return res.json();
     })
     .catch(function (err) {
@@ -184,52 +206,45 @@ function fetchJson(url, attempt) {
         return new Promise(function (resolve) { setTimeout(resolve, 900); })
           .then(function () { return fetchJson(url, attempt + 1); });
       }
-      if (err.name === 'AbortError') throw new Error('превышено время ожидания');
-      if (err instanceof TypeError) throw new Error('нет соединения');
+      if (err.name === 'AbortError') throw appError('timeout');
+      // По имени, а не instanceof: тот же довод, что в pushErrorText — ошибка может прийти из другого окружения.
+      if (err && err.name === 'TypeError') throw appError('offline');
       throw err;
     })
     .finally(function () { clearTimeout(timer); });
 }
 
 function fmtTime(date) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    timeZone: CONFIG.tz, hour: '2-digit', minute: '2-digit'
+  return new Intl.DateTimeFormat(langLocale(), {
+    timeZone: CONFIG.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   }).format(date);
 }
 
 function fmtDayKey(date) {
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(langLocale(), {
     timeZone: CONFIG.tz, day: 'numeric', month: 'numeric'
   }).format(date);
 }
 
 function fmtWeekday(date) {
-  return new Intl.DateTimeFormat('ru-RU', { timeZone: CONFIG.tz, weekday: 'short' }).format(date);
-}
-
-/** Склонение: 1 минуту / 2 минуты / 12 минут */
-function plural(n, one, few, many) {
-  var m10 = n % 10, m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
-  return many;
+  return new Intl.DateTimeFormat(langLocale(), { timeZone: CONFIG.tz, weekday: 'short' }).format(date);
 }
 
 function fmtKp(value) {
-  return value.toFixed(1).replace('.', ',');
+  return fmtNum(value.toFixed(1));
 }
 
 /** Возраст данных словами: «12 минут назад», «1 час 5 минут назад». */
 function fmtAge(ms) {
   var mins = Math.max(0, Math.round(ms / 60000));
-  if (mins < 1) return 'меньше минуты назад';
-  if (mins < 60) return mins + ' ' + plural(mins, 'минуту', 'минуты', 'минут') + ' назад';
+  if (mins < 1) return t('age.under_minute');
+  if (mins < 60) return t('age.ago', { value: t('unit.minutes', { n: mins }) });
 
   var hours = Math.floor(mins / 60);
   var rest = mins % 60;
-  var out = hours + ' ' + plural(hours, 'час', 'часа', 'часов');
-  if (rest) out += ' ' + rest + ' ' + plural(rest, 'минуту', 'минуты', 'минут');
-  return out + ' назад';
+  var value = t('unit.hours', { n: hours });
+  if (rest) value = t('age.join', { a: value, b: t('unit.minutes', { n: rest }) });
+  return t('age.ago', { value: value });
 }
 
 /** ISO-строка из кэша обратно в Date (или null). */
@@ -302,8 +317,8 @@ function cacheDrop(key) {
  * Подписи устаревших данных. Пока запрос в пути, сохранённые данные уже на
  * экране — и честнее сказать «обновляем», чем «нет связи».
  */
-var LEAD_OFFLINE = 'Нет связи. Данные';
-var LEAD_REFRESHING = 'Обновляем. Данные';
+var LEAD_OFFLINE = 'lead.offline';        // ключи словаря: «Нет связи. Данные»
+var LEAD_REFRESHING = 'lead.refreshing';  // «Обновляем. Данные»
 
 function restoreKp(cached, refreshing) {
   return {
@@ -331,7 +346,7 @@ function restoreCloud(cached, point, refreshing) {
 
 /**
  * Переключает карточку между «свежо» и «данные из кэша».
- * ageMs === null — данные живые.
+ * ageMs === null — данные живые. lead — ключ словаря с началом фразы.
  */
 function applyFreshness(cardId, staleId, ageMs, lead) {
   if (ageMs === null || ageMs === undefined) {
@@ -342,7 +357,7 @@ function applyFreshness(cardId, staleId, ageMs, lead) {
   var note = $(staleId);
   if (note) {
     var text = note.querySelector('.stale__text');
-    if (text) text.textContent = (lead || 'Нет связи. Данные') + ' ' + fmtAge(ageMs);
+    if (text) text.textContent = t('stale.line', { lead: t(lead || LEAD_OFFLINE), age: fmtAge(ageMs) });
   }
   setState(cardId, 'stale');
 }
@@ -357,18 +372,13 @@ function moonPercent(illumination) {
 
 /** Фактор в вердикте: «Луна: 92%, над горизонтом». */
 function moonFactor(info) {
-  return 'Луна: ' + moonPercent(info.illumination) + (info.up ? ', над горизонтом' : ', под горизонтом');
+  return t(info.up ? 'moon.factor.up' : 'moon.factor.down', { pct: moonPercent(info.illumination) });
 }
 
 /** Пояснение — только когда Луна действительно мешает. */
 function moonHint(impact) {
-  if (impact === 'strong') {
-    return 'Яркая Луна над горизонтом: слабое сияние будет выцветать, сильное видно и так. ' +
-      'Смотрите на север, спиной к Луне.';
-  }
-  if (impact === 'moderate') {
-    return 'Луна заметно подсвечивает небо — слабое сияние будет бледнее.';
-  }
+  if (impact === 'strong') return t('moon.hint.strong');
+  if (impact === 'moderate') return t('moon.hint.moderate');
   return '';
 }
 
@@ -377,22 +387,22 @@ function moonHint(impact) {
  * «Луна 92%, зайдёт в 03:14», «Луна 3%, под горизонтом».
  */
 function moonWindowText(summary) {
-  var head = 'Луна ' + moonPercent(summary.illumination);
+  var pct = moonPercent(summary.illumination);
 
-  if (summary.upShare === 0) return head + ', под горизонтом';
-  if (summary.upShare === 1) return head + ', над горизонтом';
+  if (summary.upShare === 0) return t('moon.win.down', { pct: pct });
+  if (summary.upShare === 1) return t('moon.win.up', { pct: pct });
 
   // И восход, и заход внутри окна: интервал видимости назван целиком, иначе строка
   // «взойдёт в 19:50» умолчала бы, что через четыре часа Луна уже зайдёт.
   if (summary.rise && summary.set) {
     if (summary.rise < summary.set) {
-      return head + ', над горизонтом ' + fmtTime(summary.rise) + '–' + fmtTime(summary.set);
+      return t('moon.win.between', { pct: pct, from: fmtTime(summary.rise), to: fmtTime(summary.set) });
     }
-    return head + ', зайдёт в ' + fmtTime(summary.set) + ', взойдёт в ' + fmtTime(summary.rise);
+    return t('moon.win.set_rise', { pct: pct, set: fmtTime(summary.set), rise: fmtTime(summary.rise) });
   }
-  if (summary.set) return head + ', зайдёт в ' + fmtTime(summary.set);
-  if (summary.rise) return head + ', взойдёт в ' + fmtTime(summary.rise);
-  return head;
+  if (summary.set) return t('moon.win.set', { pct: pct, time: fmtTime(summary.set) });
+  if (summary.rise) return t('moon.win.rise', { pct: pct, time: fmtTime(summary.rise) });
+  return t('moon.win.plain', { pct: pct });
 }
 
 /* ------------------------------------------------------------------ */
@@ -409,16 +419,12 @@ function kpScore(kp, point) {
 function kpText(kp, point) {
   point = point || currentPoint();
   var score = kpScore(kp, point);
-  var t = kpThresholds(point);
+  var limits = kpThresholds(point);
 
-  if (score === 3) {
-    return kp >= t.high + 2
-      ? 'Магнитная буря — сияние вероятно и южнее'
-      : 'Повышенная активность — овал сияния над точкой';
-  }
-  if (score === 2) return 'Умеренная активность — сияние возможно на севере неба';
-  if (score === 1) return 'Слабая активность — шанс на бледную дугу у горизонта';
-  return 'Магнитное поле спокойно';
+  if (score === 3) return t(kp >= limits.high + 2 ? 'kp.storm' : 'kp.high');
+  if (score === 2) return t('kp.mid');
+  if (score === 1) return t('kp.low');
+  return t('kp.calm');
 }
 
 function kpTone(kp, point) {
@@ -429,10 +435,10 @@ function kpTone(kp, point) {
 }
 
 function cloudText(pct) {
-  if (pct <= 25) return 'Ясно — небо открыто';
-  if (pct <= 50) return 'Переменная облачность — есть просветы';
-  if (pct <= 75) return 'Значительная облачность — просветы редки';
-  return 'Сплошная облачность — небо закрыто';
+  if (pct <= 25) return t('cloud.clear');
+  if (pct <= 50) return t('cloud.partly');
+  if (pct <= 75) return t('cloud.mostly');
+  return t('cloud.overcast');
 }
 
 function cloudTone(pct) {
@@ -455,9 +461,9 @@ function computeVerdict(kp, cloud) {
   var partial = (ks === null || cs === null);
   var factors = [];
 
-  factors.push(ks !== null ? 'Kp ' + fmtKp(kp.value) : 'Kp: данных нет');
-  factors.push(cs !== null ? 'Облачность ' + cloud.value + '%' : 'Облачность: данных нет');
-  if (cloud && cloud.conflict) factors.push('Данные об облачности противоречивы');
+  factors.push(ks !== null ? t('verdict.f.kp', { v: fmtKp(kp.value) }) : t('verdict.f.kp_none'));
+  factors.push(cs !== null ? t('verdict.f.cloud', { v: cloud.value }) : t('verdict.f.cloud_none'));
+  if (cloud && cloud.conflict) factors.push(t('verdict.f.conflict'));
 
   var point = currentPoint();
   var alt = solarAltitude(new Date(), point.lat, point.lon);
@@ -466,46 +472,46 @@ function computeVerdict(kp, cloud) {
 
   // Освещённость неба
   if (tooLight) {
-    factors.push(alt > 0 ? 'Солнце над горизонтом' : 'Светлые сумерки');
+    factors.push(t(alt > 0 ? 'verdict.f.sun_up' : 'verdict.f.twilight'));
   } else if (alt > DARK_FULL) {
-    factors.push('Неполная темнота');
+    factors.push(t('verdict.f.dark_part'));
   } else {
-    factors.push('Тёмное небо');
+    factors.push(t('verdict.f.dark'));
   }
 
   var hint;
   if (level === 'high') {
-    hint = 'Хорошие условия: активность есть, небо достаточно чистое. Смотрите на север.';
+    hint = t('verdict.hint.high');
   } else if (level === 'mid') {
-    hint = 'Шанс есть, но не гарантирован — имеет смысл проверять небо каждые полчаса.';
+    hint = t('verdict.hint.mid');
   } else if (tooLight) {
-    hint = 'Сейчас слишком светло: сияние не различить даже при высокой магнитной активности. Возвращайтесь после наступления темноты.';
+    hint = t('verdict.hint.too_light');
   } else if (cs === 0) {
-    hint = 'Небо затянуто облаками — сияние не будет видно, какой бы ни была активность.';
+    hint = t('verdict.hint.cloudy');
   } else if (ks === 0) {
-    hint = 'Магнитное поле спокойно — сияния практически нет.';
+    hint = t('verdict.hint.calm');
   } else {
-    hint = 'Условия неблагоприятные.';
+    hint = t('verdict.hint.bad');
   }
+  var gap = t('sep.sentence');
 
   // Засветка в расчёт не входит — только пояснение. Упоминаем её, когда
   // небо в принципе стоит смотреть: при полярном дне или сплошных облаках
   // совет отъехать от фонарей бесполезен.
-  var light = LIGHT_POLLUTION[point.light];
-  factors.push('Засветка: ' + light.label);
-  if (light && !tooLight && level !== 'low') hint += ' ' + light.hint;
+  factors.push(t('verdict.f.light', { v: t('light.' + point.light + '.label') }));
+  if (!tooLight && level !== 'low') hint += gap + t('light.' + point.light + '.hint');
 
   // Луна, как и засветка, в расчёт уровня не входит — это фактор и пояснение.
   // Упоминаем её, когда небо в принципе стоит смотреть.
   var moon = moonInfo(new Date(), point.lat, point.lon);
   factors.push(moonFactor(moon));
-  if (!tooLight && level !== 'low' && moonHint(moon.impact)) hint += ' ' + moonHint(moon.impact);
+  if (!tooLight && level !== 'low' && moonHint(moon.impact)) hint += gap + moonHint(moon.impact);
 
-  if (partial) hint += ' Оценка неполная: часть данных не загрузилась.';
+  if (partial) hint += gap + t('verdict.hint.partial');
 
   return {
     level: level,
-    label: level === 'high' ? 'Высокий' : (level === 'mid' ? 'Средний' : 'Низкий'),
+    label: t(level === 'high' ? 'level.high' : (level === 'mid' ? 'level.mid' : 'level.low')),
     tone:  level === 'high' ? TONE.ok  : (level === 'mid' ? TONE.mid  : TONE.bad),
     hint: hint,
     factors: factors,
@@ -558,7 +564,7 @@ function loadKp() {
       }
 
       state.kp = null;
-      $('kp-error').textContent = 'NOAA SWPC недоступен: ' + err.message + '.';
+      showError('kp-error', 'kp.error', err);
       setState('kp-card', 'error');
       return null;
     });
@@ -585,12 +591,13 @@ function renderKp(kp) {
     scale.appendChild(cell);
   }
 
-  var meta = 'Шкала 0–9';
+  var meta = t('kp.scale');
   if (kp.time) {
     var mins = Math.max(0, Math.round((Date.now() - kp.time.getTime()) / 60000));
-    meta = 'Измерено в ' + fmtTime(kp.time) + ' · ' +
-      (mins < 1 ? 'только что'
-                : mins + ' ' + plural(mins, 'минуту', 'минуты', 'минут') + ' назад');
+    meta = t('kp.measured', {
+      time: fmtTime(kp.time),
+      ago: mins < 1 ? t('age.just_now') : t('age.ago', { value: t('unit.minutes', { n: mins }) })
+    });
   }
   $('kp-time').textContent = meta;
 
@@ -630,7 +637,7 @@ function loadCloud() {
       var parsed = cloudFromCurrent(cur);
 
       // Без ярусов оценка всё равно возможна — по общей облачности.
-      if (parsed === null) throw new Error('в ответе нет облачности');
+      if (parsed === null) throw appError('no_cloud');
 
       var cloud = {
         value: parsed.value,
@@ -669,7 +676,7 @@ function loadCloud() {
       }
 
       state.cloud = null;
-      $('cloud-error').textContent = 'Open-Meteo недоступен: ' + err.message + '.';
+      showError('cloud-error', 'cloud.error', err);
       setState('cloud-card', 'error');
       return null;
     });
@@ -732,15 +739,13 @@ function renderCloud(cloud) {
   var warn = $('cloud-warn');
   warn.hidden = !cloud.conflict;
   if (cloud.conflict) {
-    warn.textContent = 'Данные об облачности противоречивы: по ярусам ' + cloud.value +
-      '%, а суммарный показатель той же модели — ' + Math.round(cloud.total) +
-      '%. Такое расхождение физически невозможно, поэтому высокий балл за облачность не ставится.';
+    warn.textContent = t('cloud.warn', { layers: cloud.value, total: Math.round(cloud.total) });
   }
 
   var parts = [];
   if (cloud.temp !== null) parts.push((cloud.temp > 0 ? '+' : '') + cloud.temp + ' °C');
-  if (cloud.soon) parts.push('к ' + fmtTime(cloud.soon.time) + ' — ' + cloud.soon.value + '%');
-  if (cloud.time) parts.push('данные на ' + fmtTime(cloud.time));
+  if (cloud.soon) parts.push(t('cloud.meta.soon', { time: fmtTime(cloud.soon.time), v: cloud.soon.value }));
+  if (cloud.time) parts.push(t('cloud.meta.time', { time: fmtTime(cloud.time) }));
   $('cloud-meta').textContent = parts.join(' · ');
 
   applyFreshness('cloud-card', 'cloud-stale', cloud.stale, cloud.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
@@ -754,7 +759,7 @@ function renderCloudLayers(cloud) {
   if (!cloud.byLayers) {
     // Ярусов нет — показываем только общий показатель и говорим об этом прямо.
     box.hidden = true;
-    note.textContent = 'Ярусы облачности недоступны — показан суммарный показатель.';
+    note.textContent = t('cloud.note.no_layers');
     return;
   }
 
@@ -777,12 +782,11 @@ function renderCloudLayers(cloud) {
   var weights = CLOUD_LAYERS.map(function (layer) {
     // Целый вес печатаем как «1,0», а не «1», чтобы ряд читался единообразно.
     var weight = Number.isInteger(layer.weight) ? layer.weight.toFixed(1) : String(layer.weight);
-    return layer.label.toLowerCase() + ' ×' + weight.replace('.', ',');
-  }).join(', ');
+    return t('layer.' + layer.key).toLowerCase() + ' ×' + fmtNum(weight);
+  }).join(t('sep.list'));
 
-  note.textContent = 'Итог — с учётом перекрытия ярусов, веса: ' + weights +
-    '. Перистые облака верхнего яруса сияние просвечивает, поэтому их вклад меньше.' +
-    (cloud.total !== null ? ' Суммарная облачность по модели — ' + Math.round(cloud.total) + '%.' : '');
+  note.textContent = t('cloud.note.layers', { weights: weights }) +
+    (cloud.total !== null ? t('sep.sentence') + t('cloud.note.total', { v: Math.round(cloud.total) }) : '');
 }
 
 /* ------------------------------------------------------------------ */
@@ -808,7 +812,7 @@ function loadForecast() {
       var source = normalizeRows(data);
       var rows = buildForecastRows(source);
 
-      if (!rows.length) throw new Error('нет актуальных значений');
+      if (!rows.length) throw appError('no_values');
 
       // Кэшируем исходные строки, а не готовые ячейки: за время хранения часть
       // трёхчасовок уйдёт в прошлое, и при восстановлении их надо отфильтровать
@@ -833,7 +837,7 @@ function loadForecast() {
         cacheDrop('forecast'); // весь сохранённый прогноз уже в прошлом
       }
 
-      $('forecast-error').textContent = 'Прогноз NOAA недоступен: ' + err.message + '.';
+      showError('forecast-error', 'forecast.error', err);
       setState('forecast-card', 'error');
       return null;
     });
@@ -878,7 +882,7 @@ function renderForecast(rows, ageMs, refreshing) {
 
     var timeEl = document.createElement('div');
     timeEl.className = 'slot__time';
-    timeEl.textContent = row.current ? 'сейчас' : fmtTime(row.time);
+    timeEl.textContent = row.current ? t('forecast.now') : fmtTime(row.time);
 
     slot.appendChild(dayEl);
     slot.appendChild(kpEl);
@@ -1005,6 +1009,13 @@ function computeNightWindow(cloud, kpRows, kpNow, point) {
   };
 }
 
+/** «облачность 12%» или «облачность 10–20%» для окна наблюдения. */
+function cloudRangeText(win) {
+  return win.cloudMin === win.cloudMax
+    ? t('win.cloud_one', { v: win.cloudMin })
+    : t('win.cloud_range', { min: win.cloudMin, max: win.cloudMax });
+}
+
 function renderWindow() {
   var win = computeNightWindow(state.cloud, state.forecast, state.kp ? state.kp.value : null);
 
@@ -1022,11 +1033,10 @@ function renderWindow() {
   if (win.polarDay) {
     setTone($('window-card'), TONE.mid);
     setTone(valueEl, TONE.mid);
-    valueEl.textContent = 'Темноты не будет';
-    hintEl.textContent = 'В ближайшие двое суток Солнце не опускается достаточно низко — ' +
-      'полярный день. Сияние не увидеть при любой магнитной активности.';
+    valueEl.textContent = t('win.no_dark');
+    hintEl.textContent = t('win.polar');
     metaEl.textContent = '';
-    applyFreshness('window-card', 'window-stale', state.cloud.stale, 'Расчёт по сохранённым данным:');
+    applyFreshness('window-card', 'window-stale', state.cloud.stale, 'lead.calc_saved');
     return;
   }
 
@@ -1036,19 +1046,14 @@ function renderWindow() {
 
   valueEl.textContent = fmtTime(win.from) + ' — ' + fmtTime(win.to);
 
-  var quality = win.level === 2 ? 'высокий шанс'
-    : (win.level === 1 ? 'средний шанс' : 'лучшее из возможного, но условия плохие');
+  var quality = t(win.level === 2 ? 'win.q.high' : (win.level === 1 ? 'win.q.mid' : 'win.q.low'));
 
-  var cloudText = win.cloudMin === win.cloudMax
-    ? 'облачность ' + win.cloudMin + '%'
-    : 'облачность ' + win.cloudMin + '–' + win.cloudMax + '%';
-
-  var parts = [quality, cloudText];
-  if (win.kpMax !== null) parts.push('Kp до ' + fmtKp(win.kpMax));
-  parts.push(win.fullDark ? 'полная темнота' : 'неполная темнота');
+  var parts = [quality, cloudRangeText(win)];
+  if (win.kpMax !== null) parts.push(t('win.kp_max', { v: fmtKp(win.kpMax) }));
+  parts.push(t(win.fullDark ? 'win.dark_full' : 'win.dark_part'));
   parts.push(moonWindowText(moonSummary(win.from, win.to, win.point.lat, win.point.lon)));
 
-  hintEl.textContent = parts.join(' · ') + '.';
+  hintEl.textContent = parts.join(t('sep.dot')) + t('punct.end');
 
   // Почасовая полоса всей ночи
   win.night.forEach(function (h) {
@@ -1067,7 +1072,7 @@ function renderWindow() {
 
     var kp = document.createElement('div');
     kp.className = 'hour__kp';
-    kp.textContent = (h.kp === null || h.kp === undefined) ? '—' : 'Kp ' + fmtKp(h.kp);
+    kp.textContent = (h.kp === null || h.kp === undefined) ? '—' : t('hour.kp', { v: fmtKp(h.kp) });
 
     cell.appendChild(time);
     cell.appendChild(cloud);
@@ -1075,13 +1080,14 @@ function renderWindow() {
     list.appendChild(cell);
   });
 
-  var meta = 'Ночь с ' + fmtTime(win.night[0].time) + ' до ' +
-    fmtTime(new Date(win.night[win.night.length - 1].time.getTime() + 3600000)) +
-    '. В ячейках — облачность и прогнозное Kp на каждый час.';
-  if (win.noKp) meta += ' Прогноз Kp недоступен, учтены только облачность и темнота.';
+  var meta = t('win.meta', {
+    from: fmtTime(win.night[0].time),
+    to: fmtTime(new Date(win.night[win.night.length - 1].time.getTime() + 3600000))
+  });
+  if (win.noKp) meta += t('sep.sentence') + t('win.no_kp');
   metaEl.textContent = meta;
 
-  applyFreshness('window-card', 'window-stale', state.cloud.stale, 'Расчёт по сохранённым данным:');
+  applyFreshness('window-card', 'window-stale', state.cloud.stale, 'lead.calc_saved');
 }
 
 /* ------------------------------------------------------------------ */
@@ -1094,9 +1100,9 @@ function renderWindow() {
 
 /** Почасовые ряды всех точек из ответа с несколькими координатами. */
 function readAllPointsHours(data) {
-  if (!Array.isArray(data)) throw new Error('ожидался список точек');
+  if (!Array.isArray(data)) throw appError('not_list');
   if (data.length !== POINTS.length) {
-    throw new Error('точек в ответе ' + data.length + ', ожидалось ' + POINTS.length);
+    throw appError('points_count', { got: data.length, want: POINTS.length });
   }
 
   // Порядок ответа совпадает с порядком переданных координат.
@@ -1138,7 +1144,7 @@ function loadTonight() {
       }
 
       state.tonight = null;
-      $('best-error').textContent = 'Не удалось загрузить прогноз по точкам: ' + err.message + '.';
+      showError('best-error', 'best.error', err);
       setState('best-card', 'error');
       setState('places-card', 'error');
       return null;
@@ -1179,7 +1185,7 @@ function computeAllWindows() {
 }
 
 function levelWord(level) {
-  return level === 2 ? 'Высокий шанс' : (level === 1 ? 'Средний шанс' : 'Низкий шанс');
+  return t(level === 2 ? 'chance.high' : (level === 1 ? 'chance.mid' : 'chance.low'));
 }
 
 function levelTone(level) {
@@ -1199,11 +1205,16 @@ function renderTonight() {
   renderPlaces(list);
 
   var age = state.tonight.stale;
-  applyFreshness('best-card', 'best-stale', age, 'Расчёт по сохранённым данным:');
+  applyFreshness('best-card', 'best-stale', age, 'lead.calc_saved');
   setState('places-card', 'ok');
 }
 
 /** Крупная строка с ответом. Лучшее из плохого здесь не показываем. */
+/** Время в пути: «2,5 ч» / «2.5 h» / «2.5小时». */
+function driveText(point) {
+  return t('drive.h', { h: fmtNum(point.driveH) });
+}
+
 function renderBest(list) {
   var valueEl = $('best-value');
   var hintEl = $('best-hint');
@@ -1217,16 +1228,15 @@ function renderBest(list) {
   if (!hasDark) {
     setTone($('best-card'), TONE.mid);
     setTone(valueEl, TONE.mid);
-    valueEl.textContent = 'Темноты не будет';
-    hintEl.textContent = 'Полярный день: ближайшие двое суток Солнце нигде в области не опускается ' +
-      'достаточно низко. Ехать некуда — сияние не увидеть при любой магнитной активности.';
+    valueEl.textContent = t('win.no_dark');
+    hintEl.textContent = t('best.polar');
     return;
   }
 
   if (!win || win.polarDay || win.level < 1) {
     setTone($('best-card'), TONE.bad);
     setTone(valueEl, TONE.bad);
-    valueEl.textContent = 'Ехать некуда';
+    valueEl.textContent = t('best.no_go');
 
     // Объясняем, что именно мешает: это видно по лучшей из точек.
     var reason;
@@ -1236,15 +1246,13 @@ function renderBest(list) {
     var kpNow = state.kp ? state.kp.value : null;
 
     if (cloudy) {
-      reason = 'Этой ночью затянуто во всей области — ни в одной из семи точек нет просветов.';
+      reason = t('best.reason.cloudy');
     } else if (kpNow !== null && kpScore(kpNow, findPoint(REFERENCE_POINT_ID)) === 0) {
-      reason = 'Магнитное поле спокойно, и прогноз Kp на ночь не обещает роста. ' +
-        'Даже там, где небо чистое, смотреть нечего.';
+      reason = t('best.reason.calm');
     } else {
-      reason = 'Ни в одной из семи точек сочетание облачности и прогнозного Kp не даёт ' +
-        'заметного шанса. Список ниже показывает, насколько всё плохо.';
+      reason = t('best.reason.other');
     }
-    hintEl.textContent = reason + ' Лучше дождаться следующей ночи.';
+    hintEl.textContent = reason + t('sep.sentence') + t('best.wait');
     return;
   }
 
@@ -1252,21 +1260,17 @@ function renderBest(list) {
   setTone($('best-card'), tone);
   setTone(valueEl, tone);
 
-  valueEl.textContent = best.point.name + ', ' + fmtTime(win.from) + ' — ' + fmtTime(win.to);
+  valueEl.textContent = t('best.value', { name: pointName(best.point), from: fmtTime(win.from), to: fmtTime(win.to) });
 
-  var cloudText = win.cloudMin === win.cloudMax
-    ? 'облачность ' + win.cloudMin + '%'
-    : 'облачность ' + win.cloudMin + '–' + win.cloudMax + '%';
-
-  hintEl.textContent = levelWord(win.level).toLowerCase() + ' · ' + cloudText +
-    (win.kpMax !== null ? ' · Kp до ' + fmtKp(win.kpMax) : '') +
-    (best.point.km ? '. От Мурманска ' + best.point.km + ' км, около ' + best.point.drive + ' пути.'
-                   : '. Никуда ехать не нужно — это Мурманск.');
+  hintEl.textContent = levelWord(win.level).toLowerCase() + t('sep.dot') + cloudRangeText(win) +
+    (win.kpMax !== null ? t('sep.dot') + t('win.kp_max', { v: fmtKp(win.kpMax) }) : '') +
+    (best.point.km ? t('best.travel', { km: best.point.km, drive: driveText(best.point) })
+                   : t('best.here'));
 
   [
-    'Засветка: ' + LIGHT_POLLUTION[best.point.light].label,
-    'Порог Kp здесь: ' + fmtKp(kpThresholds(best.point).low),
-    win.fullDark ? 'Полная темнота' : 'Неполная темнота',
+    t('best.chip.light', { v: t('light.' + best.point.light + '.label') }),
+    t('best.chip.threshold', { v: fmtKp(kpThresholds(best.point).low) }),
+    t(win.fullDark ? 'best.chip.dark_full' : 'best.chip.dark_part'),
     moonWindowText(moonSummary(win.from, win.to, best.point.lat, best.point.lon))
   ].forEach(function (text) {
     var li = document.createElement('li');
@@ -1291,34 +1295,32 @@ function renderPlaces(list) {
 
     var name = document.createElement('div');
     name.className = 'place__name';
-    name.textContent = point.name;
+    name.textContent = pointName(point);
 
     var level = document.createElement('div');
     level.className = 'place__level';
-    level.textContent = usable ? levelWord(win.level) : 'Нет темноты';
+    level.textContent = usable ? levelWord(win.level) : t('place.no_dark');
     setTone(level, tone);
 
     var facts = document.createElement('div');
     facts.className = 'place__facts';
     if (usable) {
-      var cloud = win.cloudMin === win.cloudMax
-        ? win.cloudMin + '%'
-        : win.cloudMin + '–' + win.cloudMax + '%';
-      facts.textContent = fmtTime(win.from) + ' — ' + fmtTime(win.to) +
-        ' · облачность ' + cloud +
-        (win.kpMax !== null ? ' · Kp до ' + fmtKp(win.kpMax) : '') +
-        ' · порог Kp ' + fmtKp(kpThresholds(point).low);
+      var factParts = [fmtTime(win.from) + ' — ' + fmtTime(win.to), cloudRangeText(win)];
+      if (win.kpMax !== null) factParts.push(t('win.kp_max', { v: fmtKp(win.kpMax) }));
+      factParts.push(t('place.threshold', { v: fmtKp(kpThresholds(point).low) }));
+      facts.textContent = factParts.join(t('sep.dot'));
     } else {
-      facts.textContent = win ? 'Солнце не опускается ниже −6°' : 'Нет данных об облачности';
+      facts.textContent = t(win ? 'place.sun' : 'place.no_data');
     }
 
     var travel = document.createElement('div');
     travel.className = 'place__travel';
-    travel.textContent = point.km
-      ? 'От Мурманска ' + point.km + ' км, около ' + point.drive + ' в пути' +
-        (point.note ? ' · ' + point.note : '') +
-        ' · засветка ' + LIGHT_POLLUTION[point.light].label
-      : 'Точка отсчёта · засветка ' + LIGHT_POLLUTION[point.light].label;
+    var travelParts = point.km
+      ? [t('place.travel', { km: point.km, drive: driveText(point) })]
+      : [t('place.origin')];
+    if (point.noteKey) travelParts.push(t('note.' + point.noteKey));
+    travelParts.push(t('place.light', { v: t('light.' + point.light + '.label') }));
+    travel.textContent = travelParts.join(t('sep.dot'));
 
     row.appendChild(name);
     row.appendChild(level);
@@ -1384,20 +1386,20 @@ function markNotified(pointId) {
 function showAppNotification(title, options) {
   options.icon = new URL('icons/icon-192.png', location.href).href;
   options.badge = options.icon;
-  options.lang = 'ru';
+  options.lang = langInfo().html;
   options.data = { url: location.href.split('#')[0] + '#now' };
 
   // Результат — каким способом показали; ошибка — если не получилось никак.
   // Вкладке «Уведомления» это нужно, чтобы сказать человеку, что сломалось.
   var direct = function () {
     new Notification(title, options);
-    return 'напрямую';
+    return 'direct';
   };
 
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
     return navigator.serviceWorker.ready
       .then(function (reg) { return reg.showNotification(title, options); })
-      .then(function () { return 'через service worker'; }, direct);
+      .then(function () { return 'sw'; }, direct);
   }
   return new Promise(function (resolve) { resolve(direct()); });
 }
@@ -1432,8 +1434,8 @@ function checkHighChance(verdict) {
   if (Date.now() - lastNotifiedAt(point.id) < NOTIFY_COOLDOWN_MS) return;
 
   markNotified(point.id);
-  showAppNotification('Высокий шанс увидеть сияние — ' + point.name, {
-    body: verdict.factors.slice(0, 3).join(' · ') + '. Смотрите на север.',
+  showAppNotification(t('notif.high.title', { name: pointName(point) }), {
+    body: t('notif.high.body', { factors: verdict.factors.slice(0, 3).join(t('sep.dot')) }),
     tag: 'aurora-high-' + point.id  // новое уведомление по точке заменяет старое
   }).catch(ignore);
 }
@@ -1452,8 +1454,7 @@ function renderNotifyControl() {
 
   if (!notifySupported()) {
     btn.hidden = true;
-    hint.textContent = 'Этот браузер не поддерживает уведомления. На iPhone они работают ' +
-      'только в приложении, добавленном на экран «Домой».';
+    hint.textContent = t('notify.unsupported');
     return;
   }
 
@@ -1463,18 +1464,16 @@ function renderNotifyControl() {
 
   btn.disabled = (permission === 'denied');
   btn.setAttribute('aria-pressed', String(on));
-  btn.textContent = on ? 'Уведомления включены' : 'Сообщить о высоком шансе';
+  btn.textContent = t(on ? 'notify.btn.on' : 'notify.btn.off');
 
   if (permission === 'denied') {
-    hint.textContent = 'Уведомления запрещены в настройках браузера для этого сайта.';
+    hint.textContent = t('notify.hint.denied');
   } else if (pushIsActive()) {
-    hint.textContent = 'Включены уведомления с сервера: они приходят и при закрытом приложении. ' +
-      'Настройка — на вкладке «Уведомления».';
+    hint.textContent = t('notify.hint.server');
   } else if (on) {
-    hint.textContent = 'Сообщим, когда в выбранной точке шанс станет высоким, — не чаще раза ' +
-      'в 3 часа. Работает, пока приложение открыто. Нажмите, чтобы выключить.';
+    hint.textContent = t('notify.hint.on');
   } else {
-    hint.textContent = 'Работает, пока приложение открыто — во вкладке или в фоне.';
+    hint.textContent = t('notify.hint.off');
   }
 }
 
@@ -1493,9 +1492,8 @@ function initNotifications() {
       if (permission === 'granted') {
         setNotifyEnabled(true);
         // Пробное уведомление: сразу видно, что система их пропускает.
-        showAppNotification('Уведомления включены', {
-          body: 'Сообщим, когда в точке «' + currentPoint().name + '» шанс увидеть сияние ' +
-            'станет высоким. Пока приложение открыто.',
+        showAppNotification(t('notif.enabled.title'), {
+          body: t('notif.enabled.body', { name: pointName(currentPoint()) }),
           tag: 'aurora-test'
         }).catch(ignore);
       }
@@ -1510,9 +1508,9 @@ function initNotifications() {
 /* ------------------------------------------------------------------ */
 
 var CHECK_MARKS = {
-  ok:   { mark: '✓', tone: TONE.ok,  label: 'в порядке' },
-  warn: { mark: '!', tone: TONE.mid, label: 'внимание' },
-  fail: { mark: '✕', tone: TONE.bad, label: 'проблема' }
+  ok:   { mark: '✓', tone: TONE.ok,  label: 'check.ok' },
+  warn: { mark: '!', tone: TONE.mid, label: 'check.warn' },
+  fail: { mark: '✕', tone: TONE.bad, label: 'check.fail' }
 };
 
 function isStandalone() {
@@ -1530,72 +1528,63 @@ function notifyChecks() {
   var checks = [];
   var supported = notifySupported();
   var permission = supported ? Notification.permission : null;
+  var place = pointName(currentPoint());
 
   checks.push(supported
-    ? { state: 'ok', title: 'Браузер поддерживает уведомления' }
-    : { state: 'fail', title: 'Браузер не поддерживает уведомления',
-        detail: isIOS() ? 'На iPhone они работают только в приложении, добавленном на экран «Домой».'
-                        : 'Попробуйте Chrome, Edge или Firefox.' });
+    ? { state: 'ok', title: t('chk.support.ok') }
+    : { state: 'fail', title: t('chk.support.fail'),
+        detail: t(isIOS() ? 'chk.support.fail.ios' : 'chk.support.fail.other') });
 
   if (supported) {
     if (permission === 'granted') {
-      checks.push({ state: 'ok', title: 'Разрешение для сайта выдано' });
+      checks.push({ state: 'ok', title: t('chk.perm.granted') });
     } else if (permission === 'denied') {
-      checks.push({ state: 'fail', title: 'Разрешение для сайта запрещено',
-        detail: 'Браузер не покажет ни одного уведомления, пока не разрешить их в настройках сайта — см. ниже.' });
+      checks.push({ state: 'fail', title: t('chk.perm.denied'), detail: t('chk.perm.denied.d') });
     } else {
-      checks.push({ state: 'warn', title: 'Разрешение ещё не запрашивали',
-        detail: 'Браузер спросит при первой пробной отправке.' });
+      checks.push({ state: 'warn', title: t('chk.perm.default'), detail: t('chk.perm.default.d') });
     }
   }
 
   var sw = 'serviceWorker' in navigator;
   var controlled = sw && !!navigator.serviceWorker.controller;
   checks.push(controlled
-    ? { state: 'ok', title: 'Service worker активен' }
-    : { state: 'warn', title: sw ? 'Service worker ещё не активен' : 'Service worker недоступен',
-        detail: sw ? 'Обновите страницу. Без него на Android уведомления не показываются.'
-                   : 'На Android уведомления не покажутся; на компьютере пробное всё равно сработает.' });
+    ? { state: 'ok', title: t('chk.sw.ok') }
+    : { state: 'warn', title: t(sw ? 'chk.sw.inactive' : 'chk.sw.missing'),
+        detail: t(sw ? 'chk.sw.inactive.d' : 'chk.sw.missing.d') });
 
   var on = notifyEnabled() && permission === 'granted';
   checks.push({
     state: on ? 'ok' : 'warn',
-    title: on ? 'Уведомления о высоком шансе включены' : 'Уведомления о высоком шансе выключены',
-    detail: on ? 'Для точки «' + currentPoint().name + '», не чаще раза в 3 часа.'
-         : permission === 'denied' ? 'Сначала нужно разрешение для сайта.'
-         : 'Пробное уведомление придёт и без этого, а о сиянии — нет.',
-    toggle: supported && permission !== 'denied' ? (on ? 'Выключить' : 'Включить') : null
+    title: t(on ? 'chk.alerts.on' : 'chk.alerts.off'),
+    detail: on ? t('chk.alerts.on.d', { name: place })
+         : permission === 'denied' ? t('chk.alerts.off.denied')
+         : t('chk.alerts.off.d'),
+    toggle: supported && permission !== 'denied' ? t(on ? 'chk.alerts.turn_off' : 'chk.alerts.turn_on') : null
   });
 
   if (pushConfigured()) {
     var serverOn = pushIsActive();
     checks.push(pushSupported()
-      ? { state: 'ok', title: 'Браузер поддерживает push с сервера' }
-      : { state: 'fail', title: 'Браузер не поддерживает push с сервера',
-          detail: 'Уведомления о сиянии будут приходить только пока приложение открыто.' });
+      ? { state: 'ok', title: t('chk.push.ok') }
+      : { state: 'fail', title: t('chk.push.fail'), detail: t('chk.push.fail.d') });
 
     checks.push(serverOn
-      ? { state: 'ok', title: 'Подписка на сервер уведомлений оформлена',
-          detail: 'Для точки «' + currentPoint().name + '». Уведомления придут и при закрытом приложении.' }
-      : { state: 'warn', title: 'Подписка на сервер уведомлений не оформлена',
-          detail: 'Включите её в блоке выше — тогда уведомления придут и при закрытом приложении.' });
+      ? { state: 'ok', title: t('chk.sub.on'), detail: t('chk.sub.on.d', { name: place }) }
+      : { state: 'warn', title: t('chk.sub.off'), detail: t('chk.sub.off.d') });
 
     checks.push(state.pushHealth === true
-      ? { state: 'ok', title: 'Сервер уведомлений отвечает' }
+      ? { state: 'ok', title: t('chk.server.ok') }
       : state.pushHealth === false
-        ? { state: 'fail', title: 'Сервер уведомлений не отвечает',
-            detail: 'Проверьте интернет и повторите позже. Пока сервер недоступен, подписка не работает.' }
-        : { state: 'warn', title: 'Проверяем сервер уведомлений…' });
+        ? { state: 'fail', title: t('chk.server.fail'), detail: t('chk.server.fail.d') }
+        : { state: 'warn', title: t('chk.server.pending') });
   }
 
   if (isIOS() && !isStandalone()) {
-    checks.push({ state: 'fail', title: 'Открыто в браузере, а не как приложение',
-      detail: 'На iPhone добавьте сайт на экран «Домой» через «Поделиться» и откройте оттуда.' });
+    checks.push({ state: 'fail', title: t('chk.mode.ios'), detail: t('chk.mode.ios.d') });
   } else {
     checks.push(isStandalone()
-      ? { state: 'ok', title: 'Открыто как установленное приложение' }
-      : { state: 'ok', title: 'Открыто во вкладке браузера',
-          detail: 'Подходит. Уведомления о сиянии будут приходить, пока вкладка открыта.' });
+      ? { state: 'ok', title: t('chk.mode.app') }
+      : { state: 'ok', title: t('chk.mode.tab'), detail: t('chk.mode.tab.d') });
   }
 
   return checks;
@@ -1614,7 +1603,7 @@ function renderNotifyDiagnostics() {
     var mark = document.createElement('span');
     mark.className = 'check__mark';
     mark.textContent = look.mark;
-    mark.setAttribute('aria-label', look.label);
+    mark.setAttribute('aria-label', t(look.label));
     setTone(mark, look.tone);
 
     var title = document.createElement('span');
@@ -1669,28 +1658,27 @@ function sendTestNotification(delayMs) {
     renderNotifyControl();
 
     if (permission !== 'granted') {
-      setTestStatus('Разрешение не выдано — браузер не покажет уведомление. Как разрешить, написано ниже.', TONE.bad);
+      setTestStatus(t('ntest.denied'), TONE.bad);
       return;
     }
 
     var send = function () {
-      showAppNotification('Пробное уведомление', {
-        body: 'Уведомления работают. О высоком шансе в точке «' + currentPoint().name +
-          '» сообщим так же, пока приложение открыто.',
+      showAppNotification(t('notif.test.title'), {
+        body: t('notif.test.body', { name: pointName(currentPoint()) }),
         tag: 'aurora-test'
       }).then(function (how) {
-        setTestStatus('Отправлено в ' + new Date().toLocaleTimeString('ru-RU') + ' (' + how + '). ' +
-          'Если уведомления не видно — проверьте системные настройки ниже.', TONE.ok);
+        setTestStatus(t('ntest.sent', {
+          time: new Date().toLocaleTimeString(langLocale(), { hourCycle: 'h23' }),
+          how: t('how.' + how)
+        }), TONE.ok);
       }, function (err) {
-        setTestStatus('Браузер не смог показать уведомление: ' + (err && err.message || err) + '.', TONE.bad);
+        setTestStatus(t('ntest.failed', { reason: (err && err.message) || err }), TONE.bad);
       });
     };
 
     if (delayMs) {
       var seconds = Math.round(delayMs / 1000);
-      setTestStatus('Отправим через ' + seconds + ' ' + plural(seconds, 'секунду', 'секунды', 'секунд') +
-        ' — сверните приложение ' +
-        'или переключитесь на другую вкладку.', TONE.mid);
+      setTestStatus(t('ntest.later', { sec: t('unit.seconds', { n: seconds }) }), TONE.mid);
       setTimeout(send, delayMs);
     } else {
       send();
@@ -1726,23 +1714,20 @@ function pushErrorText(error) {
   var code = (error && typeof error.code === 'string') ? error.code : '';
   var name = error && error.name;
 
-  if (code.indexOf('permission_') === 0 || name === 'NotAllowedError') {
-    return 'Разрешение на уведомления не выдано — браузер не сможет их показывать.';
-  }
+  if (code.indexOf('permission_') === 0 || name === 'NotAllowedError') return t('push.err.permission');
   if (name === 'AbortError' && !code) {
     // Chrome в режиме инкогнито отклоняет подписку так же, как при сбое сети, и определить
     // приватный режим сайт не может (намеренно), поэтому называем оба возможных объяснения.
-    return 'Браузер не смог связаться со своим сервисом push. Проверьте интернет и попробуйте ещё раз. ' +
-      'В режиме инкогнито push не работает.';
+    return t('push.err.abort');
   }
-  if (code === 'subscribe_timeout') return 'Браузер не отвечает на подписку. Проверьте интернет и попробуйте ещё раз.';
-  if (code === 'no_service_worker') return 'Приложение ещё не готово к работе без сети: обновите страницу и повторите.';
-  if (code === 'limit') return 'Сервер сейчас не принимает новые подписки. Попробуйте позже.';
-  if (code === 'too_often') return 'Слишком часто: подождите 20 секунд.';
-  if (code === 'not_subscribed') return 'Подписка на сервере не найдена — выключите и включите уведомления заново.';
+  if (code === 'subscribe_timeout') return t('push.err.subscribe_timeout');
+  if (code === 'no_service_worker') return t('push.err.no_service_worker');
+  if (code === 'limit') return t('push.err.limit');
+  if (code === 'too_often') return t('push.err.too_often');
+  if (code === 'not_subscribed') return t('push.err.not_subscribed');
   // По имени, а не instanceof: ошибка из другого окружения (iframe, воркер) под instanceof не подойдёт.
-  if (name === 'TypeError' || name === 'AbortError') return 'Сервер уведомлений недоступен. Проверьте интернет.';
-  return 'Не получилось: ' + ((error && error.message) || error) + '.';
+  if (name === 'TypeError' || name === 'AbortError') return t('push.err.unreachable');
+  return t('push.err.generic', { reason: (error && error.message) || error });
 }
 
 function setPushStatus(text, tone) {
@@ -1767,7 +1752,7 @@ function renderPushCard() {
   var busy = !!state.pushBusy;
 
   var toggle = $('push-toggle');
-  toggle.textContent = active ? 'Выключить' : 'Включить уведомления';
+  toggle.textContent = t(active ? 'push.toggle.off' : 'push.toggle.on');
   toggle.setAttribute('aria-pressed', String(active));
   toggle.disabled = busy || !supported || (permission === 'denied' && !active);
   $('push-test').disabled = busy || !active;
@@ -1775,16 +1760,13 @@ function renderPushCard() {
 
   var hint = $('push-hint');
   if (!supported) {
-    hint.textContent = (isIOS() && !isStandalone())
-      ? 'На iPhone уведомления работают только в приложении, добавленном на экран «Домой».'
-      : 'Этот браузер не поддерживает push-уведомления.';
+    hint.textContent = t((isIOS() && !isStandalone()) ? 'push.hint.ios' : 'push.hint.unsupported');
   } else if (permission === 'denied' && !active) {
-    hint.textContent = 'Уведомления запрещены в настройках браузера для этого сайта: разрешите их и обновите страницу.';
+    hint.textContent = t('push.hint.denied');
   } else if (active) {
-    hint.textContent = 'Включено для точки «' + currentPoint().name + '». Уведомление придёт, когда шанс станет ' +
-      'высоким, — не чаще раза в 3 часа. Точку меняет выбор в шапке.';
+    hint.textContent = t('push.hint.on', { name: pointName(currentPoint()) });
   } else {
-    hint.textContent = 'Подписка привязывается к выбранной сейчас точке — «' + currentPoint().name + '».';
+    hint.textContent = t('push.hint.off', { name: pointName(currentPoint()) });
   }
 }
 
@@ -1809,7 +1791,7 @@ function runPushAction(label, action, done) {
     // Страховка: ошибка в самом обработчике не должна оставлять кнопки
     // заблокированными, а статус — застрявшим на «Включаем…».
     state.pushBusy = false;
-    setPushStatus('Не получилось: ' + ((unexpected && unexpected.message) || unexpected) + '.', TONE.bad);
+    setPushStatus(t('push.err.generic', { reason: (unexpected && unexpected.message) || unexpected }), TONE.bad);
     renderPushCard();
   });
 }
@@ -1827,26 +1809,26 @@ function refreshPushHealth() {
 function initPushCard() {
   $('push-toggle').addEventListener('click', function () {
     if (pushIsActive()) {
-      runPushAction('Выключаем…', pushUnsubscribe, function () {
-        setPushStatus('Уведомления с сервера выключены.');
+      runPushAction(t('push.busy.off'), pushUnsubscribe, function () {
+        setPushStatus(t('push.done.off'));
       });
     } else {
-      runPushAction('Включаем…', function () { return pushSubscribe(currentPoint().id); }, function () {
-        setPushStatus('Готово. Проверьте кнопкой «Пробное с сервера».', TONE.ok);
+      runPushAction(t('push.busy.on'), function () { return pushSubscribe(currentPoint().id); }, function () {
+        setPushStatus(t('push.done.on'), TONE.ok);
       });
     }
   });
 
   $('push-test').addEventListener('click', function () {
-    runPushAction('Просим сервер отправить уведомление…', function () { return pushTest(0); }, function (result) {
-      if (result && result.ok) setPushStatus('Сервер отправил, push-сервис браузера принял. Уведомление должно появиться.', TONE.ok);
-      else setPushStatus('Push-сервис браузера отклонил сообщение (статус ' + (result && result.status) + ').', TONE.bad);
+    runPushAction(t('push.busy.test'), function () { return pushTest(0); }, function (result) {
+      if (result && result.ok) setPushStatus(t('push.done.test_ok'), TONE.ok);
+      else setPushStatus(t('push.done.test_rejected', { status: result && result.status }), TONE.bad);
     });
   });
 
   $('push-test-later').addEventListener('click', function () {
-    runPushAction('Договариваемся с сервером…', function () { return pushTest(20); }, function () {
-      setPushStatus('Закройте приложение совсем — через 20 секунд сервер пришлёт уведомление.', TONE.mid);
+    runPushAction(t('push.busy.later'), function () { return pushTest(20); }, function () {
+      setPushStatus(t('push.done.later'), TONE.mid);
     });
   });
 
@@ -1987,7 +1969,7 @@ function renderVerdict() {
 
   applyFreshness('verdict-card', 'verdict-stale',
     ages.length ? Math.max.apply(null, ages) : null,
-    'Оценка по сохранённым данным:');
+    'lead.verdict_saved');
 }
 
 /* ------------------------------------------------------------------ */
@@ -1998,23 +1980,26 @@ function renderVerdict() {
 /*  Селектор точки                                                     */
 /* ------------------------------------------------------------------ */
 
+/** «68,97° с. ш.» / «68.97° N» / «北纬68.97°»: слова — в словарях, coord.<сторона>. */
 function fmtCoord(value, positive, negative) {
-  return Math.abs(value).toFixed(2).replace('.', ',') + '° ' + (value >= 0 ? positive : negative);
+  return t('coord.' + (value >= 0 ? positive : negative), { v: fmtNum(Math.abs(value).toFixed(2)) });
 }
 
 /** Подпись под заголовком и название вкладки. */
 function renderPointMeta() {
   var point = currentPoint();
-  var t = kpThresholds(point);
+  var limits = kpThresholds(point);
 
-  $('point-meta').textContent =
-    fmtCoord(point.lat, 'с. ш.', 'ю. ш.') + ', ' + fmtCoord(point.lon, 'в. д.', 'з. д.') +
-    ' · геомагнитная широта ' + point.geoLat.toFixed(1).replace('.', ',') + '°' +
-    ' · сияние заметно от Kp ' + fmtKp(t.low);
+  $('point-meta').textContent = t('meta.point', {
+    lat: fmtCoord(point.lat, 'n', 's'),
+    lon: fmtCoord(point.lon, 'e', 'w'),
+    geo: fmtNum(point.geoLat.toFixed(1)),
+    kp: fmtKp(limits.low)
+  });
 
   // Название приложения — в <title> и манифесте; во вкладке браузера
   // впереди выбранная точка, чтобы несколько открытых вкладок различались.
-  document.title = point.name + ' · Северное сияние';
+  document.title = t('title.point', { name: pointName(point) });
 }
 
 function initPointSelect() {
@@ -2023,7 +2008,7 @@ function initPointSelect() {
   POINTS.forEach(function (point) {
     var option = document.createElement('option');
     option.value = point.id;
-    option.textContent = point.name;
+    option.textContent = pointName(point);
     select.appendChild(option);
   });
 
@@ -2073,6 +2058,16 @@ function renderDerived() {
   if (state.tonight) renderTonight();
 }
 
+/** Строка статуса в шапке. Запоминаем ключ, чтобы перевести её при смене языка. */
+function setStatus(key, params) {
+  state.status = { key: key, params: params || null };
+  $('updated').textContent = t(key, params || undefined);
+}
+
+function renderStatus() {
+  if (state.status) $('updated').textContent = t(state.status.key, state.status.params || undefined);
+}
+
 /** Строка статуса в шапке по текущему состоянию данных. */
 function updateStatus() {
   // Свежесть определяется флагом stale, а не наличием данных: после отката
@@ -2081,13 +2076,13 @@ function updateStatus() {
 
   if (fresh) {
     state.lastOk = new Date();
-    $('updated').textContent = 'Обновлено в ' + fmtTime(state.lastOk);
+    setStatus('status.updated', { time: fmtTime(state.lastOk) });
   } else if (state.kp || state.cloud) {
-    $('updated').textContent = 'Нет связи · показаны сохранённые данные';
+    setStatus('status.offline_saved');
+  } else if (state.lastOk) {
+    setStatus('status.offline_last', { time: fmtTime(state.lastOk) });
   } else {
-    $('updated').textContent = state.lastOk
-      ? 'Нет связи · последние данные в ' + fmtTime(state.lastOk)
-      : 'Нет связи с сервисами данных';
+    setStatus('status.offline_none');
   }
 }
 
@@ -2098,7 +2093,7 @@ function refreshAll() {
 
   var btn = $('refresh');
   btn.disabled = true;
-  $('updated').textContent = 'Обновляем…';
+  setStatus('status.refreshing');
   markLoading('verdict-card');
   markLoading('window-card');
 
@@ -2122,17 +2117,107 @@ function refreshAll() {
   return state.refreshing;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Язык                                                               */
+/* ------------------------------------------------------------------ */
+
+function savedLang() {
+  try {
+    return localStorage.getItem(CACHE.prefix + 'lang');
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveLang(code) {
+  try {
+    localStorage.setItem(CACHE.prefix + 'lang', code);
+  } catch (e) { /* выбор просто не переживёт перезагрузку */ }
+}
+
+/** Язык из адреса: ?lang=en. Ссылкой с таким параметром можно поделиться. */
+function langFromUrl() {
+  var match = /[?&]lang=([a-zA-Z-]+)/.exec(location.search || '');
+  return match ? langFromTag(match[1]) : null;
+}
+
+/** Кнопки переключателя: выбранный язык отмечен для скринридеров и для глаз. */
+function renderLangSwitch() {
+  var buttons = document.querySelectorAll('[data-lang]');
+  Array.prototype.forEach.call(buttons, function (btn) {
+    btn.setAttribute('aria-pressed', String(btn.getAttribute('data-lang') === getLang()));
+  });
+}
+
+/**
+ * Перерисовывает всё, что зависит от языка: разметку, названия точек, подписи и
+ * уже посчитанные карточки. Данные заново не запрашиваются.
+ */
+function applyLanguage() {
+  document.documentElement.setAttribute('lang', langInfo().html);
+  i18nApply(document);
+
+  var description = document.querySelector('meta[name="description"]');
+  if (description) description.setAttribute('content', t('meta.description'));
+  var appTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appTitle) appTitle.setAttribute('content', t('meta.app_title'));
+
+  renderLangSwitch();
+
+  // Названия городов в выпадающем списке.
+  var select = $('point');
+  Array.prototype.forEach.call(select.options || [], function (option) {
+    option.textContent = pointName(findPoint(option.value));
+  });
+  renderPointMeta();
+  $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });
+
+  // Сообщения о ходе операции остались бы на прежнем языке — убираем.
+  $('ntest-status').textContent = '';
+  $('push-status').textContent = '';
+
+  if (state.kp) renderKp(state.kp);
+  if (state.cloud) renderCloud(state.cloud);
+  if (state.forecast) renderForecast(state.forecast, state.forecastAge, false);
+  renderDerived();
+
+  refreshErrors();
+  renderStatus();
+  renderNotifyControl();
+  renderNotifyDiagnostics();
+}
+
+function initLanguage() {
+  var explicit = langFromUrl();
+  if (explicit) saveLang(explicit);
+
+  setLang(detectLang(explicit, savedLang(), navigator.languages || [navigator.language]));
+
+  $('lang').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-lang]') : null;
+    if (!btn || btn.getAttribute('data-lang') === getLang()) return;
+
+    setLang(btn.getAttribute('data-lang'));
+    saveLang(getLang());
+    // ?lang= в адресе перебивал бы сделанный выбор при каждой перезагрузке.
+    if (langFromUrl()) history.replaceState(null, '', location.pathname + location.hash);
+    applyLanguage();
+    // Уведомления с сервера приходят на выбранном языке — сообщаем серверу о смене.
+    pushSync(currentPoint().id).then(renderNotifyDiagnostics);
+  });
+}
+
 function init() {
   // До появления выбора точки облачность лежала в общем ключе. У тех, кто
   // заходил раньше, он остался мусором — убираем при первом же запуске.
   cacheDrop('cloud');
 
+  initLanguage();
   initPointSelect();
   initNotifications();
   initNotifyTab();
   initPushCard();
   initTabs();
-  $('cloud-model').textContent = 'Модель прогноза: ' + weatherModelLabel();
   $('refresh').addEventListener('click', refreshAll);
 
   // Кнопки «Повторить» внутри карточек перезагружают только свой блок.
@@ -2146,6 +2231,7 @@ function init() {
     if (what === 'forecast') loadForecast().then(renderDerived);
   });
 
+  applyLanguage();
   refreshAll();
   setInterval(refreshAll, CONFIG.refreshMs);
 

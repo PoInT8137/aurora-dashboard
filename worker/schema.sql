@@ -1,8 +1,9 @@
--- Подписки на уведомления. Хранится только адрес подписки и выбранная точка.
+-- Подписки на уведомления. Хранится только адрес подписки, выбранная точка и язык уведомлений.
 CREATE TABLE IF NOT EXISTS subs (
   id        TEXT PRIMARY KEY,           -- SHA-256 адреса подписки, hex
   endpoint  TEXT NOT NULL,              -- адрес push-сервиса браузера (секретный: по нему можно слать push)
   point     TEXT NOT NULL,              -- id точки наблюдения
+  lang      TEXT NOT NULL DEFAULT 'ru', -- язык уведомлений: ru | en | zh (выбор на сайте)
   created   INTEGER NOT NULL,           -- мс; обновляется при смене точки
   last_sent INTEGER NOT NULL DEFAULT 0, -- мс последнего уведомления о сиянии
   last_test INTEGER NOT NULL DEFAULT 0, -- мс последнего пробного уведомления

@@ -1,0 +1,74 @@
+// Тексты уведомлений с сервера. Язык — тот, что человек выбрал на сайте: страница
+// присылает его при подписке и при смене языка, сервер хранит его рядом с подпиской.
+// Названия точек берутся из общего ядра (point.names); остальные слова — только серверные.
+
+export const LANGS = ['ru', 'en', 'zh'];
+
+/** Подписки, оформленные до появления выбора языка, — русские. */
+export const DEFAULT_LANG = 'ru';
+
+/** Язык из запроса: один из известных или null (не указан либо мусор). */
+export function normalizeLang(value) {
+  return LANGS.includes(value) ? value : null;
+}
+
+/** Название точки на языке подписчика. */
+export function pointName(point, lang) {
+  return (point.names && point.names[lang]) || point.name;
+}
+
+const kpText = (value, lang) => (lang === 'ru' ? value.toFixed(1).replace('.', ',') : value.toFixed(1));
+
+const ALERT = {
+  ru: {
+    title: name => 'Высокий шанс увидеть сияние — ' + name,
+    body: (kp, cloud) => 'Kp ' + kp + ' · облачность ' + cloud + '% · тёмное небо. Смотрите на север.'
+  },
+  en: {
+    title: name => 'High chance of aurora — ' + name,
+    body: (kp, cloud) => 'Kp ' + kp + ' · cloud cover ' + cloud + '% · dark sky. Look north.'
+  },
+  zh: {
+    title: name => '极光机会大——' + name,
+    body: (kp, cloud) => 'Kp ' + kp + ' · 云量 ' + cloud + '% · 夜空漆黑。请朝北看。'
+  }
+};
+
+const TEST = {
+  ru: {
+    title: 'Пробное уведомление',
+    body: name => 'Сервер уведомлений работает. О высоком шансе в точке «' + name + '» сообщим так же — даже когда приложение закрыто.'
+  },
+  en: {
+    title: 'Test notification',
+    body: name => 'The notification server is working. We will report a high chance at “' + name + '” the same way — even when the app is closed.'
+  },
+  zh: {
+    title: '测试通知',
+    body: name => '通知服务器运行正常。“' + name + '”的极光机会变大时也会这样通知您——即使应用已关闭。'
+  }
+};
+
+export function alertMessage(point, kp, cloud, nowMs, lang = DEFAULT_LANG) {
+  const texts = ALERT[normalizeLang(lang) || DEFAULT_LANG];
+  const code = normalizeLang(lang) || DEFAULT_LANG;
+  return {
+    title: texts.title(pointName(point, code)),
+    body: texts.body(kpText(kp.value, code), cloud.value),
+    lang: code,
+    at: nowMs
+  };
+}
+
+/** pointRef — точка из ядра либо, если её уже нет в списке, просто её id. */
+export function testMessage(pointRef, nowMs, lang = DEFAULT_LANG) {
+  const code = normalizeLang(lang) || DEFAULT_LANG;
+  const name = typeof pointRef === 'object' && pointRef ? pointName(pointRef, code) : String(pointRef);
+  return {
+    title: TEST[code].title,
+    body: TEST[code].body(name),
+    lang: code,
+    test: true,
+    at: nowMs
+  };
+}

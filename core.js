@@ -36,26 +36,24 @@
  *
  * light — уровень засветки, в расчёт не входит: только пояснение к вердикту.
  *
- * km и drive — приблизительное расстояние по автодорогам от Мурманска и время
- * в пути летом. Маршрутный API намеренно не подключён: значения меняются редко,
+ * names — название на каждом языке интерфейса (name — русское, для старых потребителей).
+ * km и driveH — приблизительное расстояние по автодорогам от Мурманска и время
+ * в пути летом в часах; noteKey — ключ пометки о дороге в словарях (note.*).
+ * Маршрутный API намеренно не подключён: значения меняются редко,
  * а зависимость от ещё одного сервиса стоила бы дороже точности.
  */
 var POINTS = [
-  { id: 'murmansk',    name: 'Мурманск',   lat: 68.9678, lon: 33.0992, geoLat: 64.87, light: 'high',    km: 0,   drive: null,   note: '' },
-  { id: 'teriberka',   name: 'Териберка',  lat: 69.1609, lon: 35.1453, geoLat: 64.78, light: 'minimal', km: 120, drive: '2,5 ч', note: 'последний участок грунтовый' },
-  { id: 'monchegorsk', name: 'Мончегорск', lat: 67.9397, lon: 32.8739, geoLat: 63.94, light: 'medium',  km: 110, drive: '1,5 ч', note: '' },
-  { id: 'lovozero',    name: 'Ловозеро',   lat: 68.0056, lon: 35.0187, geoLat: 63.72, light: 'low',     km: 175, drive: '2,5 ч', note: '' },
-  { id: 'kirovsk',     name: 'Кировск',    lat: 67.6148, lon: 33.6727, geoLat: 63.53, light: 'medium',  km: 205, drive: '3 ч',   note: '' },
-  { id: 'apatity',     name: 'Апатиты',    lat: 67.5827, lon: 33.4134, geoLat: 63.53, light: 'medium',  km: 185, drive: '2,5 ч', note: '' },
-  { id: 'kandalaksha', name: 'Кандалакша', lat: 67.1512, lon: 32.4128, geoLat: 63.26, light: 'medium',  km: 280, drive: '4 ч',   note: '' }
+  { id: 'murmansk',    name: 'Мурманск',   names: { ru: 'Мурманск',   en: 'Murmansk',    zh: '摩尔曼斯克' }, lat: 68.9678, lon: 33.0992, geoLat: 64.87, light: 'high',    km: 0,   driveH: null, noteKey: '' },
+  { id: 'teriberka',   name: 'Териберка',  names: { ru: 'Териберка',  en: 'Teriberka',   zh: '捷里别尔卡' }, lat: 69.1609, lon: 35.1453, geoLat: 64.78, light: 'minimal', km: 120, driveH: 2.5,  noteKey: 'unpaved' },
+  { id: 'monchegorsk', name: 'Мончегорск', names: { ru: 'Мончегорск', en: 'Monchegorsk', zh: '蒙切哥尔斯克' }, lat: 67.9397, lon: 32.8739, geoLat: 63.94, light: 'medium',  km: 110, driveH: 1.5,  noteKey: '' },
+  { id: 'lovozero',    name: 'Ловозеро',   names: { ru: 'Ловозеро',   en: 'Lovozero',    zh: '洛沃泽罗' }, lat: 68.0056, lon: 35.0187, geoLat: 63.72, light: 'low',     km: 175, driveH: 2.5,  noteKey: '' },
+  { id: 'kirovsk',     name: 'Кировск',    names: { ru: 'Кировск',    en: 'Kirovsk',     zh: '基洛夫斯克' }, lat: 67.6148, lon: 33.6727, geoLat: 63.53, light: 'medium',  km: 205, driveH: 3,    noteKey: '' },
+  { id: 'apatity',     name: 'Апатиты',    names: { ru: 'Апатиты',    en: 'Apatity',     zh: '阿帕季特' }, lat: 67.5827, lon: 33.4134, geoLat: 63.53, light: 'medium',  km: 185, driveH: 2.5,  noteKey: '' },
+  { id: 'kandalaksha', name: 'Кандалакша', names: { ru: 'Кандалакша', en: 'Kandalaksha', zh: '坎达拉克沙' }, lat: 67.1512, lon: 32.4128, geoLat: 63.26, light: 'medium',  km: 280, driveH: 4,    noteKey: '' }
 ];
 
-var LIGHT_POLLUTION = {
-  high:    { label: 'сильная',    hint: 'Городская засветка сильная: за городом, в 15–20 км от огней, слабое сияние видно заметно лучше.' },
-  medium:  { label: 'заметная',   hint: 'Засветка заметная — стоит отъехать на несколько километров от освещённых улиц.' },
-  low:     { label: 'слабая',     hint: 'Засветка слабая — достаточно отойти от фонарей.' },
-  minimal: { label: 'минимальная', hint: 'Засветки практически нет — условия для наблюдения идеальные.' }
-};
+/* Уровни засветки. Подписи и пояснения — в словарях (light.<уровень>.label / .hint). */
+var LIGHT_LEVELS = ['high', 'medium', 'low', 'minimal'];
 
 /* Точка, под которую подобраны пороги баллов за Kp: от неё считается сдвиг. */
 var REFERENCE_POINT_ID = 'murmansk';
@@ -76,9 +74,9 @@ var CLOUD_CONFLICT_LIMIT = 30;
  *             теряя контраст, но не скрывая полностью.
  */
 var CLOUD_LAYERS = [
-  { key: 'low',  field: 'cloud_cover_low',  label: 'Нижний',  weight: 1.0 },
-  { key: 'mid',  field: 'cloud_cover_mid',  label: 'Средний', weight: 0.8 },
-  { key: 'high', field: 'cloud_cover_high', label: 'Верхний', weight: 0.35 }
+  { key: 'low',  field: 'cloud_cover_low',  weight: 1.0 },
+  { key: 'mid',  field: 'cloud_cover_mid',  weight: 0.8 },
+  { key: 'high', field: 'cloud_cover_high', weight: 0.35 }
 ];
 
 var DARK_USABLE = -6;  // ниже этой высоты Солнца сияние уже различимо
@@ -175,13 +173,20 @@ function cloudScore(pct, conflict) {
   return conflict ? Math.min(2, score) : score;
 }
 
+/** Ошибка с кодом: страница показывает перевод по коду, сообщение остаётся для журнала. */
+function codedError(code, message) {
+  var error = new Error(message);
+  error.code = code;
+  return error;
+}
+
 /**
  * NOAA отдаёт данные в двух форматах: массив объектов (/json/...) и массив
  * массивов с заголовком в первой строке (/products/..., исторический формат).
  * Приводим оба к массиву объектов с ключами в нижнем регистре.
  */
 function normalizeRows(data) {
-  if (!Array.isArray(data) || !data.length) throw new Error('пустой ответ');
+  if (!Array.isArray(data) || !data.length) throw codedError('empty', 'empty response');
 
   var rows = data;
   if (Array.isArray(data[0])) {
@@ -199,7 +204,7 @@ function normalizeRows(data) {
     });
   }
 
-  if (!rows.length) throw new Error('нет строк с данными');
+  if (!rows.length) throw codedError('no_rows', 'no rows with data');
   return rows;
 }
 
@@ -218,7 +223,7 @@ function readKpSeries(data) {
   var rows = normalizeRows(data);
   var last = rows[rows.length - 1];
   var value = pickKpValue(last);
-  if (!isFinite(value)) throw new Error('некорректное значение Kp');
+  if (!isFinite(value)) throw codedError('bad_kp', 'invalid Kp value');
   return { value: value, time: parseUtc(last.time_tag) };
 }
 
@@ -497,17 +502,17 @@ function moonPhase(date) {
   };
 }
 
-/** Название фазы по элонгации: восемь привычных состояний. */
+/** Фаза по элонгации: один из восьми ключей (слова — в словарях интерфейса, moon.phase.*). */
 function moonPhaseName(phase) {
   var e = phase.elongation;
-  if (e < 22.5 || e >= 337.5) return 'Новолуние';
-  if (e < 67.5)  return 'Молодая Луна';
-  if (e < 112.5) return 'Первая четверть';
-  if (e < 157.5) return 'Прибывающая Луна';
-  if (e < 202.5) return 'Полнолуние';
-  if (e < 247.5) return 'Убывающая Луна';
-  if (e < 292.5) return 'Последняя четверть';
-  return 'Старая Луна';
+  if (e < 22.5 || e >= 337.5) return 'new';
+  if (e < 67.5)  return 'waxing_crescent';
+  if (e < 112.5) return 'first_quarter';
+  if (e < 157.5) return 'waxing_gibbous';
+  if (e < 202.5) return 'full';
+  if (e < 247.5) return 'waning_gibbous';
+  if (e < 292.5) return 'last_quarter';
+  return 'waning_crescent';
 }
 
 /**
@@ -634,7 +639,8 @@ function moonSummary(from, to, lat, lon) {
 
 globalThis.AuroraCore = {
   POINTS: POINTS,
-  LIGHT_POLLUTION: LIGHT_POLLUTION,
+  LIGHT_LEVELS: LIGHT_LEVELS,
+  codedError: codedError,
   REFERENCE_POINT_ID: REFERENCE_POINT_ID,
   CLOUD_CONFLICT_LIMIT: CLOUD_CONFLICT_LIMIT,
   CLOUD_LAYERS: CLOUD_LAYERS,

@@ -64,9 +64,12 @@ export const ep = (n, host = 'fcm.googleapis.com') => `https://${host}/fcm/send/
 // напрямую, и подписка через API оказались бы двумя разными записями.
 export const idOf = endpoint => createHash('sha256').update(endpoint).digest('hex');
 
-export function addSub(env, { n, point = 'murmansk', created = NIGHT - HOUR, lastSent = 0, host }) {
-  env.DB.raw.prepare('INSERT INTO subs(id, endpoint, point, created, last_sent) VALUES(?, ?, ?, ?, ?)')
-    .run(idOf(ep(n, host)), ep(n, host), point, created, lastSent);
+export function addSub(env, { n, point = 'murmansk', created = NIGHT - HOUR, lastSent = 0, host, lang }) {
+  // lang не указан — как у подписки, оформленной до появления выбора языка: берётся значение по умолчанию.
+  const columns = lang ? 'id, endpoint, point, created, last_sent, lang' : 'id, endpoint, point, created, last_sent';
+  const marks = lang ? '?, ?, ?, ?, ?, ?' : '?, ?, ?, ?, ?';
+  const values = [idOf(ep(n, host)), ep(n, host), point, created, lastSent];
+  env.DB.raw.prepare('INSERT INTO subs(' + columns + ') VALUES(' + marks + ')').run(...values, ...(lang ? [lang] : []));
   return ep(n, host);
 }
 

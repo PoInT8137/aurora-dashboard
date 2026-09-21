@@ -6,6 +6,9 @@
 
 import '../../core.js';
 import { sendPush } from './push.js';
+import { alertMessage, DEFAULT_LANG } from './messages.js';
+
+export { alertMessage };
 
 const Core = globalThis.AuroraCore;
 
@@ -61,15 +64,6 @@ async function loadClouds(points, fetchFn) {
   } catch {
     return null;
   }
-}
-
-export function alertMessage(point, kp, cloud, nowMs) {
-  return {
-    title: 'Высокий шанс увидеть сияние — ' + point.name,
-    body: 'Kp ' + kp.value.toFixed(1).replace('.', ',') + ' · облачность ' + cloud.value +
-      '% · тёмное небо. Смотрите на север.',
-    at: nowMs
-  };
 }
 
 /**
@@ -135,14 +129,20 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
     if (budget <= 0) break;
 
     const { results: subs } = await env.DB.prepare(
-      'SELECT id, endpoint FROM subs WHERE point = ? AND created < ? AND last_sent < ? ' +
+      'SELECT id, endpoint, lang FROM subs WHERE point = ? AND created < ? AND last_sent < ? ' +
       'AND ? - last_sent >= ? ORDER BY last_sent LIMIT ?'
     ).bind(t.point.id, t.highSince, t.highSince, nowMs, COOLDOWN_MS, budget).all();
 
     if (!subs.length) continue;
     budget -= subs.length;
 
-    const msg = JSON.stringify(alertMessage(t.point, kp, t.cloud, nowMs));
+    // Текст собирается на языке каждого подписчика; одинаковые не пересчитываются.
+    const texts = new Map();
+    const messageFor = sub => {
+      const lang = sub.lang || DEFAULT_LANG;
+      if (!texts.has(lang)) texts.set(lang, JSON.stringify(alertMessage(t.point, kp, t.cloud, nowMs, lang)));
+      return texts.get(lang);
+    };
     const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
 
     subs.forEach((sub, i) => {
@@ -150,7 +150,7 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
       if (status >= 200 && status < 300) {
         summary.sent++;
         updates.push(env.DB.prepare('UPDATE subs SET last_sent = ?, msg = ?, fails = 0 WHERE id = ?')
-          .bind(nowMs, msg, sub.id));
+          .bind(nowMs, messageFor(sub), sub.id));
       } else if (status === 404 || status === 410) {
         summary.gone++;                               // человек отозвал подписку или сменил браузер
         updates.push(env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(sub.id));

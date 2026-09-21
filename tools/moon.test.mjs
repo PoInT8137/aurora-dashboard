@@ -103,22 +103,22 @@ test('освещённость и растущая/убывающая Луна �
   }
 });
 
-test('названия фаз: восемь состояний по кругу элонгации', () => {
+test('ключи фаз: восемь состояний по кругу элонгации', () => {
   const name = e => C.moonPhaseName({ elongation: e });
-  assert.equal(name(0), 'Новолуние');
-  assert.equal(name(359), 'Новолуние');
-  assert.equal(name(45), 'Молодая Луна');
-  assert.equal(name(90), 'Первая четверть');
-  assert.equal(name(135), 'Прибывающая Луна');
-  assert.equal(name(180), 'Полнолуние');
-  assert.equal(name(225), 'Убывающая Луна');
-  assert.equal(name(270), 'Последняя четверть');
-  assert.equal(name(315), 'Старая Луна');
-  // границы: 22,5° — уже «Молодая»
-  assert.equal(name(22.4), 'Новолуние');
-  assert.equal(name(22.5), 'Молодая Луна');
-  assert.equal(name(337.4), 'Старая Луна');
-  assert.equal(name(337.5), 'Новолуние');
+  assert.equal(name(0), 'new');
+  assert.equal(name(359), 'new');
+  assert.equal(name(45), 'waxing_crescent');
+  assert.equal(name(90), 'first_quarter');
+  assert.equal(name(135), 'waxing_gibbous');
+  assert.equal(name(180), 'full');
+  assert.equal(name(225), 'waning_gibbous');
+  assert.equal(name(270), 'last_quarter');
+  assert.equal(name(315), 'waning_crescent');
+  // границы: 22,5° — уже waxing_crescent
+  assert.equal(name(22.4), 'new');
+  assert.equal(name(22.5), 'waxing_crescent');
+  assert.equal(name(337.4), 'waning_crescent');
+  assert.equal(name(337.5), 'new');
 });
 
 test('расчёт не портит переданную дату и не зависит от часового пояса машины', () => {
@@ -208,7 +208,7 @@ test('самые короткие появления Луны за год нах
 
 test('moonInfo: поля и согласованность', () => {
   const info = C.moonInfo(new Date('2026-09-26T21:43:00Z'), 68.9678, 33.0992);   // полнолуние в верхней кульминации
-  assert.equal(info.phase, 'Полнолуние');
+  assert.equal(info.phase, 'full');
   assert.ok(info.illumination > 0.99);
   assert.equal(info.up, true);
   assert.ok(info.altitude > 5 && info.altitude < 30, 'осенью полная Луна на широте Мурманска невысоко: ' + info.altitude);

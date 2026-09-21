@@ -172,7 +172,7 @@ function pushSubscribe(pointId) {
       return pushEnsureSubscription(registration);
     })
     .then(function (result) {
-      return pushRequest('/subscribe', { endpoint: result.subscription.endpoint, point: pointId })
+      return pushRequest('/subscribe', pushSubscription(result.subscription.endpoint, pointId))
         .then(function () {
           setPushFlag(true);
           return result.subscription;
@@ -183,6 +183,16 @@ function pushSubscribe(pointId) {
             function () { throw error; });
         });
     });
+}
+
+/**
+ * Тело запроса на подписку: адрес, точка и язык страницы — на нём сервер пришлёт уведомление.
+ * Без движка переводов (getLang не определён) язык не указывается, и сервер оставляет прежний.
+ */
+function pushSubscription(endpoint, pointId) {
+  var body = { endpoint: endpoint, point: pointId };
+  if (typeof getLang === 'function') body.lang = getLang();
+  return body;
 }
 
 /** Выключает уведомления. Флаг гасится первым: даже при сбое сети страница снова уведомляет сама. */
@@ -220,7 +230,7 @@ function pushSync(pointId) {
   return pushRegistration()
     .then(pushEnsureSubscription)   // потерянную подписку оформляем заново: разрешение уже есть
     .then(function (result) {
-      return pushRequest('/subscribe', { endpoint: result.subscription.endpoint, point: pointId });
+      return pushRequest('/subscribe', pushSubscription(result.subscription.endpoint, pointId));
     })
     .then(function () { return 'ok'; }, function () { return 'error'; });
 }
