@@ -2388,6 +2388,17 @@ function saveTab(id) {
 }
 
 /**
+ * На телефоне вкладки листаются вбок: выбранную подвигаем к середине панели.
+ * Прокручивается только сама панель — scrollIntoView дёрнул бы и всю страницу.
+ */
+function revealTab(btn) {
+  var bar = $('tabs');
+  if (!bar || !bar.scrollTo || bar.scrollWidth <= bar.clientWidth) return;
+  var left = btn.offsetLeft - (bar.clientWidth - btn.offsetWidth) / 2;
+  bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+}
+
+/**
  * historyMode: 'push' — обычное переключение, с записью в историю, чтобы
  * работали «назад/вперёд»; 'replace' — при старте и при исправлении
  * неизвестного хэша, без новой записи.
@@ -2407,6 +2418,7 @@ function showTab(id, historyMode) {
     var selected = btn.getAttribute('data-tab') === id;
     btn.setAttribute('aria-selected', String(selected));
     btn.tabIndex = selected ? 0 : -1;
+    if (selected) revealTab(btn);
   });
 
   state.tab = id;

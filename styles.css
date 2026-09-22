@@ -356,11 +356,30 @@ html[lang="zh-CN"] .card__label {
     backdrop-filter: blur(12px);
   }
 
-  .tabs__btn { text-align: center; padding: 9px 4px; }
+  /* Вкладки листаются вбок: кнопки по ширине подписи, панель прокручивается пальцем,
+     полоса прокрутки скрыта, а края гаснут — видно, что дальше есть ещё. */
+  .tabs {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 14px, black calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, black 14px, black calc(100% - 14px), transparent 100%);
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tabs__btn {
+    flex: 0 0 auto;
+    min-width: 76px;
+    text-align: center;
+    padding: 9px 14px;
+    white-space: nowrap;
+    scroll-snap-align: center;
+  }
   .tabs__title { font-size: 13px; }
   .tabs__sub { display: none; }
 
-  /* Четыре кнопки в ряд: длинная подпись на 375 px переносилась бы */
+  /* Короткая подпись: чем уже кнопки, тем меньше листать */
   .tabs__long { display: none; }
   .tabs__short { display: inline; }
 
