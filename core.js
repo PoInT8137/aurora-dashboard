@@ -111,6 +111,94 @@ function parseUtc(str) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Солнечный ветер: что будет в ближайший час.                        */
+/*                                                                     */
+/*  Kp описывает прошедшие три часа. Спутники в точке L1 (1,5 млн км к  */
+/*  Солнцу) видят солнечный ветер за 30–90 минут до того, как он дойдёт */
+/*  до Земли. Главное для сияния — Bz, север-юг магнитного поля ветра:  */
+/*  когда он устойчиво направлен на юг (отрицательный), энергия ветра   */
+/*  проходит в магнитосферу, и через полчаса-час может начаться         */
+/*  суббуря. Уровень вердикта от этого не меняется — это подсказка.    */
+/* ------------------------------------------------------------------ */
+
+var L1_DISTANCE_KM = 1500000;
+var SW_STALE_MS = 30 * 60 * 1000;      // данные старше получаса — не «сейчас»
+var SW_WINDOW_MS = 2 * 60 * 60 * 1000; // ряд для графика и оценки — два часа
+
+/** Средний Bz за последние minutes минут ряда (ряд по возрастанию времени). */
+function meanBz(series, minutes) {
+  var end = series[series.length - 1].time;
+  var sum = 0, n = 0;
+  for (var i = series.length - 1; i >= 0 && end - series[i].time < minutes * 60000; i--) {
+    sum += series[i].bz;
+    n++;
+  }
+  return n ? sum / n : null;
+}
+
+/**
+ * Поминутный ряд магнитного поля NOAA RTSW (json/rtsw/rtsw_mag_1m.json) в сводку.
+ * В файле сутки данных от нескольких спутников, новые сверху; основной поток помечен active.
+ * Возвращает null, если свежих данных нет, иначе
+ * { time, bz, bt, level, southMinutes, series: [{ time (мс), bz }] за два часа }.
+ * level: strong — Bz в среднем ≤ −10 нТл за 15 минут; south — ≤ −5 за 20 минут;
+ * weak — сейчас южный, но слабо или недолго; north — северный.
+ */
+function solarWindSummary(rows, nowMs) {
+  if (!Array.isArray(rows)) return null;
+
+  var series = [];
+  var bt = null;
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    if (!row || row.active === false) continue;
+    var time = parseUtc(row.time_tag);
+    var bz = num(row.bz_gsm);
+    if (!time || bz === null) continue;
+    var t = time.getTime();
+    if (t > nowMs + 5 * 60000 || nowMs - t > SW_WINDOW_MS) continue;
+    series.push({ time: t, bz: bz, bt: num(row.bt) });
+  }
+  if (!series.length) return null;
+
+  series.sort(function (a, b) { return a.time - b.time; });
+  var last = series[series.length - 1];
+  if (nowMs - last.time > SW_STALE_MS) return null;
+
+  // Текущее значение — среднее за 5 минут: поминутные отсчёты заметно дрожат.
+  var now = meanBz(series, 5);
+  for (i = series.length - 1; i >= 0 && bt === null; i--) bt = series[i].bt;
+
+  // Сколько минут подряд Bz южный: от последнего отсчёта назад до первого северного.
+  var southSince = null;
+  for (i = series.length - 1; i >= 0 && series[i].bz < 0; i--) southSince = series[i].time;
+  var southMinutes = southSince === null ? 0 : Math.round((last.time - southSince) / 60000);
+
+  var level;
+  var mean15 = meanBz(series, 15), mean20 = meanBz(series, 20);
+  if (mean15 <= -10) level = 'strong';
+  else if (mean20 <= -5) level = 'south';
+  else if (now < 0) level = 'weak';
+  else level = 'north';
+
+  return {
+    time: new Date(last.time),
+    bz: Math.round(now * 10) / 10,
+    bt: bt === null ? null : Math.round(bt * 10) / 10,
+    level: level,
+    southMinutes: southMinutes,
+    series: series.map(function (p) { return { time: p.time, bz: p.bz }; })
+  };
+}
+
+/** Через сколько минут ветер, измеренный в L1, дойдёт до Земли; null без скорости. */
+function solarWindLeadMinutes(speedKmS) {
+  var v = num(speedKmS);
+  if (v === null || v < 150 || v > 3000) return null;   // вне физических значений — не доверяем
+  return Math.round(L1_DISTANCE_KM / v / 60);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Высота Солнца — чтобы не обещать сияние в полярный день.           */
 /*  Упрощённый алгоритм NOAA, точность около 0,1°.                     */
 /* ------------------------------------------------------------------ */
@@ -665,6 +753,8 @@ globalThis.AuroraCore = {
   LIGHT_LEVELS: LIGHT_LEVELS,
   codedError: codedError,
   inQuietHours: inQuietHours,
+  solarWindSummary: solarWindSummary,
+  solarWindLeadMinutes: solarWindLeadMinutes,
   REFERENCE_POINT_ID: REFERENCE_POINT_ID,
   CLOUD_CONFLICT_LIMIT: CLOUD_CONFLICT_LIMIT,
   CLOUD_LAYERS: CLOUD_LAYERS,

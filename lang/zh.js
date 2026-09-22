@@ -158,6 +158,27 @@ i18nRegister('zh', {
   'forecast.error': 'NOAA 预报不可用：{reason}。',
   'best.error': '无法加载各地点的预报：{reason}。',
 
+  /* --- 太阳风 --- */
+  'sw.title': '太阳风——未来一小时',
+  'sw.loading': '正在请求卫星数据…',
+  'sw.error.default': '没有太阳风数据。',
+  'sw.error': '太阳风数据不可用：{reason}。',
+  'err.sw_stale': '卫星已超过半小时没有传回数据',
+  'sw.bz_label': 'Bz——磁场方向',
+  'unit.nt': '{v} nT',
+  'unit.kms': '{v} 公里/秒',
+  'sw.bt': '磁场强度 {v}',
+  'sw.speed': '速度 {v}',
+  'sw.lead': '约{dur}后到达地球',
+  'sw.outlook.strong': 'Bz 强烈向南——一小时内很可能出现亚暴。请留意天空。',
+  'sw.outlook.south': 'Bz 已持续向南{dur}——一小时内活动很可能增强。',
+  'sw.outlook.weak': 'Bz 略微向南——活动可能小幅增强。',
+  'sw.outlook.north': 'Bz 向北——一小时内预计活动不会增强。',
+  'sw.chart': '过去 2 小时的 Bz，每 5 分钟一格：向下为南向，有利于极光；向上为北向。',
+  'sw.about': 'Kp 反映的是过去三小时的情况。距地球 150 万公里的卫星能在太阳风到达之前观测到它。当 Bz 持续向南（为负值）时，30–60 分钟后可能出现亚暴。',
+  'sw.meta': 'NOAA L1 点卫星 · 数据时间 {time}',
+  'verdict.hint.sw': '太阳风显示一小时内活动可能增强——值得留意天空。',
+
   /* --- Kp --- */
   'kp.storm': '磁暴——极光可能出现在更南的地方',
   'kp.high': '活动增强——极光带位于此地上空',

@@ -58,7 +58,11 @@ function weatherModelLabel() {
 var URLS = {
   kpNow:      'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json',
   kpNowAlt:   'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
-  kpForecast: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json'
+  kpForecast: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json',
+  // Солнечный ветер: поминутное поле за сутки (≈90 КБ в сжатом виде) и крошечная сводка скорости.
+  // Старые адреса products/solar-wind/*.json NOAA убрала (404 с сентября 2026).
+  swMag:      'https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json',
+  swSpeed:    'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json'
 };
 
 /** Адрес почасовой облачности сразу для всех точек: один запрос вместо семи. */
@@ -86,7 +90,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null,
-              status: null, errors: {}, settings: null, timer: null };
+              status: null, errors: {}, settings: null, timer: null, sw: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -531,6 +535,13 @@ function computeVerdict(kp, cloud) {
   factors.push(moonFactor(moon));
   if (!tooLight && level !== 'low' && moonHint(moon.impact)) hint += gap + moonHint(moon.impact);
 
+  // Солнечный ветер обещает рост, а сейчас шанс не высокий — стоит сказать, что ждать.
+  // Уровень не меняется: это прогноз на час вперёд, а не текущее состояние.
+  var sw = state.sw;
+  if (sw && !sw.stale && level !== 'high' && !tooLight && cs !== 0 && (sw.level === 'strong' || sw.level === 'south')) {
+    hint += gap + t('verdict.hint.sw');
+  }
+
   if (partial) hint += gap + t('verdict.hint.partial');
 
   return {
@@ -626,6 +637,144 @@ function renderKp(kp) {
   $('kp-time').textContent = meta;
 
   applyFreshness('kp-card', 'kp-stale', kp.stale, kp.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Солнечный ветер: что будет в ближайший час. Расчёт — в core.js.    */
+/* ------------------------------------------------------------------ */
+
+/** Скорость из сводки NOAA: [{ proton_speed, time_tag }]; null, если нет. */
+function readSpeed(data) {
+  var row = Array.isArray(data) ? data[0] : null;
+  return row ? num(row.proton_speed) : null;
+}
+
+function restoreSolarWind(cached, refreshing) {
+  var sw = cached.payload;
+  sw.time = toDate(sw.time);
+  sw.stale = cached.age;
+  sw.refreshing = !!refreshing;
+  return sw;
+}
+
+function loadSolarWind() {
+  if (!state.sw) {
+    var early = cacheLoad('sw');
+    if (early) {
+      state.sw = restoreSolarWind(early, true);
+      renderSolarWind(state.sw);
+    }
+  } else if (state.sw.stale) {
+    state.sw.refreshing = true;
+    renderSolarWind(state.sw);
+  }
+  markLoading('sw-card');
+
+  // Скорость необязательна: без неё нет только оценки времени в пути до Земли.
+  var speed = fetchJson(URLS.swSpeed).then(readSpeed, function () { return null; });
+
+  return Promise.all([fetchJson(URLS.swMag), speed])
+    .then(function (results) {
+      var summary = solarWindSummary(results[0], Date.now());
+      if (!summary) throw appError('sw_stale');
+
+      var sw = {
+        time: summary.time, bz: summary.bz, bt: summary.bt, level: summary.level,
+        southMinutes: summary.southMinutes, series: summary.series, speed: results[1], stale: null
+      };
+      state.sw = sw;
+      cacheSave('sw', sw);
+      renderSolarWind(sw);
+      return sw;
+    })
+    .catch(function (err) {
+      var cached = cacheLoad('sw');
+      if (cached) {
+        state.sw = restoreSolarWind(cached, false);
+        renderSolarWind(state.sw);
+        return state.sw;
+      }
+      state.sw = null;
+      showError('sw-error', 'sw.error', err);
+      setState('sw-card', 'error');
+      return null;
+    });
+}
+
+var SW_TONE = { strong: 'ok', south: 'ok', weak: 'mid', north: 'bad' };
+
+/** Подсказка «что будет в ближайший час» — используется и в карточке, и в вердикте. */
+function solarWindOutlook(sw) {
+  if (sw.level === 'south') return t('sw.outlook.south', { dur: t('unit.minutes', { n: Math.max(sw.southMinutes, 1) }) });
+  return t('sw.outlook.' + sw.level);
+}
+
+function fmtSigned(value) {
+  // Настоящий минус, а не дефис: так читается «−7», а не «-7».
+  return (value > 0 ? '+' : value < 0 ? '−' : '') + fmtNum(Math.abs(value).toFixed(1));
+}
+
+function renderSolarWind(sw) {
+  var tone = TONE[SW_TONE[sw.level]];
+  setTone($('sw-card'), tone);
+
+  var value = $('sw-value');
+  value.textContent = t('unit.nt', { v: fmtSigned(sw.bz) });
+  setTone(value, tone);
+
+  $('sw-caption').textContent = solarWindOutlook(sw);
+
+  var facts = [];
+  if (sw.bt !== null && sw.bt !== undefined) facts.push(t('sw.bt', { v: t('unit.nt', { v: fmtNum(sw.bt.toFixed(1)) }) }));
+  if (sw.speed) facts.push(t('sw.speed', { v: t('unit.kms', { v: Math.round(sw.speed) }) }));
+  var lead = solarWindLeadMinutes(sw.speed);
+  if (lead) facts.push(t('sw.lead', { dur: t('unit.minutes', { n: lead }) }));
+  $('sw-facts').textContent = facts.join(t('sep.dot'));
+
+  renderSolarWindChart(sw.series || []);
+  $('sw-meta').textContent = sw.time ? t('sw.meta', { time: fmtTime(sw.time) }) : '';
+
+  applyFreshness('sw-card', 'sw-stale', sw.stale, sw.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
+}
+
+/**
+ * Bz за два часа столбиками по 5 минут: вниз — южный (хорошо для сияния), вверх — северный.
+ * Шкала — не меньше ±10 нТл и не меньше самого сильного отсчёта: в спокойный день
+ * столбики не сливаются в линию, а в бурю не упираются в край.
+ */
+function renderSolarWindChart(series) {
+  var box = $('sw-chart');
+  box.innerHTML = '';
+  if (!series.length) return;
+
+  var end = series[series.length - 1].time;
+  var BUCKET = 5 * 60000, COUNT = 24;
+  var buckets = [];
+  for (var k = COUNT - 1; k >= 0; k--) {
+    var from = end - (k + 1) * BUCKET, to = end - k * BUCKET;
+    var sum = 0, n = 0;
+    for (var i = 0; i < series.length; i++) {
+      if (series[i].time > from && series[i].time <= to) { sum += series[i].bz; n++; }
+    }
+    buckets.push(n ? sum / n : null);
+  }
+  var LIMIT = Math.max.apply(null, [10].concat(buckets.map(function (v) { return v === null ? 0 : Math.abs(v); })));
+
+  buckets.forEach(function (value) {
+    var bar = document.createElement('div');
+    var fill = document.createElement('div');
+    fill.className = 'swbar__fill';
+    if (value !== null) {
+      var bz = value;
+      bar.className = 'swbar ' + (bz < 0 ? 'swbar--south' : 'swbar--north');
+      fill.style.height = Math.max(Math.min(Math.abs(bz), LIMIT) / LIMIT * 50, 1.5) + '%';
+      setTone(fill, bz <= -5 ? TONE.ok : bz < 0 ? TONE.mid : TONE.bad);
+    } else {
+      bar.className = 'swbar swbar--gap';   // пропуск в данных — спутники иногда молчат
+    }
+    bar.appendChild(fill);
+    box.appendChild(bar);
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -2132,7 +2281,7 @@ function refreshAll() {
   markLoading('verdict-card');
   markLoading('window-card');
 
-  var tasks = [loadKp(), loadCloud(), loadForecast()];
+  var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind()];
   if (state.tonight) tasks.push(loadTonight());
 
   // Загрузчики уже положили на экран сохранённые данные — вердикт и окно
@@ -2415,6 +2564,7 @@ function renderLocalized() {
 
   if (state.kp) renderKp(state.kp);
   if (state.cloud) renderCloud(state.cloud);
+  if (state.sw) renderSolarWind(state.sw);
   if (state.forecast) renderForecast(state.forecast, state.forecastAge, false);
   renderDerived();
 
@@ -2468,6 +2618,7 @@ function init() {
     if (what === 'kp')       loadKp().then(renderDerived);
     if (what === 'cloud')    loadCloud().then(renderDerived);
     if (what === 'forecast') loadForecast().then(renderDerived);
+    if (what === 'sw')       loadSolarWind().then(renderDerived);
   });
 
   applyLanguage();

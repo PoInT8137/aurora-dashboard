@@ -189,6 +189,40 @@ try {
 
   </div>
 
+  <!-- Солнечный ветер: что будет в ближайший час -->
+  <section class="card card--wide" id="sw-card" data-state="loading">
+    <h2 class="card__label" data-i18n="sw.title">Солнечный ветер — ближайший час</h2>
+
+    <div class="card__loading" data-i18n="sw.loading">Запрашиваем данные спутников…</div>
+
+    <div class="card__body">
+      <div class="sw">
+        <div class="sw__now">
+          <p class="bignum bignum--sm" id="sw-value">—</p>
+          <p class="sw__label" data-i18n="sw.bz_label">Bz — направление поля</p>
+        </div>
+        <div class="sw__text">
+          <p class="card__caption" id="sw-caption"></p>
+          <p class="card__meta" id="sw-facts"></p>
+        </div>
+      </div>
+      <div class="swchart" id="sw-chart" aria-hidden="true"></div>
+      <p class="card__meta" data-i18n="sw.chart">Bz за 2 часа, по 5 минут: вниз — южный, благоприятный для сияния; вверх — северный.</p>
+      <p class="card__meta" data-i18n="sw.about">Kp описывает прошедшие три часа. Спутники в 1,5 млн км от Земли видят солнечный ветер раньше, чем он до нас дойдёт. Когда Bz устойчиво южный (отрицательный), через 30–60 минут может начаться суббуря.</p>
+      <p class="card__meta" id="sw-meta"></p>
+    </div>
+
+    <p class="card__stale" id="sw-stale">
+      <span class="stale__text"></span>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="sw" data-i18n="btn.retry">Повторить</button>
+    </p>
+
+    <div class="card__error">
+      <p class="card__error-text" id="sw-error" data-i18n="sw.error.default">Нет данных солнечного ветра.</p>
+      <button class="btn btn--ghost" type="button" data-retry="sw" data-i18n="btn.retry">Повторить</button>
+    </div>
+  </section>
+
   <!-- Прогноз Kp -->
   <section class="card card--wide" id="forecast-card" data-state="loading">
     <h2 class="card__label" data-i18n="forecast.title">Прогноз Kp на трое суток</h2>

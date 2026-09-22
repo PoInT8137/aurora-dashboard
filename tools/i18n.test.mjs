@@ -121,7 +121,7 @@ function mentionedKeys() {
 
 /** Семейства ключей, которые собираются из кусков: 'err.' + код, 'light.' + уровень + '.label'. */
 const FAMILIES = [/^err\./, /^light\.\w+\.(label|hint)$/, /^layer\.\w+(\.alt)?$/, /^note\./, /^model\./,
-  /^how\./, /^coord\./, /^moon\.phase\./, /^level\./, /^chance\./, /^unit\./, /^chk\./, /^tz\./];
+  /^how\./, /^coord\./, /^moon\.phase\./, /^level\./, /^chance\./, /^unit\./, /^chk\./, /^tz\./, /^sw\.outlook\./];
 
 test('ключи: все, что называют app.js и index.html, есть в словаре', () => {
   const missing = [...usedKeys()].filter(key => !(key in ru));
@@ -144,6 +144,7 @@ test('ключи-семейства: всё, что собирается из к
   for (const code of ['http', 'timeout', 'offline', 'no_cloud', 'no_values', 'not_list', 'points_count', 'empty', 'no_rows', 'bad_kp']) need.push('err.' + code);
   for (const how of ['direct', 'sw']) need.push('how.' + how);
   for (const zone of ['murmansk', 'device']) need.push('tz.' + zone);
+  for (const level of ['strong', 'south', 'weak', 'north']) need.push('sw.outlook.' + level);
   for (const side of ['n', 's', 'e', 'w']) need.push('coord.' + side);
   for (const id of ['best_match', 'icon_eu', 'icon_seamless', 'icon_global', 'metno_seamless', 'ecmwf_ifs025', 'gfs_seamless', 'ukmo_seamless', 'meteofrance_seamless']) need.push('model.' + id);
   assert.deepEqual(need.filter(key => !(key in ru)), []);

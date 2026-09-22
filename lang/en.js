@@ -158,6 +158,27 @@ i18nRegister('en', {
   'forecast.error': 'NOAA forecast is unavailable: {reason}.',
   'best.error': 'Could not load the forecast for the places: {reason}.',
 
+  /* --- solar wind --- */
+  'sw.title': 'Solar wind — the next hour',
+  'sw.loading': 'Requesting satellite data…',
+  'sw.error.default': 'No solar wind data.',
+  'sw.error': 'Solar wind data are unavailable: {reason}.',
+  'err.sw_stale': 'the satellites have not reported for over half an hour',
+  'sw.bz_label': 'Bz — field direction',
+  'unit.nt': '{v} nT',
+  'unit.kms': '{v} km/s',
+  'sw.bt': 'field strength {v}',
+  'sw.speed': 'speed {v}',
+  'sw.lead': 'reaches Earth in about {dur}',
+  'sw.outlook.strong': 'Strongly southward Bz — a substorm is likely within the hour. Keep watching the sky.',
+  'sw.outlook.south': 'Bz has been steadily southward for {dur} — activity will most likely rise within the hour.',
+  'sw.outlook.weak': 'Bz is weakly southward — a small rise in activity is possible.',
+  'sw.outlook.north': 'Bz is northward — no rise in activity is expected within the hour.',
+  'sw.chart': 'Bz over 2 hours in 5-minute steps: down is southward, good for aurora; up is northward.',
+  'sw.about': 'Kp describes the past three hours. Satellites 1.5 million km from Earth see the solar wind before it reaches us. When Bz is steadily southward (negative), a substorm may start in 30–60 minutes.',
+  'sw.meta': 'NOAA satellites at L1 · data as of {time}',
+  'verdict.hint.sw': 'The solar wind points to rising activity within the hour — worth watching the sky.',
+
   /* --- Kp --- */
   'kp.storm': 'Geomagnetic storm — aurora is likely even farther south',
   'kp.high': 'Elevated activity — the auroral oval is overhead',

@@ -503,6 +503,44 @@ html[lang="zh-CN"] .card__label {
 }
 
 /* Шкала Kp 0..9 */
+/* Солнечный ветер */
+.sw {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 28px;
+}
+.sw__now { min-width: 9em; }
+.sw__text { flex: 1; min-width: 14em; }
+.sw__label { margin: 2px 0 0; color: var(--text-faint); font-size: 13px; }
+.bignum--sm { font-size: 44px; }
+
+/* Столбики Bz от средней линии: южный — вниз, северный — вверх */
+.swchart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 3px;
+  height: 72px;
+  margin: 18px 0 6px;
+}
+.swchart::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  border-top: 1px dashed var(--border);
+}
+.swbar { position: relative; }
+.swbar__fill {
+  position: absolute;
+  left: 0; right: 0;
+  border-radius: 2px;
+  background: var(--tone, var(--aurora-teal));
+}
+.swbar--south .swbar__fill { top: 50%; }
+.swbar--north .swbar__fill { bottom: 50%; }
+.swbar--gap .swbar__fill { top: calc(50% - 1px); height: 2px; background: rgba(var(--fill), 0.12); }
+
 .scale {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
