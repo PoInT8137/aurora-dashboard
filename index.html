@@ -59,6 +59,11 @@ try {
     <span class="tabs__title"><span class="tabs__long" data-i18n="tab.tonight.long">Куда ехать ночью</span><span class="tabs__short" data-i18n="tab.tonight.short">Куда ехать</span></span>
     <span class="tabs__sub" data-i18n="tab.tonight.sub">сравнение семи точек</span>
   </button>
+  <button class="tabs__btn" type="button" role="tab" id="tab-btn-map" data-tab="map"
+          aria-controls="tab-map" aria-selected="false" tabindex="-1">
+    <span class="tabs__title" data-i18n="tab.map">Карта</span>
+    <span class="tabs__sub" data-i18n="tab.map.sub">точки на схеме</span>
+  </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-guide" data-tab="guide"
           aria-controls="tab-guide" aria-selected="false" tabindex="-1">
     <span class="tabs__title" data-i18n="tab.guide">Гид</span>
@@ -392,6 +397,38 @@ try {
 
 </section>
 
+<section class="wrap" id="tab-map" role="tabpanel" aria-labelledby="tab-btn-map" tabindex="0" hidden>
+
+  <section class="card card--wide card--plain" id="map-card">
+    <h2 class="card__label" data-i18n="map.title">Карта точек на эту ночь</h2>
+    <p class="map__status" id="map-status" role="status"></p>
+
+    <div class="mapview">
+      <div class="map" id="map">
+        <svg class="map__svg" id="map-svg" viewBox="0 0 1000 1065" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path class="map__land" id="map-land"/>
+          <path class="map__lakes" id="map-lakes"/>
+        </svg>
+        <span class="map__sea" id="map-sea-barents" aria-hidden="true" data-i18n="map.sea.barents">Баренцево море</span>
+        <span class="map__sea" id="map-sea-white" aria-hidden="true" data-i18n="map.sea.white">Белое море</span>
+        <div class="map__markers" id="map-markers"></div>
+      </div>
+
+      <div class="mapview__side">
+        <ul class="map__legend">
+          <li><span class="map__swatch map__swatch--ok"></span><span data-i18n="chance.high">Высокий шанс</span></li>
+          <li><span class="map__swatch map__swatch--mid"></span><span data-i18n="chance.mid">Средний шанс</span></li>
+          <li><span class="map__swatch map__swatch--bad"></span><span data-i18n="map.legend.low">Низкий шанс или нет темноты</span></li>
+        </ul>
+        <div class="map__info" id="map-info" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <p class="card__meta" data-i18n="map.note">Цвет точки — шанс на ближайшую ночь, как на вкладке «Куда ехать». Нажмите на точку, чтобы увидеть подробности. Контуры — Natural Earth.</p>
+  </section>
+
+</section>
+
 <section class="wrap" id="tab-guide" role="tabpanel" aria-labelledby="tab-btn-guide" tabindex="0" hidden>
 
   <p class="guide__lead" data-i18n="guide.lead">Коротко о том, как увидеть и снять сияние в Мурманской области и что значат цифры на сайте.</p>
@@ -517,6 +554,7 @@ try {
           <button class="seg__btn" type="button" data-value="last" aria-pressed="false" data-i18n="pref.start.last">Где закрыл</button>
           <button class="seg__btn" type="button" data-value="now" aria-pressed="false" data-i18n="pref.start.now">Сейчас</button>
           <button class="seg__btn" type="button" data-value="tonight" aria-pressed="false" data-i18n="pref.start.tonight">Куда ехать</button>
+          <button class="seg__btn" type="button" data-value="map" aria-pressed="false" data-i18n="pref.start.map">Карта</button>
         </div>
       </div>
     </div>
@@ -593,6 +631,7 @@ try {
 
 <script src="config.js"></script>
 <script src="core.js"></script>
+<script src="map.js"></script>
 <script src="i18n.js"></script>
 <script src="lang/ru.js"></script>
 <script src="lang/en.js"></script>

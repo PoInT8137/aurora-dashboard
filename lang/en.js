@@ -295,6 +295,20 @@ i18nRegister('en', {
   'guide.safety.5.t': 'Border zone.',
   'guide.safety.5.d': 'Part of the Kola Peninsula coast is a border zone, and foreign citizens may need a permit to travel there. Check with your tour operator in advance.',
 
+  /* --- map --- */
+  'tab.map': 'Map',
+  'tab.map.sub': 'places on the map',
+  'map.title': 'Map of places for tonight',
+  'map.loading': 'Loading cloud cover for the places…',
+  'map.no_data': 'No cloud data — the places are shown without an estimate.',
+  'map.legend.low': 'Low chance or no darkness',
+  'map.sea.barents': 'Barents Sea',
+  'map.sea.white': 'White Sea',
+  'map.open': 'See conditions: {name}',
+  'map.open_current': 'See conditions here',
+  'map.note': 'The colour of a place shows the chance for the coming night, as on the “Where to go” tab. Tap a place for details. Outlines: Natural Earth.',
+  'pref.start.map': 'Map',
+
   /* --- Kp --- */
   'kp.storm': 'Geomagnetic storm — aurora is likely even farther south',
   'kp.high': 'Elevated activity — the auroral oval is overhead',

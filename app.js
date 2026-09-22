@@ -97,7 +97,8 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null,
-              status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null };
+              status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
+              mapPoint: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -1663,6 +1664,7 @@ function loadTonight() {
 
       state.tonight = null;
       showError('best-error', 'best.error', err);
+      renderMap();
       setState('best-card', 'error');
       setState('places-card', 'error');
       return null;
@@ -1721,6 +1723,7 @@ function renderTonight() {
 
   renderBest(list);
   renderPlaces(list);
+  renderMap();
 
   var age = state.tonight.stale;
   applyFreshness('best-card', 'best-stale', age, 'lead.calc_saved');
@@ -1802,49 +1805,212 @@ function renderPlaces(list) {
   box.innerHTML = '';
 
   list.forEach(function (item, index) {
-    var point = item.point;
     var win = item.window;
-    var usable = win && !win.polarDay;
-    var tone = usable ? levelTone(win.level) : TONE.bad;
+    var best = index === 0 && win && !win.polarDay && win.level >= 1;
+    box.appendChild(buildPlaceRow(item, best));
+  });
+}
 
-    var row = document.createElement('div');
-    row.className = 'place' + (index === 0 && usable && win.level >= 1 ? ' place--best' : '');
-    setTone(row, tone);
+/** Тон точки на ночь: по уровню окна; без темноты или данных — «плохо». */
+function placeTone(win) {
+  return win && !win.polarDay ? levelTone(win.level) : TONE.bad;
+}
 
-    var name = document.createElement('div');
-    name.className = 'place__name';
+/** Строка точки: название, шанс, окно, облачность, дорога. Её показывают список и карта. */
+function buildPlaceRow(item, best) {
+  var point = item.point;
+  var win = item.window;
+  var usable = win && !win.polarDay;
+  var tone = placeTone(win);
+
+  var row = document.createElement('div');
+  row.className = 'place' + (best ? ' place--best' : '');
+  setTone(row, tone);
+
+  var name = document.createElement('div');
+  name.className = 'place__name';
+  name.textContent = pointName(point);
+
+  var level = document.createElement('div');
+  level.className = 'place__level';
+  level.textContent = usable ? levelWord(win.level) : t('place.no_dark');
+  setTone(level, tone);
+
+  var facts = document.createElement('div');
+  facts.className = 'place__facts';
+  if (usable) {
+    var factParts = [fmtTime(win.from) + ' — ' + fmtTime(win.to), cloudRangeText(win)];
+    if (win.kpMax !== null) factParts.push(t('win.kp_max', { v: fmtKp(win.kpMax) }));
+    factParts.push(t('place.threshold', { v: fmtKp(kpThresholds(point).low) }));
+    facts.textContent = factParts.join(t('sep.dot'));
+  } else {
+    facts.textContent = t(win ? 'place.sun' : 'place.no_data');
+  }
+
+  var travel = document.createElement('div');
+  travel.className = 'place__travel';
+  var travelParts = point.km
+    ? [t('place.travel', { dist: distText(point.km), drive: driveText(point) })]
+    : [t('place.origin')];
+  if (point.noteKey) travelParts.push(t('note.' + point.noteKey));
+  travelParts.push(t('place.light', { v: t('light.' + point.light + '.label') }));
+  travel.textContent = travelParts.join(t('sep.dot'));
+
+  row.appendChild(name);
+  row.appendChild(level);
+  row.appendChild(facts);
+  row.appendChild(travel);
+  return row;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Вкладка «Карта»: семь точек на схеме области, цвет — шанс на ночь. */
+/*  Контуры — в map.js (собран из Natural Earth скриптом               */
+/*  tools/build-map.mjs). Точки — кнопки поверх схемы: их размер не    */
+/*  зависит от масштаба карты, и они доступны с клавиатуры.            */
+/* ------------------------------------------------------------------ */
+
+/* С какой стороны от точки подпись: Кировск и Апатиты в 15 км друг от друга — разводим. */
+var MAP_LABEL_LEFT = { apatity: true };
+
+/* Подписи морей: где на схеме вода. */
+var MAP_SEAS = [
+  { key: 'barents', lat: 69.32, lon: 35.8 },
+  { key: 'white', lat: 66.9, lon: 33.1 }
+];
+
+var mapReady = false;
+
+/** Контуры и подписи морей ставятся один раз: схема от данных не зависит. */
+function initMap() {
+  if (mapReady || typeof REGION_MAP === 'undefined') return;
+  var svg = $('map-svg');
+  if (!svg) return;
+  svg.setAttribute('viewBox', '0 0 ' + REGION_MAP.width + ' ' + REGION_MAP.height);
+  $('map-land').setAttribute('d', REGION_MAP.region);
+  $('map-lakes').setAttribute('d', REGION_MAP.lakes);
+  $('map').style.setProperty('--map-ratio', REGION_MAP.width + ' / ' + REGION_MAP.height);
+
+  MAP_SEAS.forEach(function (sea) {
+    var el = $('map-sea-' + sea.key);
+    if (!el) return;
+    var pos = mapPosition(sea.lat, sea.lon);
+    el.style.left = (pos.x * 100) + '%';
+    el.style.top = (pos.y * 100) + '%';
+  });
+  mapReady = true;
+}
+
+/** Окна по точкам, если данные «Куда ехать» уже есть; иначе точки без окон. */
+function mapItems() {
+  var list = computeAllWindows();
+  if (list) return list;
+  return POINTS.map(function (point) { return { point: point, window: undefined }; });
+}
+
+function renderMap() {
+  initMap();
+  var box = $('map-markers');
+  if (!box) return;
+  box.innerHTML = '';
+
+  var items = mapItems();
+  var hasData = !!computeAllWindows();
+  var selectedId = state.mapPoint || currentPoint().id;
+
+  items.forEach(function (item) {
+    var point = item.point;
+    var pos = mapPosition(point.lat, point.lon);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mappt' + (MAP_LABEL_LEFT[point.id] ? ' mappt--left' : '') +
+      (point.id === currentPoint().id ? ' mappt--current' : '') + (hasData ? '' : ' mappt--nodata');
+    btn.style.left = (pos.x * 100) + '%';
+    btn.style.top = (pos.y * 100) + '%';
+    btn.setAttribute('data-point', point.id);
+    btn.setAttribute('aria-pressed', String(point.id === selectedId));
+    if (hasData) setTone(btn, placeTone(item.window));
+
+    var dot = document.createElement('span');
+    dot.className = 'mappt__dot';
+    var name = document.createElement('span');
+    name.className = 'mappt__name';
     name.textContent = pointName(point);
 
-    var level = document.createElement('div');
-    level.className = 'place__level';
-    level.textContent = usable ? levelWord(win.level) : t('place.no_dark');
-    setTone(level, tone);
+    btn.appendChild(dot);
+    btn.appendChild(name);
+    btn.setAttribute('aria-label', pointName(point) + ', ' +
+      (hasData ? mapLevelText(item.window) : t('map.loading')));
+    box.appendChild(btn);
+  });
 
-    var facts = document.createElement('div');
-    facts.className = 'place__facts';
-    if (usable) {
-      var factParts = [fmtTime(win.from) + ' — ' + fmtTime(win.to), cloudRangeText(win)];
-      if (win.kpMax !== null) factParts.push(t('win.kp_max', { v: fmtKp(win.kpMax) }));
-      factParts.push(t('place.threshold', { v: fmtKp(kpThresholds(point).low) }));
-      facts.textContent = factParts.join(t('sep.dot'));
-    } else {
-      facts.textContent = t(win ? 'place.sun' : 'place.no_data');
+  renderMapInfo(items, selectedId, hasData);
+  renderMapStatus(hasData);
+}
+
+/** Словами для скринридера: «высокий шанс», «нет темноты», «нет данных». */
+function mapLevelText(win) {
+  if (!win) return t('place.no_data');
+  return win.polarDay ? t('place.no_dark') : levelWord(win.level);
+}
+
+function renderMapStatus(hasData) {
+  var status = $('map-status');
+  if (!status) return;
+  if (hasData && state.tonight.stale) {
+    status.textContent = t('stale.line', { lead: t('lead.calc_saved'), age: fmtAge(state.tonight.stale) });
+  } else if (hasData) {
+    status.textContent = '';
+  } else {
+    status.textContent = t(state.tonightLoading ? 'map.loading' : 'map.no_data');
+  }
+}
+
+/** Под картой — подробности выбранной точки и переход к её условиям. */
+function renderMapInfo(items, selectedId, hasData) {
+  var info = $('map-info');
+  if (!info) return;
+  info.innerHTML = '';
+
+  var item = items.filter(function (i) { return i.point.id === selectedId; })[0] || items[0];
+  if (hasData) {
+    info.appendChild(buildPlaceRow(item, false));
+  } else {
+    var name = document.createElement('p');
+    name.className = 'place__name';
+    name.textContent = pointName(item.point);
+    info.appendChild(name);
+  }
+
+  var open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'btn';
+  open.id = 'map-open';
+  open.setAttribute('data-point', item.point.id);
+  open.textContent = item.point.id === currentPoint().id ? t('map.open_current') : t('map.open', { name: pointName(item.point) });
+  info.appendChild(open);
+}
+
+function initMapTab() {
+  $('map-markers').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-point]') : null;
+    if (!btn) return;
+    state.mapPoint = btn.getAttribute('data-point');
+    renderMap();
+  });
+
+  // «Смотреть условия»: выбранная на карте точка становится точкой наблюдения.
+  $('map-info').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('#map-open') : null;
+    if (!btn) return;
+    var id = btn.getAttribute('data-point');
+    if (id !== currentPoint().id) {
+      $('point').value = id;
+      selectPoint(id);
     }
-
-    var travel = document.createElement('div');
-    travel.className = 'place__travel';
-    var travelParts = point.km
-      ? [t('place.travel', { dist: distText(point.km), drive: driveText(point) })]
-      : [t('place.origin')];
-    if (point.noteKey) travelParts.push(t('note.' + point.noteKey));
-    travelParts.push(t('place.light', { v: t('light.' + point.light + '.label') }));
-    travel.textContent = travelParts.join(t('sep.dot'));
-
-    row.appendChild(name);
-    row.appendChild(level);
-    row.appendChild(facts);
-    row.appendChild(travel);
-    box.appendChild(row);
+    showTab('now', 'push');
+    if (window.scrollTo) window.scrollTo(0, 0);
   });
 }
 
@@ -2366,7 +2532,7 @@ function initPushCard() {
 /*  Вкладки                                                            */
 /* ------------------------------------------------------------------ */
 
-var TAB_IDS = ['now', 'tonight', 'guide', 'settings'];
+var TAB_IDS = ['now', 'tonight', 'map', 'guide', 'settings'];
 
 /** Вкладка «Уведомления» стала частью «Настроек»: старые ссылки #notify и сохранённый выбор ведут туда. */
 function tabFromName(name) {
@@ -2430,7 +2596,9 @@ function showTab(id, historyMode) {
   }
 
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
-  if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
+  // Карта и «Куда ехать» опираются на одни и те же данные по семи точкам.
+  if ((id === 'tonight' || id === 'map') && !state.tonight && !state.tonightLoading) loadTonight();
+  if (id === 'map') renderMap();
   if (id === 'tonight') loadOutlook(false);
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
   if (id === 'settings') {
@@ -2554,35 +2722,39 @@ function initPointSelect() {
   select.value = state.point.id;
   renderPointMeta();
 
-  select.addEventListener('change', function () {
-    state.point = findPoint(select.value);
-    savePointId(state.point.id);
-    // Серверные уведомления привязаны к точке: подписка переезжает вместе с выбором.
-    pushSync(state.point.id).then(function () {
-      renderPushCard();
-      renderNotifyDiagnostics();
-    });
-    renderPointMeta();
-    renderOvation();
-    renderOutlook();
+  select.addEventListener('change', function () { selectPoint(select.value); });
+}
 
-    // Облачность принадлежала прежней точке — её нельзя показывать для новой.
-    // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
-    state.cloud = null;
-    replaceWithLoading('cloud-card');
-    replaceWithLoading('wx-card');
-    replaceWithLoading('verdict-card');
-    replaceWithLoading('window-card');
-
-    loadCloud().then(function (cloud) {
-      if (cloud === null && state.cloudPending) return; // ответ устарел
-      renderDerived();
-      updateStatus();
-    });
-
-    // Если по новой точке есть сохранённые данные, они уже на экране.
-    renderDerived();
+/** Смена точки наблюдения: из выпадающего списка или с карты. */
+function selectPoint(id) {
+  state.point = findPoint(id);
+  savePointId(state.point.id);
+  // Серверные уведомления привязаны к точке: подписка переезжает вместе с выбором.
+  pushSync(state.point.id).then(function () {
+    renderPushCard();
+    renderNotifyDiagnostics();
   });
+  renderPointMeta();
+  renderOvation();
+  renderOutlook();
+
+  // Облачность принадлежала прежней точке — её нельзя показывать для новой.
+  // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
+  state.cloud = null;
+  replaceWithLoading('cloud-card');
+  replaceWithLoading('wx-card');
+  replaceWithLoading('verdict-card');
+  replaceWithLoading('window-card');
+
+  loadCloud().then(function (cloud) {
+    if (cloud === null && state.cloudPending) return; // ответ устарел
+    renderDerived();
+    updateStatus();
+  });
+
+  // Если по новой точке есть сохранённые данные, они уже на экране.
+  renderDerived();
+  renderMap();
 }
 
 /** Всё, что считается из уже загруженных данных. */
@@ -2680,7 +2852,7 @@ var SETTINGS_CHOICES = {
   refresh: ['5', '10', '30', '0'],  // минуты; 0 — не обновлять само
   theme: ['dark', 'light', 'auto'],
   size: ['normal', 'large', 'xlarge'],
-  start: ['last', 'now', 'tonight'],  // last — вкладка, на которой закрыли
+  start: ['last', 'now', 'tonight', 'map'],  // last — вкладка, на которой закрыли
   quiet: ['off', '22-08', '23-07', '00-06']   // часы, когда уведомления о сиянии не присылаются
 };
 
@@ -2928,6 +3100,7 @@ function renderLocalized() {
   if (state.sw) renderSolarWind(state.sw);
   renderOvation();
   renderOutlook();
+  renderMap();
   if (state.forecast) renderForecast(state.forecast, state.forecastAge, false);
   renderDerived();
 
@@ -2966,6 +3139,7 @@ function init() {
   applyAppearance();
   initSettings();
   initPointSelect();
+  initMapTab();
   initNotifications();
   initNotifyTab();
   initPushCard();

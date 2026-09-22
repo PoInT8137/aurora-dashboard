@@ -17,9 +17,9 @@ function dictionaries() {
 }
 const dicts = dictionaries();
 
-test('вкладки по порядку: «Сейчас», «Куда ехать», «Гид», «Настройки» — в разметке и в коде', () => {
+test('вкладки по порядку: «Сейчас», «Куда ехать», «Карта», «Гид», «Настройки» — в разметке и в коде', () => {
   const order = [...html.matchAll(/role="tab" id="tab-btn-(\w+)" data-tab="(\w+)"/g)].map(m => m[2]);
-  assert.deepEqual(order, ['now', 'tonight', 'guide', 'settings']);
+  assert.deepEqual(order, ['now', 'tonight', 'map', 'guide', 'settings']);
   const ctx = loadApp([['config.js', read('config.js')], ['core.js', read('core.js')], ['push.js', read('push.js')], ['app.js', read('app.js')]], {});
   assert.deepEqual(Array.from(ctx.TAB_IDS), order, 'стрелки на клавиатуре идут в том же порядке, что кнопки');
   ctx.showTab('guide', 'replace');

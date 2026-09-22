@@ -13,8 +13,8 @@ const stub = () => new Proxy(function () {}, {
   has: () => true
 });
 
-/** Движок переводов и словари страницы — в том же порядке, что и в index.html. */
-const I18N_FILES = ['i18n.js', 'lang/ru.js', 'lang/en.js', 'lang/zh.js'];
+/** Схема карты, движок переводов и словари — всё, что app.js ждёт от страницы до себя. */
+const I18N_FILES = ['map.js', 'i18n.js', 'lang/ru.js', 'lang/en.js', 'lang/zh.js'];
 
 /**
  * Тесты перечисляют скрипты по старинке: config, core, push, app. Движок переводов и словари

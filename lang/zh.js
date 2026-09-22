@@ -295,6 +295,20 @@ i18nRegister('zh', {
   'guide.safety.5.t': '边境区。',
   'guide.safety.5.d': '科拉半岛部分沿海地区属于边境区，外国公民前往可能需要通行证。请提前向旅行社确认。',
 
+  /* --- 地图 --- */
+  'tab.map': '地图',
+  'tab.map.sub': '地点分布',
+  'map.title': '今晚各地点地图',
+  'map.loading': '正在加载各地点的云量…',
+  'map.no_data': '没有云量数据——地点显示时不含评估。',
+  'map.legend.low': '机会小或没有黑夜',
+  'map.sea.barents': '巴伦支海',
+  'map.sea.white': '白海',
+  'map.open': '查看条件：{name}',
+  'map.open_current': '查看此地条件',
+  'map.note': '地点颜色表示即将到来的夜晚看到极光的机会，与“去哪里”标签页相同。点按地点可查看详情。轮廓数据：Natural Earth。',
+  'pref.start.map': '地图',
+
   /* --- Kp --- */
   'kp.storm': '磁暴——极光可能出现在更南的地方',
   'kp.high': '活动增强——极光带位于此地上空',
