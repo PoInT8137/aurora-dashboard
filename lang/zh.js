@@ -179,6 +179,21 @@ i18nRegister('zh', {
   'sw.meta': 'NOAA L1 点卫星 · 数据时间 {time}',
   'verdict.hint.sw': '太阳风显示一小时内活动可能增强——值得留意天空。',
 
+  /* --- NOAA OVATION --- */
+  'ov.title': 'NOAA OVATION 模型——未来 30–90 分钟',
+  'ov.loading': '正在请求 OVATION 模型…',
+  'ov.error.default': '没有 OVATION 模型数据。',
+  'ov.error': 'OVATION 模型不可用：{reason}。',
+  'err.ov_stale': '模型已很久没有更新',
+  'ov.view_label': '视野内的概率',
+  'ov.level.high': '模型预计视野内会出现明亮的极光。',
+  'ov.level.mid': '视野内很可能出现极光。',
+  'ov.level.low': '北方地平线附近可能出现淡淡的光弧。',
+  'ov.level.none': '根据模型，视野内几乎没有极光。',
+  'ov.overhead': '正上方 {v}',
+  'ov.forecast': '预报时间 {time}',
+  'ov.about': 'NOAA 模型根据太阳风估算极光在地球上空的位置。“视野内”指该地点上空及其以北约 550 公里范围内的最高概率：这一高度的极光在地平线附近可见。模型不考虑云层和天色——这些已计入上方的评估。',
+
   /* --- Kp --- */
   'kp.storm': '磁暴——极光可能出现在更南的地方',
   'kp.high': '活动增强——极光带位于此地上空',

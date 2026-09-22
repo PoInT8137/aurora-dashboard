@@ -179,6 +179,21 @@ i18nRegister('en', {
   'sw.meta': 'NOAA satellites at L1 · data as of {time}',
   'verdict.hint.sw': 'The solar wind points to rising activity within the hour — worth watching the sky.',
 
+  /* --- NOAA OVATION --- */
+  'ov.title': 'NOAA OVATION model — the next 30–90 minutes',
+  'ov.loading': 'Requesting the OVATION model…',
+  'ov.error.default': 'No OVATION model data.',
+  'ov.error': 'The OVATION model is unavailable: {reason}.',
+  'err.ov_stale': 'the model has not been updated for a long time',
+  'ov.view_label': 'probability within view',
+  'ov.level.high': 'The model expects bright aurora within view.',
+  'ov.level.mid': 'Aurora within view is likely.',
+  'ov.level.low': 'A faint arc near the northern horizon is possible.',
+  'ov.level.none': 'The model shows almost no aurora within view.',
+  'ov.overhead': 'directly overhead {v}',
+  'ov.forecast': 'forecast for {time}',
+  'ov.about': 'The NOAA model uses the solar wind to estimate where the aurora is over the Earth. “Within view” is the highest probability over the location and up to ~550 km to the north: aurora at that height is visible near the horizon. The model ignores clouds and daylight — the estimate above covers those.',
+
   /* --- Kp --- */
   'kp.storm': 'Geomagnetic storm — aurora is likely even farther south',
   'kp.high': 'Elevated activity — the auroral oval is overhead',

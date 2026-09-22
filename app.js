@@ -62,7 +62,9 @@ var URLS = {
   // Солнечный ветер: поминутное поле за сутки (≈90 КБ в сжатом виде) и крошечная сводка скорости.
   // Старые адреса products/solar-wind/*.json NOAA убрала (404 с сентября 2026).
   swMag:      'https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json',
-  swSpeed:    'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json'
+  swSpeed:    'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json',
+  // Модель OVATION: сетка всей Земли, ≈140 КБ в сжатом виде — поэтому не чаще раза в 15 минут.
+  ovation:    'https://services.swpc.noaa.gov/json/ovation_aurora_latest.json'
 };
 
 /** Адрес почасовой облачности сразу для всех точек: один запрос вместо семи. */
@@ -90,7 +92,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null,
-              status: null, errors: {}, settings: null, timer: null, sw: null };
+              status: null, errors: {}, settings: null, timer: null, sw: null, ov: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -775,6 +777,99 @@ function renderSolarWindChart(series) {
     bar.appendChild(fill);
     box.appendChild(bar);
   });
+}
+
+/* ------------------------------------------------------------------ */
+/*  NOAA OVATION: вероятность сияния на ближайшие 30–90 минут.         */
+/*  Расчёт по сетке — в core.js; здесь загрузка и карточка.            */
+/* ------------------------------------------------------------------ */
+
+/* Модель обновляется каждые несколько минут, но файл велик: чаще раза в 15 минут
+   не запрашиваем — сохранённый ответ этого возраста считается свежим. */
+var OVATION_REFRESH_MS = 15 * 60 * 1000;
+
+function restoreOvation(cached, age) {
+  var ov = cached.payload;
+  ov.observed = toDate(ov.observed);
+  ov.forecast = toDate(ov.forecast);
+  ov.stale = age;
+  return ov;
+}
+
+/** force — по кнопке «Повторить»: тогда запрашиваем, даже если сохранённое свежее. */
+function loadOvation(force) {
+  var cached = cacheLoad('ovation');
+  if (cached && !force && cached.age < OVATION_REFRESH_MS) {
+    state.ov = restoreOvation(cached, null);
+    renderOvation();
+    return Promise.resolve(state.ov);
+  }
+  if (!state.ov && cached) {
+    state.ov = restoreOvation(cached, cached.age);
+    renderOvation();
+  }
+  markLoading('ov-card');
+
+  return fetchJson(URLS.ovation)
+    .then(function (data) {
+      var summary = ovationSummary(data, POINTS, Date.now());
+      if (!summary) throw appError('ov_stale');
+      var ov = { observed: summary.observed, forecast: summary.forecast, points: summary.points, stale: null };
+      // В кэш — только числа по семи точкам, а не вся сетка Земли.
+      cacheSave('ovation', { observed: ov.observed, forecast: ov.forecast, points: ov.points });
+      state.ov = ov;
+      renderOvation();
+      return ov;
+    })
+    .catch(function (err) {
+      var fallback = cacheLoad('ovation');
+      if (fallback) {
+        state.ov = restoreOvation(fallback, fallback.age);
+        renderOvation();
+        return state.ov;
+      }
+      state.ov = null;
+      showError('ov-error', 'ov.error', err);
+      setState('ov-card', 'error');
+      return null;
+    });
+}
+
+/** Уровень по вероятности в поле зрения: пороги как у NOAA на карте «вероятности сияния». */
+function ovationLevel(view) {
+  if (view >= 50) return 'high';
+  if (view >= 30) return 'mid';
+  if (view >= 10) return 'low';
+  return 'none';
+}
+
+var OV_TONE = { high: 'ok', mid: 'ok', low: 'mid', none: 'bad' };
+
+function renderOvation() {
+  var ov = state.ov;
+  if (!ov) return;
+  var values = ov.points && ov.points[currentPoint().id];
+  if (!values) {
+    setState('ov-card', 'error');
+    $('ov-error').textContent = t('ov.error.default');
+    return;
+  }
+
+  var level = ovationLevel(values.view);
+  var tone = TONE[OV_TONE[level]];
+  setTone($('ov-card'), tone);
+
+  var value = $('ov-value');
+  value.textContent = Math.round(values.view) + '%';
+  setTone(value, tone);
+
+  $('ov-caption').textContent = t('ov.level.' + level);
+
+  var facts = [t('ov.overhead', { v: Math.round(values.overhead) + '%' })];
+  if (ov.forecast) facts.push(t('ov.forecast', { time: fmtTime(ov.forecast) }));
+  $('ov-facts').textContent = facts.join(t('sep.dot'));
+
+  applyFreshness('ov-card', 'ov-stale', ov.stale, LEAD_OFFLINE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2205,6 +2300,7 @@ function initPointSelect() {
       renderNotifyDiagnostics();
     });
     renderPointMeta();
+    renderOvation();
 
     // Облачность принадлежала прежней точке — её нельзя показывать для новой.
     // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
@@ -2281,7 +2377,7 @@ function refreshAll() {
   markLoading('verdict-card');
   markLoading('window-card');
 
-  var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind()];
+  var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false)];
   if (state.tonight) tasks.push(loadTonight());
 
   // Загрузчики уже положили на экран сохранённые данные — вердикт и окно
@@ -2565,6 +2661,7 @@ function renderLocalized() {
   if (state.kp) renderKp(state.kp);
   if (state.cloud) renderCloud(state.cloud);
   if (state.sw) renderSolarWind(state.sw);
+  renderOvation();
   if (state.forecast) renderForecast(state.forecast, state.forecastAge, false);
   renderDerived();
 
@@ -2619,6 +2716,7 @@ function init() {
     if (what === 'cloud')    loadCloud().then(renderDerived);
     if (what === 'forecast') loadForecast().then(renderDerived);
     if (what === 'sw')       loadSolarWind().then(renderDerived);
+    if (what === 'ov')       loadOvation(true);
   });
 
   applyLanguage();

@@ -223,6 +223,37 @@ try {
     </div>
   </section>
 
+  <!-- NOAA OVATION: вероятность сияния в поле зрения -->
+  <section class="card card--wide" id="ov-card" data-state="loading">
+    <h2 class="card__label" data-i18n="ov.title">Модель NOAA OVATION — ближайшие 30–90 минут</h2>
+
+    <div class="card__loading" data-i18n="ov.loading">Запрашиваем модель OVATION…</div>
+
+    <div class="card__body">
+      <div class="sw">
+        <div class="sw__now">
+          <p class="bignum bignum--sm" id="ov-value">—</p>
+          <p class="sw__label" data-i18n="ov.view_label">вероятность в поле зрения</p>
+        </div>
+        <div class="sw__text">
+          <p class="card__caption" id="ov-caption"></p>
+          <p class="card__meta" id="ov-facts"></p>
+        </div>
+      </div>
+      <p class="card__meta" data-i18n="ov.about">Модель NOAA считает по солнечному ветру, где сейчас сияние над Землёй. «В поле зрения» — наибольшая вероятность над точкой и до ~550 км к северу: сияние на такой высоте видно у горизонта. Облака и светлое небо модель не учитывает — для этого есть вердикт выше.</p>
+    </div>
+
+    <p class="card__stale" id="ov-stale">
+      <span class="stale__text"></span>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="ov" data-i18n="btn.retry">Повторить</button>
+    </p>
+
+    <div class="card__error">
+      <p class="card__error-text" id="ov-error" data-i18n="ov.error.default">Нет данных модели OVATION.</p>
+      <button class="btn btn--ghost" type="button" data-retry="ov" data-i18n="btn.retry">Повторить</button>
+    </div>
+  </section>
+
   <!-- Прогноз Kp -->
   <section class="card card--wide" id="forecast-card" data-state="loading">
     <h2 class="card__label" data-i18n="forecast.title">Прогноз Kp на трое суток</h2>

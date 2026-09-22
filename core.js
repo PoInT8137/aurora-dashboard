@@ -199,6 +199,66 @@ function solarWindLeadMinutes(speedKmS) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  NOAA OVATION: вероятность сияния на ближайшие 30–90 минут.         */
+/*                                                                     */
+/*  Модель считает по солнечному ветру вероятность увидеть сияние       */
+/*  прямо над головой на сетке 1°×1°. Сияние светится на высоте         */
+/*  100–300 км и видно у северного горизонта за несколько сотен         */
+/*  километров, поэтому кроме клетки точки берётся максимум в поле      */
+/*  зрения: до OVATION_VIEW_LAT° к северу и ±OVATION_VIEW_LON° по        */
+/*  долготе (на 65–70° с. ш. это около 550 × 250 км).                   */
+/* ------------------------------------------------------------------ */
+
+var OVATION_VIEW_LAT = 5;
+var OVATION_VIEW_LON = 3;
+var OVATION_STALE_MS = 90 * 60 * 1000;   // наблюдение старше полутора часов — уже не прогноз
+
+/**
+ * Ответ json/ovation_aurora_latest.json → { observed, forecast, points: { id: { overhead, view } } }
+ * для переданных точек, либо null (нет данных, чужой формат, данные устарели).
+ */
+function ovationSummary(data, points, nowMs) {
+  if (!data || !Array.isArray(data.coordinates)) return null;
+
+  var observed = parseUtc(data['Observation Time']);
+  var forecast = parseUtc(data['Forecast Time']);
+  if (!observed || nowMs - observed.getTime() > OVATION_STALE_MS) return null;
+
+  var grid = {};
+  var count = 0;
+  for (var i = 0; i < data.coordinates.length; i++) {
+    var c = data.coordinates[i];
+    if (!Array.isArray(c) || c.length < 3) continue;
+    var v = num(c[2]);
+    if (v === null) continue;
+    grid[c[0] + ':' + c[1]] = Math.max(0, Math.min(100, v));
+    count++;
+  }
+  if (!count) return null;
+
+  var cell = function (lon, lat) {
+    var value = grid[(((lon % 360) + 360) % 360) + ':' + lat];
+    return value === undefined ? null : value;
+  };
+
+  var out = {};
+  points.forEach(function (point) {
+    var lat = Math.round(point.lat), lon = Math.round(point.lon);
+    var overhead = cell(lon, lat);
+    var view = overhead;
+    for (var dLat = 0; dLat <= OVATION_VIEW_LAT; dLat++) {
+      for (var dLon = -OVATION_VIEW_LON; dLon <= OVATION_VIEW_LON; dLon++) {
+        var value = lat + dLat > 90 ? null : cell(lon + dLon, lat + dLat);
+        if (value !== null && (view === null || value > view)) view = value;
+      }
+    }
+    if (overhead !== null) out[point.id] = { overhead: overhead, view: view };
+  });
+
+  return { observed: observed, forecast: forecast, points: out };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Высота Солнца — чтобы не обещать сияние в полярный день.           */
 /*  Упрощённый алгоритм NOAA, точность около 0,1°.                     */
 /* ------------------------------------------------------------------ */
@@ -755,6 +815,7 @@ globalThis.AuroraCore = {
   inQuietHours: inQuietHours,
   solarWindSummary: solarWindSummary,
   solarWindLeadMinutes: solarWindLeadMinutes,
+  ovationSummary: ovationSummary,
   REFERENCE_POINT_ID: REFERENCE_POINT_ID,
   CLOUD_CONFLICT_LIMIT: CLOUD_CONFLICT_LIMIT,
   CLOUD_LAYERS: CLOUD_LAYERS,
