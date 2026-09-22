@@ -64,7 +64,9 @@ var URLS = {
   swMag:      'https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json',
   swSpeed:    'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json',
   // Модель OVATION: сетка всей Земли, ≈140 КБ в сжатом виде — поэтому не чаще раза в 15 минут.
-  ovation:    'https://services.swpc.noaa.gov/json/ovation_aurora_latest.json'
+  ovation:    'https://services.swpc.noaa.gov/json/ovation_aurora_latest.json',
+  // Прогноз на 27 дней: текстовая таблица, выходит раз в неделю (по понедельникам).
+  outlook:    'https://services.swpc.noaa.gov/text/27-day-outlook.txt'
 };
 
 /** Адрес почасовой облачности сразу для всех точек: один запрос вместо семи. */
@@ -95,7 +97,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null,
-              status: null, errors: {}, settings: null, timer: null, sw: null, ov: null };
+              status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */
@@ -197,7 +199,7 @@ function refreshErrors() {
 }
 
 /** fetch с таймаутом и повторами. Бросает ошибку с кодом — понятный текст строит errorText(). */
-function fetchJson(url, attempt) {
+function fetchJson(url, attempt, as) {
   attempt = attempt || 0;
 
   var ctrl = new AbortController();
@@ -207,12 +209,12 @@ function fetchJson(url, attempt) {
   return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
     .then(function (res) {
       if (!res.ok) throw appError('http', { status: res.status });
-      return res.json();
+      return as === 'text' ? res.text() : res.json();
     })
     .catch(function (err) {
       if (attempt < CONFIG.retries) {
         return new Promise(function (resolve) { setTimeout(resolve, 900); })
-          .then(function () { return fetchJson(url, attempt + 1); });
+          .then(function () { return fetchJson(url, attempt + 1, as); });
       }
       if (err.name === 'AbortError') throw appError('timeout');
       // По имени, а не instanceof: тот же довод, что в pushErrorText — ошибка может прийти из другого окружения.
@@ -220,6 +222,11 @@ function fetchJson(url, attempt) {
       throw err;
     })
     .finally(function () { clearTimeout(timer); });
+}
+
+/** То же для текстовых ответов (прогноз NOAA на 27 дней — таблица, а не JSON). */
+function fetchText(url) {
+  return fetchJson(url, 0, 'text');
 }
 
 /** Часовой пояс отображения: московский (по умолчанию) или пояс устройства (undefined). */
@@ -1469,6 +1476,146 @@ function renderWindow() {
 /*  Запрос уходит при первом открытии вкладки, не при старте.           */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Когда ехать: прогноз NOAA на 27 дней. Разбор и оценка — в core.js. */
+/* ------------------------------------------------------------------ */
+
+/* Таблица выходит раз в неделю: чаще раза в 6 часов её не запрашиваем. */
+var OUTLOOK_REFRESH_MS = 6 * 60 * 60 * 1000;
+var OUTLOOK_CACHE_MS = 8 * 24 * 60 * 60 * 1000;   // прошлогодняя неделя бесполезна, но недельная — годится
+
+var outlookInFlight = null;
+
+function restoreOutlook(payload, age) {
+  return { issued: toDate(payload.issued), days: payload.days, stale: age };
+}
+
+/** Сохранённый прогноз живёт дольше обычных трёх часов: он и выходит раз в неделю. */
+function outlookCacheLoad() {
+  try {
+    var raw = localStorage.getItem(CACHE.prefix + 'outlook');
+    if (!raw) return null;
+    var entry = JSON.parse(raw);
+    var age = Date.now() - entry.savedAt;
+    if (!isFinite(age) || age < 0 || age > OUTLOOK_CACHE_MS) return null;
+    return { payload: entry.payload, age: age };
+  } catch (e) {
+    return null;
+  }
+}
+
+function loadOutlook(force) {
+  var cached = outlookCacheLoad();
+  if (cached && !force && cached.age < OUTLOOK_REFRESH_MS) {
+    state.outlook = restoreOutlook(cached.payload, null);
+    renderOutlook();
+    return Promise.resolve(state.outlook);
+  }
+  if (outlookInFlight) return outlookInFlight;
+  if (!state.outlook && cached) {
+    state.outlook = restoreOutlook(cached.payload, cached.age);
+    renderOutlook();
+  }
+  markLoading('outlook-card');
+
+  outlookInFlight = fetchText(URLS.outlook)
+    .then(function (text) {
+      var parsed = parseOutlook27(text);
+      if (!parsed) throw appError('outlook_format');
+      cacheSave('outlook', parsed);
+      state.outlook = { issued: parsed.issued, days: parsed.days, stale: null };
+      renderOutlook();
+      return state.outlook;
+    })
+    .catch(function (err) {
+      var fallback = outlookCacheLoad();
+      if (fallback) {
+        state.outlook = restoreOutlook(fallback.payload, fallback.age);
+        renderOutlook();
+        return state.outlook;
+      }
+      state.outlook = null;
+      showError('outlook-error', 'outlook.error', err);
+      setState('outlook-card', 'error');
+      return null;
+    })
+    .finally(function () { outlookInFlight = null; });
+  return outlookInFlight;
+}
+
+/** Дата прогноза (сутки UTC): «Ср, 24.09». Пояс UTC — это календарная дата, а не момент. */
+function fmtOutlookDay(iso) {
+  var date = new Date(iso + 'T12:00:00Z');
+  return {
+    weekday: new Intl.DateTimeFormat(langLocale(), { timeZone: 'UTC', weekday: 'short' }).format(date),
+    day: new Intl.DateTimeFormat(langLocale(), { timeZone: 'UTC', day: 'numeric', month: 'short' }).format(date)
+  };
+}
+
+/** «4 октября» — в сводке лучших дат месяц полностью: сокращение «окт.» давало «окт..» в конце фразы. */
+function fmtOutlookLong(iso) {
+  return new Intl.DateTimeFormat(langLocale(), { timeZone: 'UTC', day: 'numeric', month: 'long' })
+    .format(new Date(iso + 'T12:00:00Z'));
+}
+
+function fmtOutlookRange(range) {
+  var from = fmtOutlookLong(range.from);
+  return range.from === range.to ? from : t('outlook.range', { from: from, to: fmtOutlookLong(range.to) });
+}
+
+var OUTLOOK_TONE = { high: 'ok', mid: 'mid', low: 'bad' };
+
+function renderOutlook() {
+  var outlook = state.outlook;
+  if (!outlook) return;
+
+  var point = currentPoint();
+  var days = outlookDays(outlook, point, Date.now());
+  var grid = $('outlook-grid');
+  grid.innerHTML = '';
+
+  if (!days.length) {
+    setState('outlook-card', 'error');
+    $('outlook-error').textContent = t('outlook.expired');
+    return;
+  }
+
+  days.forEach(function (day) {
+    var label = fmtOutlookDay(day.date);
+    var cell = document.createElement('div');
+    cell.className = 'oday' + (day.dark ? '' : ' oday--light');
+    setTone(cell, TONE[OUTLOOK_TONE[day.level]]);
+
+    var head = document.createElement('div');
+    head.className = 'oday__date';
+    head.textContent = label.weekday + ' ' + label.day;
+
+    var kp = document.createElement('div');
+    kp.className = 'oday__kp';
+    kp.textContent = t('hour.kp', { v: day.kp });
+
+    var note = document.createElement('div');
+    note.className = 'oday__note';
+    note.textContent = !day.dark ? t('outlook.light') : (day.moon >= BRIGHT_MOON ? t('outlook.moon', { pct: Math.round(day.moon * 100) + '%' }) : ' ');
+
+    cell.appendChild(head);
+    cell.appendChild(kp);
+    cell.appendChild(note);
+    grid.appendChild(cell);
+  });
+
+  var best = outlookBestRanges(days, 3);
+  $('outlook-best').textContent = best.length
+    ? t('outlook.best', { name: pointName(point), dates: best.map(fmtOutlookRange).join(t('sep.list')) })
+    : (days.some(function (d) { return d.dark; }) ? t('outlook.none') : t('outlook.polar'));
+
+  $('outlook-meta').textContent = outlook.issued
+    ? t('outlook.issued', { date: fmtOutlookLong(outlook.issued.toISOString().slice(0, 10)) })
+    : '';
+
+  applyFreshness('outlook-card', 'outlook-stale', outlook.stale, LEAD_OFFLINE);
+}
+
 /** Почасовые ряды всех точек из ответа с несколькими координатами. */
 function readAllPointsHours(data) {
   if (!Array.isArray(data)) throw appError('not_list');
@@ -2272,6 +2419,7 @@ function showTab(id, historyMode) {
 
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
   if (id === 'tonight' && !state.tonight && !state.tonightLoading) loadTonight();
+  if (id === 'tonight') loadOutlook(false);
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
   if (id === 'settings') {
     renderNotifyDiagnostics();
@@ -2404,6 +2552,7 @@ function initPointSelect() {
     });
     renderPointMeta();
     renderOvation();
+    renderOutlook();
 
     // Облачность принадлежала прежней точке — её нельзя показывать для новой.
     // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
@@ -2766,6 +2915,7 @@ function renderLocalized() {
   if (state.cloud) renderCloud(state.cloud);
   if (state.sw) renderSolarWind(state.sw);
   renderOvation();
+  renderOutlook();
   if (state.forecast) renderForecast(state.forecast, state.forecastAge, false);
   renderDerived();
 
@@ -2821,6 +2971,7 @@ function init() {
     if (what === 'forecast') loadForecast().then(renderDerived);
     if (what === 'sw')       loadSolarWind().then(renderDerived);
     if (what === 'ov')       loadOvation(true);
+    if (what === 'outlook')  loadOutlook(true);
   });
 
   applyLanguage();

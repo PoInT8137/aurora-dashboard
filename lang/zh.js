@@ -222,6 +222,23 @@ i18nRegister('zh', {
   'verdict.f.fog': '有雾',
   'verdict.hint.fog': '现在有雾：即使云量不高，也可能看不到天空。',
 
+  /* --- 何时出行：27 天 --- */
+  'outlook.title': '何时出行：未来 4 周展望',
+  'outlook.loading': '正在加载 NOAA 27 天展望…',
+  'outlook.error.default': '27 天展望不可用。',
+  'outlook.error': '27 天展望不可用：{reason}。',
+  'err.outlook_format': '无法解析 NOAA 表格',
+  'outlook.expired': '已保存的展望已过期——需要最新数据。',
+  'outlook.best': '“{name}”的最佳日期：{dates}。',
+  'outlook.none': 'NOAA 预计未来 4 周内没有同时满足高活动、夜空黑暗且无明亮月光的日子。没有预报时也可能出现极光——请关注“现在”标签页。',
+  'outlook.polar': '未来 4 周夜晚都很亮——无论活动多强都看不到极光。',
+  'outlook.range': '{from}至{to}',
+  'outlook.light': '白夜',
+  'outlook.moon': '月亮 {pct}',
+  'outlook.legend': '颜色表示按所选地点阈值计算的当日最高预计 Kp。“白夜”表示午夜时太阳不够低；明亮的月亮也会标出。',
+  'outlook.about': 'NOAA 展望依据太阳自转：曾引发磁暴的区域常在 27 天后再次引发。准确度有限，天气未知——仅供选择日期参考，并非承诺。',
+  'outlook.issued': 'NOAA SWPC，{date}发布',
+
   /* --- Kp --- */
   'kp.storm': '磁暴——极光可能出现在更南的地方',
   'kp.high': '活动增强——极光带位于此地上空',

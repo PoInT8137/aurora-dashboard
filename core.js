@@ -259,6 +259,101 @@ function ovationSummary(data, points, nowMs) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Прогноз NOAA на 27 дней — для выбора дат поездки.                  */
+/*                                                                     */
+/*  Строится по вращению Солнца (оборот ~27 суток): активные области и  */
+/*  корональные дыры, давшие бурю, через оборот часто дают её снова.    */
+/*  Точность невысокая, облака неизвестны — это ориентир, а не прогноз  */
+/*  на конкретную ночь. «Наибольший Kp» — максимум из восьми трёхчасовок */
+/*  за сутки UTC.                                                       */
+/* ------------------------------------------------------------------ */
+
+var MONTHS_EN = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+var BRIGHT_MOON = 0.7;   // освещённость, при которой Луна заметно мешает слабому сиянию
+
+/**
+ * Текст text/27-day-outlook.txt → { issued: Date|null, days: [{ date: 'YYYY-MM-DD', flux, a, kp }] }
+ * или null, если строк с данными нет.
+ */
+function parseOutlook27(text) {
+  if (typeof text !== 'string') return null;
+
+  var issued = null;
+  var match = /^:Issued:\s*(\d{4}) (\w{3}) (\d{1,2}) (\d{2})(\d{2}) UTC/m.exec(text);
+  if (match && MONTHS_EN[match[2]]) {
+    issued = new Date(Date.UTC(+match[1], MONTHS_EN[match[2]] - 1, +match[3], +match[4], +match[5]));
+  }
+
+  var days = [];
+  var rows = /^(\d{4}) (\w{3}) (\d{1,2})\s+(\d+)\s+(\d+)\s+(\d+)\s*$/gm;
+  var row;
+  while ((row = rows.exec(text))) {
+    var month = MONTHS_EN[row[2]];
+    var kp = Number(row[6]);
+    if (!month || kp > 9) continue;
+    var date = new Date(Date.UTC(+row[1], month - 1, +row[3]));
+    days.push({ date: date.toISOString().slice(0, 10), flux: Number(row[4]), a: Number(row[5]), kp: kp });
+  }
+  return days.length ? { issued: issued, days: days } : null;
+}
+
+/**
+ * Дни прогноза с сегодняшнего (по UTC) для точки: уровень по порогам точки, будет ли ночь
+ * тёмной и насколько светит Луна — то и другое в местную полночь (21:00 UTC, UTC+3).
+ * level: high — Kp не ниже порога «высокого» для точки, mid — «среднего», low — ниже.
+ */
+function outlookDays(outlook, point, nowMs) {
+  if (!outlook || !outlook.days) return [];
+  var today = new Date(nowMs).toISOString().slice(0, 10);
+
+  return outlook.days.filter(function (day) { return day.date >= today; }).map(function (day) {
+    var midnight = new Date(day.date + 'T21:00:00Z');
+    var score = kpScoreAt(day.kp, point);
+    var moon = moonPhase(midnight).illumination;
+    return {
+      date: day.date,
+      kp: day.kp,
+      level: score >= 3 ? 'high' : (score === 2 ? 'mid' : 'low'),
+      dark: solarAltitude(midnight, point.lat, point.lon) <= DARK_USABLE,
+      moon: moon,
+      // Яркая Луна глушит слабое сияние, но сильная буря видна и так — как и в вердикте.
+      moonOk: moon < BRIGHT_MOON || day.kp >= kpThresholds(point).high + 2
+    };
+  });
+}
+
+/**
+ * Лучшие даты: подряд идущие дни с высоким уровнем, тёмной ночью и без яркой Луны
+ * (или с бурей настолько сильной, что Луна ей не помеха).
+ * Сильнее отрезки — раньше в отборе, но возвращаются по порядку дат; не больше limit.
+ */
+function outlookBestRanges(days, limit) {
+  var ranges = [];
+  var current = null;
+  var nextDay = function (iso) { return new Date(Date.parse(iso + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10); };
+  days.forEach(function (day) {
+    var good = day.level === 'high' && day.dark && day.moonOk;
+    // Отрезок — только подряд идущие даты: пропуск в таблице его разрывает.
+    if (good && current && nextDay(current.to) === day.date) {
+      current.to = day.date;
+      current.kp = Math.max(current.kp, day.kp);
+    } else if (good) {
+      current = { from: day.date, to: day.date, kp: day.kp };
+      ranges.push(current);
+    } else {
+      current = null;
+    }
+  });
+
+  return ranges
+    .map(function (r, i) { return { range: r, i: i }; })
+    .sort(function (x, y) { return y.range.kp - x.range.kp || x.i - y.i; })
+    .slice(0, limit || 3)
+    .sort(function (x, y) { return x.i - y.i; })
+    .map(function (x) { return x.range; });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Высота Солнца — чтобы не обещать сияние в полярный день.           */
 /*  Упрощённый алгоритм NOAA, точность около 0,1°.                     */
 /* ------------------------------------------------------------------ */
@@ -816,6 +911,10 @@ globalThis.AuroraCore = {
   solarWindSummary: solarWindSummary,
   solarWindLeadMinutes: solarWindLeadMinutes,
   ovationSummary: ovationSummary,
+  parseOutlook27: parseOutlook27,
+  outlookDays: outlookDays,
+  outlookBestRanges: outlookBestRanges,
+  BRIGHT_MOON: BRIGHT_MOON,
   REFERENCE_POINT_ID: REFERENCE_POINT_ID,
   CLOUD_CONFLICT_LIMIT: CLOUD_CONFLICT_LIMIT,
   CLOUD_LAYERS: CLOUD_LAYERS,

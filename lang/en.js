@@ -222,6 +222,23 @@ i18nRegister('en', {
   'verdict.f.fog': 'Fog',
   'verdict.hint.fog': 'It is foggy now: the sky may be hidden even with low cloud cover.',
 
+  /* --- when to go: 27 days --- */
+  'outlook.title': 'When to go: a 4-week outlook',
+  'outlook.loading': 'Loading the NOAA 27-day outlook…',
+  'outlook.error.default': 'The 27-day outlook is unavailable.',
+  'outlook.error': 'The 27-day outlook is unavailable: {reason}.',
+  'err.outlook_format': 'the NOAA table could not be read',
+  'outlook.expired': 'The saved outlook is already in the past — a fresh one is needed.',
+  'outlook.best': 'Best dates for “{name}”: {dates}.',
+  'outlook.none': 'NOAA expects no days of high activity with a dark night and no bright Moon in the next 4 weeks. Aurora can appear without a forecast — keep an eye on the “Now” tab.',
+  'outlook.polar': 'Nights stay light for the next 4 weeks — no aurora can be seen whatever the activity.',
+  'outlook.range': '{from} – {to}',
+  'outlook.light': 'light night',
+  'outlook.moon': 'Moon {pct}',
+  'outlook.legend': 'Colour shows the highest expected daily Kp against the selected location’s thresholds. “Light night” means the Sun does not sink low enough at midnight; a bright Moon is marked too.',
+  'outlook.about': 'The NOAA outlook follows the Sun’s rotation: regions that caused a storm often do so again 27 days later. Accuracy is modest and the weather is unknown — a guide for choosing dates, not a promise.',
+  'outlook.issued': 'NOAA SWPC, issued {date}',
+
   /* --- Kp --- */
   'kp.storm': 'Geomagnetic storm — aurora is likely even farther south',
   'kp.high': 'Elevated activity — the auroral oval is overhead',
