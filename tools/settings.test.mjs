@@ -229,7 +229,7 @@ test('вкладка «Уведомления» теперь часть «Нас
   vm.runInContext('fetch = function () { return new Promise(function () {}); }', ctx);   // вкладка «Куда ехать» пойдёт за данными — ответа не будет
   assert.equal(ctx.tabFromName('notify'), 'settings');
   assert.equal(ctx.tabFromName('now'), 'now');
-  assert.deepEqual(Array.from(ctx.TAB_IDS), ['now', 'tonight', 'settings']);
+  assert.deepEqual(Array.from(ctx.TAB_IDS), ['now', 'tonight', 'guide', 'settings']);
 
   const opened = id => { ctx.showTab(id, 'replace'); return ctx.state.tab; };
   assert.equal(opened('notify'), 'settings');
@@ -241,7 +241,7 @@ test('вкладка «Уведомления» теперь часть «Нас
 test('разметка: уведомления лежат внутри вкладки «Настройки», отдельной вкладки нет, значения кнопок допустимы', () => {
   const html = read('index.html');
   assert.doesNotMatch(html, /tab-notify|tab-btn-notify|data-tab="notify"/);
-  assert.equal((html.match(/role="tab"/g) || []).length, 3);
+  assert.equal((html.match(/role="tab"/g) || []).length, 4);
 
   const panel = html.slice(html.indexOf('id="tab-settings"'), html.indexOf('</main>'));
   for (const id of ['prefs', 'prefs-reset', 'push-card', 'push-toggle', 'ntest-checks', 'ntest-now', 'ntest-later', 'notify-hint'].filter(id => id !== 'notify-hint')) {

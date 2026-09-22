@@ -349,18 +349,18 @@ html[lang="zh-CN"] .card__label {
     position: fixed;
     inset: auto 0 0 0;
     margin: 0;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-    gap: 8px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    gap: 6px;
     background: var(--nav-bg);
     border-top: 1px solid var(--border);
     backdrop-filter: blur(12px);
   }
 
-  .tabs__btn { text-align: center; padding: 9px 6px; }
+  .tabs__btn { text-align: center; padding: 9px 4px; }
   .tabs__title { font-size: 13px; }
   .tabs__sub { display: none; }
 
-  /* Три кнопки в ряд: длинная подпись на 375 px переносилась бы */
+  /* Четыре кнопки в ряд: длинная подпись на 375 px переносилась бы */
   .tabs__long { display: none; }
   .tabs__short { display: inline; }
 
@@ -801,6 +801,12 @@ html[lang="zh-CN"] .card__label {
 }
 
 .help b { color: var(--text); font-weight: 600; }
+
+.guide__lead {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  max-width: 76ch;
+}
 
 /* Переключатель серверных уведомлений: включённое состояние читается и без цвета — по тексту кнопки */
 #push-toggle[aria-pressed="true"] {

@@ -2366,7 +2366,7 @@ function initPushCard() {
 /*  Вкладки                                                            */
 /* ------------------------------------------------------------------ */
 
-var TAB_IDS = ['now', 'tonight', 'settings'];
+var TAB_IDS = ['now', 'tonight', 'guide', 'settings'];
 
 /** Вкладка «Уведомления» стала частью «Настроек»: старые ссылки #notify и сохранённый выбор ведут туда. */
 function tabFromName(name) {
