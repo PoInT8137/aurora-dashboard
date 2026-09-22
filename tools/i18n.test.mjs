@@ -121,7 +121,7 @@ function mentionedKeys() {
 
 /** Семейства ключей, которые собираются из кусков: 'err.' + код, 'light.' + уровень + '.label'. */
 const FAMILIES = [/^err\./, /^light\.\w+\.(label|hint)$/, /^layer\.\w+(\.alt)?$/, /^note\./, /^model\./,
-  /^how\./, /^coord\./, /^moon\.phase\./, /^level\./, /^chance\./, /^unit\./, /^chk\./, /^tz\./, /^sw\.outlook\./, /^ov\.level\./, /^wx\.(clear|windy|snow|rain|fog)$/, /^wind\.dir\./];
+  /^how\./, /^coord\./, /^moon\.phase\./, /^level\./, /^chance\./, /^unit\./, /^chk\./, /^tz\./, /^sw\.outlook\./, /^ov\.level\./, /^wx\.(clear|windy|snow|rain|fog)$/, /^wind\.dir\./, /^nchart\.row\./];
 
 test('ключи: все, что называют app.js и index.html, есть в словаре', () => {
   const missing = [...usedKeys()].filter(key => !(key in ru));
@@ -148,6 +148,7 @@ test('ключи-семейства: всё, что собирается из к
   for (const level of ['high', 'mid', 'low', 'none']) need.push('ov.level.' + level);
   for (const c of ['clear', 'windy', 'snow', 'rain', 'fog']) need.push('wx.' + c);
   for (let d = 0; d < 8; d++) need.push('wind.dir.' + d);
+  for (const row of ctx.NCHART_ROWS) need.push('nchart.row.' + row);
   for (const side of ['n', 's', 'e', 'w']) need.push('coord.' + side);
   for (const id of ['best_match', 'icon_eu', 'icon_seamless', 'icon_global', 'metno_seamless', 'ecmwf_ifs025', 'gfs_seamless', 'ukmo_seamless', 'meteofrance_seamless']) need.push('model.' + id);
   assert.deepEqual(need.filter(key => !(key in ru)), []);

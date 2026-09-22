@@ -402,7 +402,11 @@ i18nRegister('en', {
   'win.dark_full': 'full darkness',
   'win.dark_part': 'not fully dark',
   'hour.kp': 'Kp {v}',
-  'win.meta': 'Night from {from} to {to}. Each cell shows the cloud cover and forecast Kp for that hour.',
+  'win.meta': 'Night from {from} to {to}. Tap an hour for details. Lighter columns are twilight; the outline marks the best window.',
+  'nchart.row.level': 'Chance',
+  'nchart.row.cloud': 'Clouds',
+  'nchart.row.kp': 'Kp',
+  'nchart.row.moon': 'Moon',
   'win.no_kp': 'The Kp forecast is unavailable; only cloud cover and darkness are taken into account.',
 
   /* --- where to go --- */

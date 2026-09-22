@@ -402,7 +402,11 @@ i18nRegister('zh', {
   'win.dark_full': '完全黑暗',
   'win.dark_part': '未完全黑暗',
   'hour.kp': 'Kp {v}',
-  'win.meta': '夜间 {from} 至 {to}。每个格子显示该小时的云量和预报 Kp。',
+  'win.meta': '夜间 {from} 至 {to}。点按某个小时可查看详情。颜色较浅的列为暮光时段，边框标出最佳时段。',
+  'nchart.row.level': '机会',
+  'nchart.row.cloud': '云量',
+  'nchart.row.kp': 'Kp',
+  'nchart.row.moon': '月亮',
   'win.no_kp': 'Kp 预报不可用，仅考虑了云量和黑暗程度。',
 
   /* --- 去哪里 --- */

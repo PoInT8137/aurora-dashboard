@@ -951,34 +951,97 @@ html[lang="zh-CN"] .card__label {
   color: var(--text);
 }
 
-.nighthours {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+/* График ночи: подписи рядов слева, по столбцу-кнопке на час */
+.nchart {
+  --h-level: 8px;
+  --h-cloud: 38px;
+  --h-kp: 26px;
+  --h-moon: 10px;
+  --row-gap: 5px;
+  display: flex;
   gap: 8px;
   margin-top: 18px;
 }
+.nchart__labels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap);
+  padding-top: 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-faint);
+  text-align: right;
+}
+.nchart__label { display: flex; align-items: center; justify-content: flex-end; }
+.nchart__label--level { height: var(--h-level); }
+.nchart__label--cloud { height: var(--h-cloud); }
+.nchart__label--kp    { height: var(--h-kp); }
+.nchart__label--moon  { height: var(--h-moon); }
 
-.hour {
-  background: rgba(var(--fill), 0.04);
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  padding: 9px 10px;
+.nchart__cols {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 12), minmax(0, 1fr));
+  gap: 2px;
+}
+.ncol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap);
+  min-width: 0;
+  padding: 4px 1px 3px;
+  font: inherit;
+  color: inherit;
+  background: rgba(var(--fill), 0.035);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ncol--twilight { background: rgba(var(--fill), 0.11); }
+.ncol--best { border-color: rgba(var(--tint), 0.6); }
+.ncol[aria-pressed="true"] { background: rgba(var(--tint), 0.2); }
+.ncol:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 1px; }
+
+.ncol__level { height: var(--h-level); border-radius: 3px; background: var(--tone, var(--text-faint)); }
+.ncol__cloud, .ncol__kp { position: relative; }
+.ncol__cloud { height: var(--h-cloud); }
+.ncol__kp    { height: var(--h-kp); }
+.ncol__bar {
+  position: absolute;
+  left: 18%; right: 18%; bottom: 0;
+  border-radius: 2px 2px 0 0;
+  background: var(--tone, var(--text-faint));
+}
+/* Облака — нейтральным цветом: это не оценка, а сколько неба закрыто. Без явного цвета
+   столбик унаследовал бы тон карточки и выглядел бы как шанс. */
+.ncol__cloud .ncol__bar { background: var(--text-dim); opacity: 0.45; }
+.ncol__moon { height: var(--h-moon); display: flex; justify-content: center; align-items: center; }
+.ncol__moon--up::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  opacity: var(--moon, 1);
+}
+.ncol__time {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-dim);
+  text-align: left;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.ncol__time--hidden { visibility: hidden; }
 
-.hour--best {
-  background: color-mix(in srgb, var(--tone, var(--aurora-teal)) 12%, transparent);
-  border-color: color-mix(in srgb, var(--tone, var(--aurora-teal)) 55%, transparent);
+.nchart__detail {
+  margin: 10px 0 0;
+  min-height: 1.5em;
+  font-size: 14px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
-
-.hour__time {
-  font-size: 15px;
-  font-weight: 650;
-  color: var(--tone, var(--text));
-}
-
-.hour__cloud { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
-.hour__kp    { font-size: 12px; color: var(--text-faint); }
 
 /* Ответ «куда ехать» длиннее слова «Низкий», поэтому на узком экране
    уменьшаем кегль, иначе строка занимает треть первого экрана */
