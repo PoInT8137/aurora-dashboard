@@ -1,8 +1,7 @@
 {
-  "name": "Северное сияние — Мурманская область",
-  "short_name": "Сияние",
-  "description": "Прогноз северного сияния для семи точек Мурманской области: Kp-индекс, облачность по ярусам, лучшее время наблюдения и подсказка, куда ехать этой ночью.",
-  "lang": "ru",
+  "name": "Aurora Murmansk — Северное сияние",
+  "short_name": "Aurora",
+  "description": "Northern lights forecast for the Murmansk Region · Прогноз северного сияния для Мурманской области · 摩尔曼斯克州极光预报",
   "dir": "ltr",
   "display": "standalone",
   "orientation": "any",
