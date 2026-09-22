@@ -209,10 +209,10 @@ test('нажатие на кнопку настройки: значение пр
     target: { closest: sel => (sel === '[data-value]' ? { getAttribute: () => value, closest: () => ({ getAttribute: () => name }) } : null) }
   });
 
-  ctx.state.cloud = { value: 20, byLayers: false, conflict: false, total: 20, layers: {}, temp: 3, time: null, soon: null, hours: [], pointId: 'murmansk', stale: null };
+  ctx.state.cloud = { weather: { temp: 3, feels: null, wind: null, gusts: null, dir: null, precip: 0, rain: 0, snow: 0, code: 0, vis: null, humidity: null }, value: 20, byLayers: false, conflict: false, total: 20, layers: {}, temp: 3, time: null, soon: null, hours: [], pointId: 'murmansk', stale: null };
   press('temp', 'f');
   assert.equal(ctx.setting('temp'), 'f');
-  assert.match(el('cloud-meta').textContent, /^37 °F$/, 'карточка облачности перерисована');
+  assert.equal(el('wx-value').textContent, '37 °F', 'карточка погоды перерисована');
   assert.equal(JSON.parse(ctx.localStorage.getItem('aurora.settings')).temp, 'f');
 
   press('temp', 'kelvin');
@@ -221,7 +221,7 @@ test('нажатие на кнопку настройки: значение пр
   el('prefs-reset').listeners.click();
   assert.equal(ctx.setting('temp'), 'c');
   assert.equal(ctx.localStorage.getItem('aurora.settings'), null);
-  assert.match(el('cloud-meta').textContent, /^\+3 °C$/);
+  assert.equal(el('wx-value').textContent, '+3 °C');
 });
 
 test('вкладка «Уведомления» теперь часть «Настроек»: старые адреса #notify и сохранённый выбор ведут туда', () => {

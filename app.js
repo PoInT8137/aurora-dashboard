@@ -82,6 +82,9 @@ function weatherUrl(point) {
   return 'https://api.open-meteo.com/v1/forecast'
     + '?latitude=' + point.lat + '&longitude=' + point.lon
     + '&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m'
+    // Погода для наблюдателя — тем же запросом: ветер, осадки, видимость (туман).
+    + ',apparent_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m'
+    + ',precipitation,rain,snowfall,weather_code,visibility,relative_humidity_2m'
     + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
     + '&models=' + CONFIG.weatherModel
     + '&forecast_days=2&timezone=UTC';
@@ -255,8 +258,10 @@ function distText(km) {
  * Плюс — привычка шкалы Цельсия, где важен переход через ноль; во Фаренгейте нулём служит 32.
  */
 function tempText(celsius) {
+  // Округление одно и в конце: иначе −21,6 °C сначала стало бы −22, а потом −8 °F вместо −7.
   if (setting('temp') === 'f') return Math.round(celsius * 9 / 5 + 32) + ' °F';
-  return (celsius > 0 ? '+' : '') + celsius + ' °C';
+  var c = Math.round(celsius);
+  return (c > 0 ? '+' : '') + c + ' °C';
 }
 
 function fmtKp(value) {
@@ -536,6 +541,13 @@ function computeVerdict(kp, cloud) {
   var moon = moonInfo(new Date(), point.lat, point.lon);
   factors.push(moonFactor(moon));
   if (!tooLight && level !== 'low' && moonHint(moon.impact)) hint += gap + moonHint(moon.impact);
+
+  // Туман облачность не показывает: модель видит ясное небо, а над головой молоко.
+  var wx = cloud && cloud.weather;
+  if (wx && !tooLight && weatherCondition(wx) === 'fog') {
+    factors.push(t('verdict.f.fog'));
+    hint += gap + t('verdict.hint.fog');
+  }
 
   // Солнечный ветер обещает рост, а сейчас шанс не высокий — стоит сказать, что ждать.
   // Уровень не меняется: это прогноз на час вперёд, а не текущее состояние.
@@ -873,6 +885,95 @@ function renderOvation() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Погода для наблюдателя: ветер, осадки, видимость.                  */
+/*  Приходит тем же запросом, что и облачность, и хранится вместе с ней. */
+/* ------------------------------------------------------------------ */
+
+/** Поля current из Open-Meteo → погода в единицах СИ (ветер — м/с). Нет поля — null. */
+function readWeather(cur) {
+  if (!cur) return null;
+  var kmh = function (v) { v = num(v); return v === null ? null : Math.round(v / 3.6 * 10) / 10; };
+  return {
+    temp: num(cur.temperature_2m),
+    feels: num(cur.apparent_temperature),
+    wind: kmh(cur.wind_speed_10m),
+    gusts: kmh(cur.wind_gusts_10m),
+    dir: num(cur.wind_direction_10m),
+    precip: num(cur.precipitation),
+    rain: num(cur.rain),
+    snow: num(cur.snowfall),
+    code: num(cur.weather_code),
+    vis: num(cur.visibility),
+    humidity: num(cur.relative_humidity_2m)
+  };
+}
+
+/* Коды погоды ВМО: 45, 48 — туман; 51–67, 80–82 — морось и дождь; 71–77, 85–86 — снег; 95–99 — гроза. */
+var FOG_VISIBILITY_M = 1000;   // так метеорологи и определяют туман
+var WINDY_GUSTS_MS = 15;       // порывы от 15 м/с — на открытом месте тяжело стоять и снимать
+
+/** Главное, что мешает наблюдению, одним словом: fog, snow, rain, windy или clear. */
+function weatherCondition(wx) {
+  var code = wx.code;
+  if (code === 45 || code === 48 || (wx.vis !== null && wx.vis < FOG_VISIBILITY_M)) return 'fog';
+  if (wx.snow > 0 || (code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if (wx.rain > 0 || wx.precip > 0 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95) return 'rain';
+  if (wx.gusts !== null && wx.gusts >= WINDY_GUSTS_MS) return 'windy';
+  return 'clear';
+}
+
+var WX_TONE = { clear: 'ok', windy: 'mid', snow: 'mid', rain: 'bad', fog: 'bad' };
+
+/** Скорость ветра в выбранных единицах: м/с или мили в час (если расстояния в милях). */
+function windText(ms) {
+  if (setting('dist') === 'mi') return t('unit.mph', { v: Math.round(ms * 2.23694) });
+  return t('unit.ms', { v: Math.round(ms) });
+}
+
+/** Видимость: «26 км», «800 м» либо в милях. */
+function visibilityText(m) {
+  if (setting('dist') === 'mi') return t('unit.mi', { n: Math.max(1, Math.round(m / 1609.34)) });
+  if (m < 1000) return t('unit.m', { v: Math.round(m / 100) * 100 });
+  return t('unit.km', { n: Math.round(m / 1000) });
+}
+
+/** Откуда дует ветер — одна из восьми сторон. */
+function windDirText(deg) {
+  return t('wind.dir.' + (Math.round((((deg % 360) + 360) % 360) / 45) % 8));
+}
+
+function renderWeather(cloud) {
+  var wx = cloud && cloud.weather;
+  if (!wx || wx.temp === null) {
+    setState('wx-card', 'error');
+    return;
+  }
+
+  var condition = weatherCondition(wx);
+  var tone = TONE[WX_TONE[condition]];
+  setTone($('wx-card'), tone);
+
+  var value = $('wx-value');
+  value.textContent = tempText(wx.temp);
+
+  $('wx-caption').textContent = t('wx.' + condition);
+
+  var facts = [];
+  if (wx.feels !== null) facts.push(t('wx.feels', { v: tempText(wx.feels) }));
+  if (wx.wind !== null) {
+    var wind = t('wx.wind', { v: windText(wx.wind) });
+    if (wx.gusts !== null && wx.gusts > wx.wind + 2) wind += t('sep.list') + t('wx.gusts', { v: windText(wx.gusts) });
+    if (wx.dir !== null && wx.wind >= 1) wind += t('sep.list') + windDirText(wx.dir);
+    facts.push(wind);
+  }
+  if (wx.vis !== null) facts.push(t('wx.vis', { v: visibilityText(wx.vis) }));
+  if (wx.humidity !== null) facts.push(t('wx.humidity', { v: Math.round(wx.humidity) + '%' }));
+  $('wx-facts').textContent = facts.join(t('sep.dot'));
+
+  applyFreshness('wx-card', 'wx-stale', cloud.stale, cloud.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Облачность                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -914,6 +1015,7 @@ function loadCloud() {
         total: parsed.total,
         layers: parsed.layers,
         temp: num(cur.temperature_2m) === null ? null : Math.round(num(cur.temperature_2m)),
+        weather: readWeather(cur),
         time: parseUtc(cur.time),
         soon: pickCloudIn(data, 3),
         hours: readHourlyCloud(data),
@@ -946,6 +1048,7 @@ function loadCloud() {
       state.cloud = null;
       showError('cloud-error', 'cloud.error', err);
       setState('cloud-card', 'error');
+      setState('wx-card', 'error');
       return null;
     });
 }
@@ -1011,12 +1114,12 @@ function renderCloud(cloud) {
   }
 
   var parts = [];
-  if (cloud.temp !== null) parts.push(tempText(cloud.temp));
   if (cloud.soon) parts.push(t('cloud.meta.soon', { time: fmtTime(cloud.soon.time), v: cloud.soon.value }));
   if (cloud.time) parts.push(t('cloud.meta.time', { time: fmtTime(cloud.time) }));
   $('cloud-meta').textContent = parts.join(' · ');
 
   applyFreshness('cloud-card', 'cloud-stale', cloud.stale, cloud.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
+  renderWeather(cloud);
 }
 
 /** Полоски по ярусам и пояснение к весам. */
@@ -2306,6 +2409,7 @@ function initPointSelect() {
     // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
     state.cloud = null;
     replaceWithLoading('cloud-card');
+    replaceWithLoading('wx-card');
     replaceWithLoading('verdict-card');
     replaceWithLoading('window-card');
 

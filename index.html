@@ -189,6 +189,36 @@ try {
 
   </div>
 
+  <!-- Погода для наблюдателя -->
+  <section class="card card--wide" id="wx-card" data-state="loading">
+    <h2 class="card__label" data-i18n="wx.title">Погода на месте</h2>
+
+    <div class="card__loading" data-i18n="cloud.loading">Запрашиваем Open-Meteo…</div>
+
+    <div class="card__body">
+      <div class="sw">
+        <div class="sw__now">
+          <p class="bignum bignum--sm" id="wx-value">—</p>
+          <p class="sw__label" data-i18n="wx.temp_label">температура воздуха</p>
+        </div>
+        <div class="sw__text">
+          <p class="card__caption" id="wx-caption"></p>
+          <p class="card__meta" id="wx-facts"></p>
+        </div>
+      </div>
+    </div>
+
+    <p class="card__stale" id="wx-stale">
+      <span class="stale__text"></span>
+      <button class="btn btn--ghost btn--mini" type="button" data-retry="cloud" data-i18n="btn.retry">Повторить</button>
+    </p>
+
+    <div class="card__error">
+      <p class="card__error-text" data-i18n="wx.error">Нет данных о погоде.</p>
+      <button class="btn btn--ghost" type="button" data-retry="cloud" data-i18n="btn.retry">Повторить</button>
+    </div>
+  </section>
+
   <!-- Солнечный ветер: что будет в ближайший час -->
   <section class="card card--wide" id="sw-card" data-state="loading">
     <h2 class="card__label" data-i18n="sw.title">Солнечный ветер — ближайший час</h2>
