@@ -1,21 +1,52 @@
-MIT License
+Copyright (c) 2026 Ilya Minichev. Все права защищены. All rights reserved.
 
-Copyright (c) 2026 Ilya Minichev
+РУССКИЙ
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Исходный код, тексты, переводы, оформление, изображения и другие материалы этого
+репозитория и сайта https://auroramurmansk.ru/ (далее — «Материалы») принадлежат
+автору и охраняются авторским правом.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Открытый доступ к репозиторию не означает разрешения на использование. Без
+предварительного письменного разрешения автора запрещается копировать, изменять,
+распространять, публиковать, продавать, сдавать в аренду, включать в другие
+продукты и сервисы, размещать на других сайтах или использовать Материалы
+иным образом, полностью или частично, в том числе в коммерческих целях.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Разрешено:
+  - пользоваться сайтом https://auroramurmansk.ru/ по его прямому назначению;
+  - просматривать репозиторий на GitHub и создавать его форки в пределах GitHub,
+    как это предусматривают Условия использования GitHub, — без права использовать
+    Материалы за пределами GitHub.
+
+За разрешением обращайтесь к автору через GitHub: https://github.com/PoInT8137
+
+ENGLISH
+
+The source code, texts, translations, design, images and other materials in this
+repository and on https://auroramurmansk.ru/ (the "Materials") are owned by the
+author and protected by copyright.
+
+Public access to this repository does not grant any license. Without the author's
+prior written permission you may not copy, modify, distribute, publish, sell,
+rent, incorporate into other products or services, host on other websites, or
+otherwise use the Materials, in whole or in part, including for commercial purposes.
+
+You may:
+  - use the website https://auroramurmansk.ru/ for its intended purpose;
+  - view this repository on GitHub and fork it within GitHub as permitted by the
+    GitHub Terms of Service, without the right to use the Materials outside GitHub.
+
+For permission, contact the author via GitHub: https://github.com/PoInT8137
+
+THIRD-PARTY MATERIALS / СТОРОННИЕ МАТЕРИАЛЫ
+
+The following are not owned by the author and remain under their own terms:
+Следующее автору не принадлежит и распространяется на условиях правообладателей:
+
+  - vendor/qrcode.js — QR Code Generator for JavaScript, (c) 2009 Kazuhiko Arase,
+    MIT License (see the notice in the file);
+  - .agents/skills/ — skills from https://github.com/emilkowalski/skills,
+    under their authors' terms;
+  - map outlines in map.js are derived from Natural Earth (public domain);
+  - data shown on the site comes from NOAA SWPC (public domain) and Open-Meteo
+    (CC BY 4.0) and belongs to its providers.
