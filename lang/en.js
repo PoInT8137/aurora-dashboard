@@ -309,6 +309,22 @@ i18nRegister('en', {
   'map.note': 'The colour of a place shows the chance for the coming night, as on the “Where to go” tab. Tap a place for details. Outlines: Natural Earth.',
   'pref.start.map': 'Map',
 
+  /* --- share --- */
+  'share.btn': 'Share',
+  'share.title': 'Share this site',
+  'share.lead': 'The link and QR code open the site straight in the chosen language — handy for hotel guests or a tour group.',
+  'share.lang': 'Link language',
+  'share.native': 'Send…',
+  'share.copy': 'Copy link',
+  'share.png': 'Download QR for printing',
+  'share.close': 'Close',
+  'share.copied': 'Link copied.',
+  'share.copy_failed': 'Could not copy — select the link above and copy it manually.',
+  'share.qr_failed': 'The QR code did not load — the link above works without it.',
+  'share.qr_label': 'QR code for {url}',
+  'share.text': 'Northern lights forecast for the Murmansk Region',
+  'err.qr_lib': 'the QR library did not load',
+
   /* --- Kp --- */
   'kp.storm': 'Geomagnetic storm — aurora is likely even farther south',
   'kp.high': 'Elevated activity — the auroral oval is overhead',

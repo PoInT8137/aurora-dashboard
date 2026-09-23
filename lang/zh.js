@@ -309,6 +309,22 @@ i18nRegister('zh', {
   'map.note': '地点颜色表示即将到来的夜晚看到极光的机会，与“去哪里”标签页相同。点按地点可查看详情。轮廓数据：Natural Earth。',
   'pref.start.map': '地图',
 
+  /* --- 分享 --- */
+  'share.btn': '分享',
+  'share.title': '分享本站',
+  'share.lead': '链接和二维码会直接以所选语言打开网站——方便发给酒店客人或旅行团。',
+  'share.lang': '链接语言',
+  'share.native': '发送…',
+  'share.copy': '复制链接',
+  'share.png': '下载二维码用于打印',
+  'share.close': '关闭',
+  'share.copied': '链接已复制。',
+  'share.copy_failed': '无法复制——请选中上方链接手动复制。',
+  'share.qr_failed': '二维码未能加载——上方链接无需二维码也可使用。',
+  'share.qr_label': '{url} 的二维码',
+  'share.text': '摩尔曼斯克州极光预报',
+  'err.qr_lib': '二维码库未能加载',
+
   /* --- Kp --- */
   'kp.storm': '磁暴——极光可能出现在更南的地方',
   'kp.high': '活动增强——极光带位于此地上空',

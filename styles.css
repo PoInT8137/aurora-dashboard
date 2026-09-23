@@ -675,6 +675,38 @@ html[lang="zh-CN"] .card__label {
 .map__info .place { margin-bottom: 12px; }
 .map__info .btn { width: 100%; }
 
+/* Окно «Поделиться» */
+.share {
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.share::backdrop { background: rgba(var(--fill), 0.08); backdrop-filter: blur(4px); }
+.share__inner { display: grid; gap: 14px; padding: 22px 22px 18px; }
+.share__lead { margin: 0; color: var(--text-dim); font-size: 14px; }
+.share__qr {
+  justify-self: center;
+  width: min(240px, 70vw);
+  aspect-ratio: 1;
+}
+.share__qr svg { width: 100%; height: 100%; display: block; border-radius: 8px; }
+.share__url {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  word-break: break-all;
+  user-select: all;
+}
+.share__actions { display: grid; gap: 8px; }
+.share__status { margin: 0; min-height: 1.2em; font-size: 13px; color: var(--text-dim); text-align: center; }
+.share__close { justify-self: center; margin-top: 0; }
+
 .scale {
   display: grid;
   grid-template-columns: repeat(10, 1fr);

@@ -45,6 +45,7 @@ try {
     </div>
     <span id="updated" class="updated" role="status" data-i18n="status.loading">Загрузка…</span>
     <button id="refresh" class="btn" type="button" data-i18n="btn.refresh">Обновить</button>
+    <button id="share-btn" class="btn" type="button" aria-haspopup="dialog" data-i18n="share.btn">Поделиться</button>
   </div>
 </header>
 
@@ -75,6 +76,34 @@ try {
     <span class="tabs__sub" data-i18n="tab.settings.sub">вид и уведомления</span>
   </button>
 </div>
+
+<dialog class="share" id="share-dialog" aria-labelledby="share-title">
+  <form method="dialog" class="share__inner">
+    <h2 class="card__label" id="share-title" data-i18n="share.title">Поделиться сайтом</h2>
+    <p class="share__lead" data-i18n="share.lead">Ссылка и QR-код откроют сайт сразу на выбранном языке — удобно раздать гостям отеля или туристической группе.</p>
+
+    <div class="pref">
+      <span class="pref__name" id="share-lang-label" data-i18n="share.lang">Язык по ссылке</span>
+      <div class="seg" role="group" aria-labelledby="share-lang-label" id="share-lang">
+        <button class="seg__btn" type="button" data-share-lang="ru" lang="ru" aria-pressed="false">Русский</button>
+        <button class="seg__btn" type="button" data-share-lang="en" lang="en" aria-pressed="false">English</button>
+        <button class="seg__btn" type="button" data-share-lang="zh" lang="zh-CN" aria-pressed="false">中文</button>
+      </div>
+    </div>
+
+    <div class="share__qr" id="share-qr"></div>
+    <p class="share__url" id="share-url"></p>
+
+    <div class="share__actions">
+      <button class="btn" type="button" id="share-native" data-i18n="share.native" hidden>Отправить…</button>
+      <button class="btn" type="button" id="share-copy" data-i18n="share.copy">Скопировать ссылку</button>
+      <button class="btn" type="button" id="share-png" data-i18n="share.png">Скачать QR для печати</button>
+    </div>
+    <p class="share__status" id="share-status" role="status"></p>
+
+    <button class="btn btn--ghost share__close" value="close" data-i18n="share.close">Закрыть</button>
+  </form>
+</dialog>
 
 <main>
 
