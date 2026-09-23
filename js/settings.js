@@ -19,7 +19,7 @@ var SETTINGS_CHOICES = {
   dist: ['km', 'mi'],
   temp: ['c', 'f'],
   refresh: ['5', '10', '30', '0'],  // минуты; 0 — не обновлять само
-  theme: ['dark', 'light', 'auto'],
+  theme: ['dark', 'light', 'auto', 'night'],   // night — красная «ночное зрение»
   size: ['normal', 'large', 'xlarge'],
   start: ['last', 'now', 'tonight', 'map'],  // last — вкладка, на которой закрыли
   quiet: ['off', '22-08', '23-07', '00-06']   // часы, когда уведомления о сиянии не присылаются
@@ -75,7 +75,7 @@ function resolvedTheme() {
   return light ? 'light' : 'dark';
 }
 
-var THEME_COLORS = { dark: '#060b14', light: '#eef4f8' };
+var THEME_COLORS = { dark: '#060b14', light: '#eef4f8', night: '#070101' };
 
 /** Тема и размер текста — атрибутами страницы; цвет строки состояния браузера — в тон теме. */
 function applyAppearance() {
@@ -86,6 +86,25 @@ function applyAppearance() {
 
   var meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
+
+  var night = $('night-btn');
+  if (night) night.setAttribute('aria-pressed', String(theme === 'night'));
+}
+
+/**
+ * Кнопка в шапке: «ночное зрение» включается одним нажатием и так же выключается —
+ * обратно к теме, что была до него (её помним отдельно от настроек).
+ */
+function toggleNight() {
+  if (setting('theme') === 'night') {
+    var before = null;
+    try { before = localStorage.getItem(CACHE.prefix + 'dayTheme'); } catch (e) { /* нет хранилища */ }
+    setSetting('theme', before && before !== 'night' && SETTINGS_CHOICES.theme.indexOf(before) >= 0 ? before : SETTINGS_DEFAULTS.theme);
+  } else {
+    try { localStorage.setItem(CACHE.prefix + 'dayTheme', setting('theme')); } catch (e) { /* вернётся тема по умолчанию */ }
+    setSetting('theme', 'night');
+  }
+  afterSettingsChange('theme');
 }
 
 /** Окно тихих часов {from, to} или null, если выключено. */
@@ -191,6 +210,9 @@ function initSettings() {
     var name = group.getAttribute('data-pref');
     if (setSetting(name, btn.getAttribute('data-value'))) afterSettingsChange(name);
   });
+
+  var night = $('night-btn');
+  if (night) night.addEventListener('click', toggleNight);
 
   $('prefs-reset').addEventListener('click', function () {
     resetSettings();

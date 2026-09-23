@@ -107,11 +107,14 @@ const cssVars = block => Object.fromEntries([...block.matchAll(/(--[\w-]+):\s*([
 const css = read('styles.css');
 const darkVars = cssVars(/:root\s*{([\s\S]*?)\n}/.exec(css)[1]);
 const lightVars = cssVars(/html\[data-theme="light"\]\s*{([\s\S]*?)\n}/.exec(css)[1]);
+const nightVars = cssVars(/html\[data-theme="night"\]\s*{([\s\S]*?)\n}/.exec(css)[1]);
 
 test('светлая тема переопределяет все цветовые переменные тёмной: ничего не остаётся «тёмным» на светлом фоне', () => {
   const NOT_COLORS = ['--radius'];
-  const missing = Object.keys(darkVars).filter(name => !NOT_COLORS.includes(name) && !(name in lightVars));
-  assert.deepEqual(missing, []);
+  for (const vars of [lightVars, nightVars]) {
+    const missing = Object.keys(darkVars).filter(name => !NOT_COLORS.includes(name) && !(name in vars));
+    assert.deepEqual(missing, []);
+  }
 });
 
 /** Контраст по WCAG для цветов #rrggbb. */
@@ -128,8 +131,8 @@ const over = (rgba, bg) => {
   return '#' + [r, g, b].map((c, i) => Math.round(c * a + under[i] * (1 - a)).toString(16).padStart(2, '0')).join('');
 };
 
-test('контраст текста и тонов не ниже 4,5:1 на фоне страницы и на карточке — в обеих темах', () => {
-  for (const [theme, vars] of [['тёмная', { ...darkVars }], ['светлая', { ...darkVars, ...lightVars }]]) {
+test('контраст текста и тонов не ниже 4,5:1 на фоне страницы и на карточке — во всех темах', () => {
+  for (const [theme, vars] of [['тёмная', { ...darkVars }], ['светлая', { ...darkVars, ...lightVars }], ['ночное зрение', { ...darkVars, ...nightVars }]]) {
     const card = over(vars['--bg-card'], vars['--bg']);
     for (const name of ['--text', '--text-dim', '--text-faint', '--ok', '--mid', '--bad', '--aurora-green', '--aurora-teal', '--aurora-violet', '--text-stale']) {
       for (const [where, ground] of [['фон', vars['--bg']], ['карточка', card]]) {
@@ -149,7 +152,8 @@ test('тона в коде — ссылки на переменные CSS, а н
 test('в правилах нет цветов-литералов мимо переменных, кроме фона-сияния: тема не может оставить тёмное пятно', () => {
   const withoutVarBlocks = css
     .replace(/:root\s*{[\s\S]*?\n}/, '')
-    .replace(/html\[data-theme="light"\]\s*{[\s\S]*?\n}/, '');
+    .replace(/html\[data-theme="light"\]\s*{[\s\S]*?\n}/, '')
+    .replace(/html\[data-theme="night"\]\s*{[\s\S]*?\n}/, '');
   const literals = withoutVarBlocks.split('\n')
     .filter(line => /#[0-9a-fA-F]{3,6}\b|rgba?\((?!var)/.test(line))
     .filter(line => !/radial-gradient/.test(line));
@@ -278,4 +282,66 @@ test('нажатие на тему и размер сразу меняет оф�
   assert.equal(root.attrs['data-size'], 'large');
   el('prefs-reset').listeners.click();
   assert.deepEqual([root.attrs['data-theme'], root.attrs['data-size']], ['dark', 'normal'], 'сброс возвращает оформление');
+});
+
+/** Оттенок цвета #rrggbb в градусах (0 — красный). */
+const hue = hex => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (!d) return null;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+};
+const hex = rgb => '#' + rgb.map(n => Number(n).toString(16).padStart(2, '0')).join('');
+
+test('ночное зрение: все цвета — красные (оттенок до 25°), красный преобладает; фон почти чёрный', () => {
+  for (const [name, value] of Object.entries(nightVars)) {
+    const colors = [...value.matchAll(/#[0-9a-f]{6}/gi)].map(m => m[0]);
+    const triple = /^(\d+),\s*(\d+),\s*(\d+)$/.exec(value);
+    if (triple) colors.push(hex(triple.slice(1)));
+    for (const m of value.matchAll(/rgba\((\d+),\s*(\d+),\s*(\d+)/g)) colors.push(hex(m.slice(1)));
+    for (const c of colors) {
+      if (c === '#000000') continue;   // тень
+      const h = hue(c);
+      assert.ok(h !== null && (h <= 25 || h >= 355), `${name}: ${c}, оттенок ${h}`);
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+      assert.ok(r >= g && r >= b, `${name}: ${c} — красный преобладает`);
+    }
+  }
+  assert.ok(luminance(nightVars['--bg']) < 0.002, 'фон почти чёрный: экран не светит');
+  assert.match(css, /html\[data-theme="night"\] \.aurora-bg \{ display: none; \}/);
+  assert.match(css, /html\[data-theme="night"\] img,\s*html\[data-theme="night"\] \.share__qr \{ filter:/);
+});
+
+test('ночное зрение применяется до первой отрисовки, красит строку состояния и отмечает кнопку', () => {
+  const head = /<script>([\s\S]*?)<\/script>/.exec(read('index.html'))[1];
+  const root = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+  vm.runInContext(head, vm.createContext({
+    localStorage: { getItem: () => JSON.stringify({ theme: 'night' }) }, document: { documentElement: root }, matchMedia: () => ({ matches: false }), JSON
+  }));
+  assert.equal(root.attrs['data-theme'], 'night');
+  const { ctx, el } = page();
+  ctx.setSetting('theme', 'night');
+  ctx.applyAppearance();
+  assert.equal(el('night-btn').attrs['aria-pressed'], 'true');
+  assert.equal(ctx.THEME_COLORS.night, '#070101');
+  ctx.setSetting('theme', 'dark');
+  ctx.applyAppearance();
+  assert.equal(el('night-btn').attrs['aria-pressed'], 'false');
+});
+
+test('кнопка в шапке: включает ночное зрение и возвращает прежнюю тему, в том числе светлую', () => {
+  const { ctx, el } = page();
+  ctx.initSettings();
+  ctx.setSetting('theme', 'light');
+  el('night-btn').listeners.click();
+  assert.equal(ctx.setting('theme'), 'night');
+  el('night-btn').listeners.click();
+  assert.equal(ctx.setting('theme'), 'light', 'вернулась светлая');
+  // включили в настройках, а не кнопкой — выключение ведёт к теме по умолчанию
+  const other = page();
+  other.ctx.initSettings();
+  other.ctx.setSetting('theme', 'night');
+  other.el('night-btn').listeners.click();
+  assert.equal(other.ctx.setting('theme'), 'dark');
 });

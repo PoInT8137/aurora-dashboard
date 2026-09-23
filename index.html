@@ -56,7 +56,7 @@ try {
   var saved = JSON.parse(localStorage.getItem('aurora.settings') || '{}') || {};
   var root = document.documentElement, theme = saved.theme;
   if (theme === 'auto') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
+  if (theme === 'light' || theme === 'dark' || theme === 'night') root.setAttribute('data-theme', theme);
   if (saved.size === 'large' || saved.size === 'xlarge') root.setAttribute('data-size', saved.size);
 } catch (e) { /* без хранилища — оформление по умолчанию */ }
 </script>
@@ -126,6 +126,7 @@ try {
     <span id="updated" class="updated" role="status" data-i18n="status.loading">Загрузка…</span>
     <button id="refresh" class="btn" type="button" data-i18n="btn.refresh">Обновить</button>
     <button id="share-btn" class="btn" type="button" aria-haspopup="dialog" data-i18n="share.btn">Поделиться</button>
+    <button id="night-btn" class="btn btn--icon" type="button" aria-pressed="false" data-i18n-attr="aria-label:night.btn;title:night.btn" aria-label="Ночное зрение" title="Ночное зрение"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" fill="currentColor"/></svg></button>
   </div>
 </header>
 
@@ -665,7 +666,9 @@ try {
           <button class="seg__btn" type="button" data-value="dark" aria-pressed="false" data-i18n="pref.theme.dark">Тёмная</button>
           <button class="seg__btn" type="button" data-value="light" aria-pressed="false" data-i18n="pref.theme.light">Светлая</button>
           <button class="seg__btn" type="button" data-value="auto" aria-pressed="false" data-i18n="pref.theme.auto">Как в системе</button>
+          <button class="seg__btn" type="button" data-value="night" aria-pressed="false" data-i18n="pref.theme.night">Ночное зрение</button>
         </div>
+        <p class="pref__hint" data-i18n="pref.theme.hint">«Ночное зрение» — всё красное и неяркое: не сбивает привыкание глаз к темноте. Включите перед выходом под небо; быстро переключается кнопкой вверху.</p>
       </div>
       <div class="pref">
         <span class="pref__name" id="pref-size" data-i18n="pref.size">Размер текста</span>
