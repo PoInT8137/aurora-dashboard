@@ -35,11 +35,11 @@ test('POST без Origin или с чужим Origin отклоняется до
   assert.equal(env.DB.raw.prepare('SELECT COUNT(*) c FROM subs').get().c, 0);
 });
 
-test('/health отвечает и не раскрывает лишнего', async () => {
+test('/health отвечает и не раскрывает лишнего: только доступность и пульс проверок', async () => {
   const { env } = await makeEnv();
   const res = await call(env, '/health', null, { method: 'GET' });
   assert.equal(res.status, 200);
-  assert.deepEqual(await parse(res), { ok: true });
+  assert.deepEqual(await parse(res), { ok: true, lastCheck: null, outcome: null }, 'проверок ещё не было');
 });
 
 test('/subscribe: создаёт подписку, повторный вызов ничего не дублирует', async () => {

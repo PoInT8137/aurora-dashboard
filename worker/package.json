@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Сервер уведомлений о северном сиянии: проверка условий по расписанию и Web Push",
   "scripts": {
-    "test": "node --test test/push.test.mjs test/api.test.mjs test/check.test.mjs test/lang.test.mjs test/quiet.test.mjs",
+    "test": "node --test test/push.test.mjs test/api.test.mjs test/check.test.mjs test/lang.test.mjs test/quiet.test.mjs test/heartbeat.test.mjs",
     "dev": "wrangler dev --test-scheduled",
     "deploy": "wrangler deploy"
   },

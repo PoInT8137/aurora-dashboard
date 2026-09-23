@@ -96,7 +96,7 @@ function weatherUrl(point) {
 var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, forecastAge: null,
               tonight: null, tonightLoading: false, lastOk: null,
               cloudSeq: 0, cloudPending: false, refreshing: null,
-              lastLevel: null, pushBusy: false, pushHealth: null,
+              lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
               mapPoint: null, nightHour: null, shareLang: null, shareMatrix: null };
 
@@ -2387,7 +2387,7 @@ function notifyChecks() {
       : { state: 'warn', title: t('chk.sub.off'), detail: t('chk.sub.off.d') });
 
     checks.push(state.pushHealth === true
-      ? { state: 'ok', title: t('chk.server.ok') }
+      ? serverCheck(state.pushServer)
       : state.pushHealth === false
         ? { state: 'fail', title: t('chk.server.fail'), detail: t('chk.server.fail.d') }
         : { state: 'warn', title: t('chk.server.pending') });
@@ -2610,13 +2610,41 @@ function runPushAction(label, action, done) {
   });
 }
 
+/* Проверка по расписанию идёт раз в 10 минут: три пропуска подряд — уже не случайность. */
+var HEARTBEAT_STALE_MS = 30 * 60 * 1000;
+
+/** Строка проверки «сервер отвечает» с пульсом: когда он последний раз проверял условия. */
+function serverCheck(server) {
+  var last = server && server.lastCheck;
+  if (!last) return { state: 'ok', title: t('chk.server.ok') };   // сервер старой версии — пульса нет
+
+  var age = Math.max(0, Date.now() - last);
+  if (age > HEARTBEAT_STALE_MS) {
+    return { state: 'warn', title: t('chk.server.stale'), detail: t('chk.server.stale.d', { ago: fmtAge(age) }) };
+  }
+  var detail = t('chk.server.checked', { ago: fmtAge(age) });
+  var outcome = server.outcome;
+  if (outcome === 'no_kp' || outcome === 'no_cloud' || outcome === 'error') detail += t('sep.sentence') + t('chk.server.outcome.' + outcome);
+  return { state: 'ok', title: t('chk.server.ok'), detail: detail };
+}
+
+/** Пульс в карточке уведомлений с сервера — одной строкой. */
+function renderPushHeartbeat() {
+  var el = $('push-heartbeat');
+  if (!el) return;
+  var last = state.pushServer && state.pushServer.lastCheck;
+  el.textContent = last ? t('push.heartbeat', { ago: fmtAge(Math.max(0, Date.now() - last)) }) : '';
+}
+
 function refreshPushHealth() {
   if (!pushConfigured()) return;
   state.pushHealth = null;
   renderNotifyDiagnostics();
-  pushHealth().then(function (ok) {
-    state.pushHealth = ok;
+  pushStatus().then(function (status) {
+    state.pushHealth = status.ok;
+    state.pushServer = status;
     renderNotifyDiagnostics();
+    renderPushHeartbeat();
   });
 }
 
@@ -3383,6 +3411,7 @@ function renderLocalized() {
   renderStatus();
   renderNotifyControl();
   renderNotifyDiagnostics();
+  renderPushHeartbeat();
 }
 
 function initLanguage() {

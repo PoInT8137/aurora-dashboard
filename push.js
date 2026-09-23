@@ -85,10 +85,27 @@ function pushRequest(path, body) {
 
 /** Сервер отвечает? Для проверки на вкладке «Уведомления». */
 function pushHealth() {
+  return pushStatus().then(function (status) { return status.ok; });
+}
+
+/**
+ * Состояние сервера: { ok, lastCheck (мс или null), outcome (код или null) }.
+ * lastCheck — когда сервер последний раз проверял условия по расписанию. Сервер старой
+ * версии пульса не отдаёт — тогда null, а доступность всё равно известна.
+ */
+function pushStatus() {
   var ctrl = new AbortController();
   var timer = setTimeout(function () { ctrl.abort(); }, 6000);
+  var down = { ok: false, lastCheck: null, outcome: null };
   return fetch(AURORA_CONFIG.pushApi + '/health', { signal: ctrl.signal, cache: 'no-store' })
-    .then(function (res) { return res.ok; }, function () { return false; })
+    .then(function (res) {
+      if (!res.ok) return down;
+      return res.json().then(function (body) {
+        var at = body && typeof body.lastCheck === 'number' && isFinite(body.lastCheck) ? body.lastCheck : null;
+        var outcome = body && typeof body.outcome === 'string' ? body.outcome : null;
+        return { ok: true, lastCheck: at, outcome: outcome };
+      }, function () { return { ok: true, lastCheck: null, outcome: null }; });
+    }, function () { return down; })
     .finally(function () { clearTimeout(timer); });
 }
 

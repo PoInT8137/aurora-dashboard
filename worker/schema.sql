@@ -17,6 +17,14 @@ CREATE TABLE IF NOT EXISTS subs (
 
 CREATE INDEX IF NOT EXISTS subs_point ON subs(point);
 
+-- Пульс: когда и чем закончилась последняя проверка по расписанию. Одна строка (id = 1).
+-- Страница показывает её на вкладке «Настройки»: так видно, что cron не умер молча.
+CREATE TABLE IF NOT EXISTS heartbeat (
+  id      INTEGER PRIMARY KEY CHECK (id = 1),
+  at      INTEGER NOT NULL,                 -- мс окончания проверки
+  outcome TEXT NOT NULL                     -- ok | no_subs | no_kp | no_cloud | error
+);
+
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».
 CREATE TABLE IF NOT EXISTS point_state (
   point      TEXT PRIMARY KEY,

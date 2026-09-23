@@ -7,7 +7,7 @@
 //                                              забирает service worker при push
 //   POST /test         { endpoint, delay? }    пробное уведомление (с задержкой до 20 с,
 //                                              чтобы успеть закрыть приложение)
-//   GET  /health                               проверка доступности
+//   GET  /health                               доступность и пульс: { ok, lastCheck, outcome }
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -76,7 +76,13 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
   }
 
   if (url.pathname === '/health' && request.method === 'GET') {
-    return reply({ ok: true }, 200, cors);
+    // Пульс проверок по расписанию: время и итог последнего прохода. Не секрет — ни адресов,
+    // ни числа подписчиков. Таблицы может не быть (база до миграции) — тогда просто null.
+    let beat = null;
+    try {
+      beat = await env.DB.prepare('SELECT at, outcome FROM heartbeat WHERE id = 1').first();
+    } catch { /* до миграции таблицы нет */ }
+    return reply({ ok: true, lastCheck: beat ? beat.at : null, outcome: beat ? beat.outcome : null }, 200, cors);
   }
 
   if (request.method !== 'POST') return reply({ error: 'not_found' }, 404, cors);

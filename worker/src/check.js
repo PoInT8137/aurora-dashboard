@@ -66,11 +66,45 @@ async function loadClouds(points, fetchFn) {
   }
 }
 
+/** Причины пропуска прохода → короткие коды для пульса. */
+const SKIP_CODES = {
+  'нет подписчиков': 'no_subs',
+  'нет свежего Kp': 'no_kp',
+  'нет данных об облачности': 'no_cloud'
+};
+
 /**
- * Один проход. nowMs и fetchFn подменяются в тестах.
+ * Пульс: время и итог прохода. Запись — лучшее, что можно сделать: если таблицы ещё нет
+ * (база до миграции) или запись не удалась, сама проверка от этого не страдает.
+ */
+async function recordHeartbeat(env, nowMs, outcome) {
+  try {
+    await env.DB.prepare(
+      'INSERT INTO heartbeat(id, at, outcome) VALUES(1, ?, ?) ' +
+      'ON CONFLICT(id) DO UPDATE SET at = excluded.at, outcome = excluded.outcome'
+    ).bind(nowMs, outcome).run();
+  } catch (e) {
+    console.error('пульс не записан: ' + (e && e.message));
+  }
+}
+
+/**
+ * Один проход по расписанию и его пульс. nowMs и fetchFn подменяются в тестах.
  * Возвращает сводку для журнала и тестов.
  */
 export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
+  let summary;
+  try {
+    summary = await checkOnce(env, nowMs, fetchFn);
+  } catch (error) {
+    await recordHeartbeat(env, nowMs, 'error');
+    throw error;
+  }
+  await recordHeartbeat(env, nowMs, summary.skipped ? (SKIP_CODES[summary.skipped] || 'error') : 'ok');
+  return summary;
+}
+
+async function checkOnce(env, nowMs, fetchFn) {
   const { results: rows } = await env.DB.prepare('SELECT DISTINCT point FROM subs').all();
   const points = rows
     .map(r => Core.POINTS.find(p => p.id === r.point))
