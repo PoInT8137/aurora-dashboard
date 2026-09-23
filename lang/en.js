@@ -5,7 +5,7 @@ i18nRegister('en', {
   /* --- page --- */
   'meta.description': 'Northern lights forecast for seven locations in the Murmansk Region: Kp index, cloud cover by layer, the best viewing time and a tip on where to drive tonight.',
   'meta.app_title': 'Aurora',
-  'title.point': '{name} · Northern Lights',
+  'title.point': '{name} — Northern Lights Forecast',
   'app.title': 'Northern Lights',
   'app.region': 'Murmansk Region',
   'point.label': 'Viewing location',

@@ -5,7 +5,7 @@ i18nRegister('zh', {
   /* --- 页面 --- */
   'meta.description': '摩尔曼斯克州七个观测点的极光预报：Kp 指数、分层云量、最佳观测时间，以及今晚该去哪里的建议。',
   'meta.app_title': '极光',
-  'title.point': '{name} · 北极光',
+  'title.point': '{name} · 北极光预报',
   'app.title': '北极光',
   'app.region': '摩尔曼斯克州',
   'point.label': '观测地点',

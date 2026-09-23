@@ -165,7 +165,7 @@ test('системное меню «Отправить…»: кнопка тол
   assert.equal(withShare.el('share-native').hidden, false);
   await withShare.ctx.nativeShare();
   assert.equal(shared.url, 'https://auroramurmansk.ru/?lang=ru');
-  assert.equal(shared.title, 'Мурманск · Северное сияние');
+  assert.equal(shared.title, 'Мурманск — прогноз северного сияния');
 
   const cancelled = page({ navigator: { share: async () => { throw new DOMException('cancel', 'AbortError'); } } });
   await assert.doesNotReject(() => cancelled.ctx.nativeShare());

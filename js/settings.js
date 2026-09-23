@@ -230,6 +230,18 @@ function renderLangSwitch() {
   });
 }
 
+var SITE_URL = 'https://auroramurmansk.ru/';
+
+/**
+ * Основной адрес страницы для поисковиков. С ?lang= в адресе — версия на этом языке,
+ * без него язык выбирается сам (x-default). Другие параметры адреса на выбор не влияют.
+ */
+function canonicalUrl(search) {
+  var match = /[?&]lang=([a-zA-Z-]+)/.exec(search || '');
+  var code = match ? langFromTag(match[1]) : null;
+  return code ? SITE_URL + '?lang=' + code : SITE_URL;
+}
+
 /**
  * Перерисовывает всё, что зависит от языка: разметку, названия точек, подписи и
  * уже посчитанные карточки. Данные заново не запрашиваются.
@@ -242,6 +254,8 @@ function applyLanguage() {
   if (description) description.setAttribute('content', t('meta.description'));
   var appTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appTitle) appTitle.setAttribute('content', t('meta.app_title'));
+  var canonical = document.querySelector('link[rel="canonical"]');
+  if (canonical) canonical.setAttribute('href', canonicalUrl(location.search));
 
   renderLangSwitch();
 
