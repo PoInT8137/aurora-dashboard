@@ -11,7 +11,7 @@ const css = read('styles.css');
 
 const introScript = (() => {
   const all = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-  const found = all.find(s => /aurora\.intro/.test(s));
+  const found = all.find(s => /classList\.add\('intro'\)/.test(s));
   assert.ok(found, 'встроенный скрипт анимации есть в <head>');
   return found;
 })();

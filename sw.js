@@ -15,7 +15,7 @@ try { importScripts('config.js'); } catch (e) { /* без настроек push 
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v25';
+var CACHE_VERSION = 'v26';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -34,6 +34,7 @@ var APP_SHELL = [
   'js/settings.js',
   'core.js',
   'map.js',
+  'splash.js',
   'vendor/qrcode.js',
   'i18n.js',
   'lang/ru.js',

@@ -17,6 +17,18 @@ try {
 } catch (e) { /* без хранилища — оформление по умолчанию */ }
 </script>
 <script>
+/* Заставка при первом визите: один раз на устройство и никогда при «уменьшить движение».
+   Решается до первой отрисовки, чтобы дашборд не мелькнул перед заставкой; рисует её splash.js.
+   В этот раз лёгкое интро не нужно — заставка его заменяет. */
+try {
+  if (!localStorage.getItem('aurora.splash') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    localStorage.setItem('aurora.splash', '1');
+    document.documentElement.classList.add('has-splash');
+    sessionStorage.setItem('aurora.intro', '1');
+  }
+} catch (e) { /* без хранилища — без заставки: иначе она показывалась бы при каждом визите */ }
+</script>
+<script>
 /* Анимация запуска: раз за сеанс (новая вкладка или запуск приложения), и никогда — если в системе
    включено «уменьшить движение». Данные грузятся параллельно: анимация ничего не задерживает. */
 try {
@@ -36,6 +48,18 @@ try {
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<!-- Заставка первого визита: слой поверх страницы, разметку под собой не трогает -->
+<div class="splash" id="splash" aria-label="Северное сияние">
+  <canvas class="splash__stars" id="splash-stars" aria-hidden="true"></canvas>
+  <canvas class="splash__sky" id="splash-sky" aria-hidden="true"></canvas>
+  <div class="splash__title">
+    <p class="splash__name" id="splash-title">Северное сияние</p>
+    <p class="splash__region" id="splash-region">Мурманская область</p>
+  </div>
+  <button class="btn splash__skip" type="button" id="splash-skip">Пропустить</button>
+</div>
+<script src="splash.js"></script>
 
 <div class="aurora-bg" aria-hidden="true"></div>
 <div class="intro-sky" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
