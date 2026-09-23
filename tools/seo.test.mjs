@@ -121,3 +121,12 @@ test('canonical при смене языка: с ?lang — версия на я�
   const apply = /function applyLanguage\(\) \{[\s\S]*?\n\}/.exec(code)[0];
   assert.match(apply, /canonical\.setAttribute\('href', canonicalUrl\(location\.search\)\)/);
 });
+
+test('файлы подтверждения прав (Яндекс Вебмастер) — в корне, код в имени и внутри совпадает', () => {
+  const files = fs.readdirSync(new URL('../', import.meta.url)).filter(f => /^yandex_[0-9a-f]+\.html$/.test(f));
+  assert.ok(files.length >= 1, 'без файла Вебмастер снимет подтверждение');
+  for (const f of files) {
+    const code = /^yandex_([0-9a-f]+)\.html$/.exec(f)[1];
+    assert.match(read(f), new RegExp(`<body>Verification: ${code}</body>`), f);
+  }
+});
