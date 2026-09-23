@@ -29,6 +29,13 @@ function initMap() {
   svg.setAttribute('viewBox', '0 0 ' + REGION_MAP.width + ' ' + REGION_MAP.height);
   $('map-land').setAttribute('d', REGION_MAP.region);
   $('map-lakes').setAttribute('d', REGION_MAP.lakes);
+  // Те же контуры линиями поверх слоя облаков (js/clouds.js).
+  var edges = $('map-edges');
+  if (edges) {
+    edges.setAttribute('viewBox', '0 0 ' + REGION_MAP.width + ' ' + REGION_MAP.height);
+    $('map-edge-land').setAttribute('d', REGION_MAP.region);
+    $('map-edge-lakes').setAttribute('d', REGION_MAP.lakes);
+  }
   $('map').style.setProperty('--map-ratio', REGION_MAP.width + ' / ' + REGION_MAP.height);
 
   MAP_SEAS.forEach(function (sea) {
@@ -87,6 +94,7 @@ function renderMap() {
 
   renderMapInfo(items, selectedId, hasData);
   renderMapStatus(hasData);
+  renderClouds();
 }
 
 /** Словами для скринридера: «высокий шанс», «нет темноты», «нет данных». */

@@ -521,10 +521,27 @@ try {
         </svg>
         <span class="map__sea" id="map-sea-barents" aria-hidden="true" data-i18n="map.sea.barents">Баренцево море</span>
         <span class="map__sea" id="map-sea-white" aria-hidden="true" data-i18n="map.sea.white">Белое море</span>
+        <canvas class="map__clouds" id="map-clouds" aria-hidden="true" hidden></canvas>
+        <!-- Берега и озёра ещё раз, одними линиями, поверх облаков: под ними схема не теряется -->
+        <svg class="map__svg map__edges" id="map-edges" viewBox="0 0 1000 1065" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path class="map__edge" id="map-edge-land"/>
+          <path class="map__edge map__edge--lakes" id="map-edge-lakes"/>
+        </svg>
         <div class="map__markers" id="map-markers"></div>
       </div>
 
       <div class="mapview__side">
+        <div class="clouds" id="map-clouds-ctl">
+          <div class="clouds__head">
+            <span class="clouds__title" data-i18n="clouds.title">Облака</span>
+            <button class="clouds__toggle" type="button" id="map-clouds-toggle" aria-pressed="true" data-i18n="clouds.show">Показывать</button>
+          </div>
+          <label class="clouds__hour" for="map-hour" id="map-hour-label"></label>
+          <input class="clouds__slider" type="range" id="map-hour" min="0" max="23" step="1" value="0" disabled>
+          <div class="clouds__scale" aria-hidden="true"><span data-i18n="clouds.clear">ясно</span><span class="clouds__bar"></span><span data-i18n="clouds.overcast">сплошные</span></div>
+          <p class="clouds__here" id="map-clouds-here" aria-live="polite"></p>
+          <p class="clouds__status" id="map-clouds-status" role="status"></p>
+        </div>
         <ul class="map__legend">
           <li><span class="map__swatch map__swatch--ok"></span><span data-i18n="chance.high">Высокий шанс</span></li>
           <li><span class="map__swatch map__swatch--mid"></span><span data-i18n="chance.mid">Средний шанс</span></li>
@@ -534,7 +551,7 @@ try {
       </div>
     </div>
 
-    <p class="card__meta" data-i18n="map.note">Цвет точки — шанс на ближайшую ночь, как на вкладке «Куда ехать». Нажмите на точку, чтобы увидеть подробности. Контуры — Natural Earth.</p>
+    <p class="card__meta" data-i18n="map.note">Цвет точки — шанс на ближайшую ночь, как на вкладке «Куда ехать». Нажмите на точку, чтобы увидеть подробности. Облака — модель ICON-EU по сетке с шагом около 30 км, ползунком — на сутки вперёд. Контуры — Natural Earth.</p>
   </section>
 
 </section>
@@ -753,6 +770,7 @@ try {
 <script src="js/night.js"></script>
 <script src="js/tonight.js"></script>
 <script src="js/map-tab.js"></script>
+<script src="js/clouds.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/page.js"></script>
 <script src="js/share.js"></script>

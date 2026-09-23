@@ -13,6 +13,7 @@ function init() {
   initSettings();
   initPointSelect();
   initMapTab();
+  initClouds();
   initNightChart();
   initShare();
   initNotifications();

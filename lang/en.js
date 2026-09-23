@@ -298,6 +298,15 @@ i18nRegister('en', {
   /* --- map --- */
   'tab.map': 'Map',
   'tab.map.sub': 'places on the map',
+  'clouds.title': 'Clouds',
+  'clouds.show': 'Show',
+  'clouds.now': 'Now',
+  'clouds.at': '{time}, in {in}',
+  'clouds.clear': 'clear',
+  'clouds.overcast': 'overcast',
+  'clouds.here': 'Cloud cover near {name}: {v}%',
+  'clouds.loading': 'Loading clouds over the region…',
+  'clouds.error': 'Couldn’t load clouds — locations are shown without them.',
   'map.title': 'Map of places for tonight',
   'map.loading': 'Loading cloud cover for the places…',
   'map.no_data': 'No cloud data — the places are shown without an estimate.',
@@ -306,7 +315,7 @@ i18nRegister('en', {
   'map.sea.white': 'White Sea',
   'map.open': 'See conditions: {name}',
   'map.open_current': 'See conditions here',
-  'map.note': 'The colour of a place shows the chance for the coming night, as on the “Where to go” tab. Tap a place for details. Outlines: Natural Earth.',
+  'map.note': 'The colour of a place shows the chance for the coming night, as on the “Where to go” tab. Tap a place for details. Clouds: the ICON-EU model on a grid of about 30 km; use the slider to look up to a day ahead. Outlines: Natural Earth.',
   'pref.start.map': 'Map',
 
   /* --- share --- */

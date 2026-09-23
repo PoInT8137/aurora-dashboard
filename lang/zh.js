@@ -298,6 +298,15 @@ i18nRegister('zh', {
   /* --- 地图 --- */
   'tab.map': '地图',
   'tab.map.sub': '地点分布',
+  'clouds.title': '云层',
+  'clouds.show': '显示',
+  'clouds.now': '现在',
+  'clouds.at': '{time}（{in}后）',
+  'clouds.clear': '晴',
+  'clouds.overcast': '阴',
+  'clouds.here': '{name}附近云量：{v}%',
+  'clouds.loading': '正在加载本地区云层…',
+  'clouds.error': '无法加载云层，地点显示不含云层。',
   'map.title': '今晚各地点地图',
   'map.loading': '正在加载各地点的云量…',
   'map.no_data': '没有云量数据——地点显示时不含评估。',
@@ -306,7 +315,7 @@ i18nRegister('zh', {
   'map.sea.white': '白海',
   'map.open': '查看条件：{name}',
   'map.open_current': '查看此地条件',
-  'map.note': '地点颜色表示即将到来的夜晚看到极光的机会，与“去哪里”标签页相同。点按地点可查看详情。轮廓数据：Natural Earth。',
+  'map.note': '地点颜色表示即将到来的夜晚看到极光的机会，与“去哪里”标签页相同。点按地点可查看详情。云层：ICON-EU 模型，网格约 30 公里，拖动滑块可查看未来一天。轮廓数据：Natural Earth。',
   'pref.start.map': '地图',
 
   /* --- 分享 --- */

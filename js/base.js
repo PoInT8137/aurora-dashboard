@@ -99,7 +99,8 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
-              mapPoint: null, nightHour: null, shareLang: null, shareMatrix: null };
+              mapPoint: null, nightHour: null,
+              cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, shareLang: null, shareMatrix: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */

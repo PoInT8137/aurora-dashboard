@@ -73,7 +73,7 @@ function showTab(id, historyMode) {
   // Данные второй вкладки грузятся при первом открытии, а не при старте.
   // Карта и «Куда ехать» опираются на одни и те же данные по семи точкам.
   if ((id === 'tonight' || id === 'map') && !state.tonight && !state.tonightLoading) loadTonight();
-  if (id === 'map') renderMap();
+  if (id === 'map') { renderMap(); loadCloudGrid(false); }
   if (id === 'tonight') loadOutlook(false);
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
   if (id === 'settings') {
@@ -291,6 +291,7 @@ function refreshAll() {
 
   var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false)];
   if (state.tonight) tasks.push(loadTonight());
+  if (state.cloudGrid) tasks.push(loadCloudGrid(true));
 
   // Загрузчики уже положили на экран сохранённые данные — вердикт и окно
   // считаем по ним сразу, не дожидаясь сети.
