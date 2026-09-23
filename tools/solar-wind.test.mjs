@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { loadApp } from './app-sandbox.mjs';
+import { loadApp, appSource } from './app-sandbox.mjs';
 
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 const core = loadApp([['core.js', read('core.js')]], {}).AuroraCore;
@@ -238,7 +238,7 @@ test('вердикт: подсказки о ветре нет, когда она
 });
 
 test('обновление запрашивает и солнечный ветер; кнопка «Повторить» в карточке перезапрашивает его', () => {
-  const app = read('app.js');
+  const app = appSource();
   assert.match(app, /var tasks = \[[^\]]*loadSolarWind\(\)[^\]]*\];/);
   assert.match(app, /if \(what === 'sw'\)\s+loadSolarWind\(\)\.then\(renderDerived\);/);
   const html = read('index.html');
@@ -246,7 +246,7 @@ test('обновление запрашивает и солнечный вете
 });
 
 test('старые адреса NOAA products/solar-wind не используются: они отвечают 404', () => {
-  assert.doesNotMatch(read('app.js'), /'https:[^']*products\/solar-wind\//);
+  assert.doesNotMatch(appSource(), /'https:[^']*products\/solar-wind\//);
 });
 
 test('график: в бурю шкала растягивается до самого сильного отсчёта — столбик не выходит за край', async () => {

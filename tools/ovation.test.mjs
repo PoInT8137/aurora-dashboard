@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { loadApp } from './app-sandbox.mjs';
+import { loadApp, appSource } from './app-sandbox.mjs';
 
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 const core = loadApp([['core.js', read('core.js')]], {}).AuroraCore;
@@ -186,7 +186,7 @@ test('нет связи: сохранённое с пометкой возрас
 });
 
 test('обновление страницы и кнопка «Повторить» подключены', () => {
-  const app = read('app.js');
+  const app = appSource();
   assert.match(app, /var tasks = \[[^\]]*loadOvation\(false\)[^\]]*\];/);
   assert.match(app, /if \(what === 'ov'\)\s+loadOvation\(true\);/);
   assert.equal((read('index.html').match(/data-retry="ov"/g) || []).length, 2);

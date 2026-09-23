@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { loadApp } from './app-sandbox.mjs';
+import { loadApp, appSource } from './app-sandbox.mjs';
 
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 const core = loadApp([['core.js', read('core.js')]], {}).AuroraCore;
@@ -239,7 +239,7 @@ test('карточка — на вкладке «Куда ехать», запр
   const html = read('index.html');
   const tonight = html.slice(html.indexOf('id="tab-tonight"'), html.indexOf('id="tab-settings"'));
   assert.ok(tonight.includes('id="outlook-card"'));
-  const app = read('app.js');
+  const app = appSource();
   assert.match(app, /if \(id === 'tonight'\) loadOutlook\(false\);/);
   assert.match(app, /if \(what === 'outlook'\)\s+loadOutlook\(true\);/);
 });

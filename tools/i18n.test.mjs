@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { loadApp } from './app-sandbox.mjs';
+import { loadApp, appSource } from './app-sandbox.mjs';
 
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 
@@ -99,7 +99,7 @@ function firstArguments(source) {
 
 /** Ключи, которые app.js и index.html называют прямо (в том числе в ветках условия). */
 function usedKeys() {
-  const app = read('app.js');
+  const app = appSource();
   const html = read('index.html');
   const used = new Set();
   for (const arg of firstArguments(app)) {
@@ -115,7 +115,7 @@ function usedKeys() {
 
 /** Любые строки вида a.b в app.js: ключи могут лежать в переменных, поэтому для поиска мёртвых берём широко. */
 function mentionedKeys() {
-  const app = read('app.js');
+  const app = appSource();
   return new Set([...app.matchAll(/'([a-z_0-9]+(?:\.[a-z_0-9]+)+)'/g)].map(m => m[1]));
 }
 

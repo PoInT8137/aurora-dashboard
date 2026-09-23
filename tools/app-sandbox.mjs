@@ -16,15 +16,25 @@ const stub = () => new Proxy(function () {}, {
 /** Схема карты, движок переводов и словари — всё, что app.js ждёт от страницы до себя. */
 const I18N_FILES = ['map.js', 'i18n.js', 'lang/ru.js', 'lang/en.js', 'lang/zh.js'];
 
+/** Части приложения из js/ — в том порядке, в каком их подключает index.html. */
+export const APP_PARTS = [...fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+  .matchAll(/<script src="(js\/[\w-]+\.js)"><\/script>/g)].map(m => m[1]);
+
+/** Весь код приложения одной строкой — для тестов, которые проверяют исходник, а не поведение. */
+export function appSource() {
+  return [...APP_PARTS, 'app.js'].map(name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8')).join('\n');
+}
+
 /**
- * Тесты перечисляют скрипты по старинке: config, core, push, app. Движок переводов и словари
- * нужны app.js всегда, поэтому вставляются перед ним, если тест их не указал сам.
+ * Тесты перечисляют скрипты по старинке: config, core, push, app. Движок переводов, словари,
+ * схема карты и части приложения из js/ нужны app.js всегда, поэтому вставляются перед ним,
+ * если тест их не указал сам.
  */
 function withI18n(sources) {
   const names = sources.map(([name]) => name);
   if (!names.includes('app.js') || names.includes('i18n.js')) return sources;
 
-  const extra = I18N_FILES.map(name => [name, fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8')]);
+  const extra = [...I18N_FILES, ...APP_PARTS].map(name => [name, fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8')]);
   const at = names.indexOf('app.js');
   return [...sources.slice(0, at), ...extra, ...sources.slice(at)];
 }
