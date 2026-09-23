@@ -16,6 +16,17 @@ try {
   if (saved.size === 'large' || saved.size === 'xlarge') root.setAttribute('data-size', saved.size);
 } catch (e) { /* без хранилища — оформление по умолчанию */ }
 </script>
+<script>
+/* Анимация запуска: раз за сеанс (новая вкладка или запуск приложения), и никогда — если в системе
+   включено «уменьшить движение». Данные грузятся параллельно: анимация ничего не задерживает. */
+try {
+  if (!sessionStorage.getItem('aurora.intro') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    sessionStorage.setItem('aurora.intro', '1');
+    document.documentElement.classList.add('intro');
+    setTimeout(function () { document.documentElement.classList.remove('intro'); }, 2600);
+  }
+} catch (e) { /* без хранилища — просто без анимации */ }
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -27,6 +38,7 @@ try {
 <body>
 
 <div class="aurora-bg" aria-hidden="true"></div>
+<div class="intro-sky" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 
 <header class="topbar">
   <div class="topbar__title">

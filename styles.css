@@ -113,6 +113,85 @@ body {
   .aurora-bg { animation: none; }
 }
 
+/* ---------- Анимация запуска ----------
+   Класс intro ставит встроенный скрипт в <head> на 2,6 с, раз за сеанс. Занавесы сияния
+   поднимаются за содержимым и гаснут, уступая обычному фону; шапка и карточки проявляются
+   волной. Всё — поверх уже работающей страницы: данные грузятся параллельно. */
+.intro-sky {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+html.intro .intro-sky { display: block; }
+
+.intro-sky span {
+  --skew: -8deg;
+  position: absolute;
+  bottom: -12%;
+  width: 26vw;
+  min-width: 140px;
+  height: 115vh;
+  border-radius: 50% 50% 0 0;
+  background: linear-gradient(to top, transparent 0%, var(--curtain, var(--aurora-green)) 35%, transparent 92%);
+  filter: blur(28px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform-origin: 50% 100%;
+  animation: intro-curtain 2.3s cubic-bezier(0.25, 0.7, 0.3, 1) forwards;
+}
+.intro-sky span:nth-child(1) { left: -6%;  --curtain: var(--aurora-green);  --skew: -10deg; animation-delay: 0s; }
+.intro-sky span:nth-child(2) { left: 16%;  --curtain: var(--aurora-teal);   --skew: 7deg;   animation-delay: 0.12s; }
+.intro-sky span:nth-child(3) { left: 38%;  --curtain: var(--aurora-green);  --skew: -5deg;  animation-delay: 0.24s; }
+.intro-sky span:nth-child(4) { left: 58%;  --curtain: var(--aurora-violet); --skew: 9deg;   animation-delay: 0.08s; }
+.intro-sky span:nth-child(5) { left: 78%;  --curtain: var(--aurora-teal);   --skew: -7deg;  animation-delay: 0.3s; }
+
+@keyframes intro-curtain {
+  0%   { opacity: 0;    transform: scaleY(0.15) skewX(var(--skew)); }
+  35%  { opacity: 0.85; }
+  60%  { transform: scaleY(1) skewX(calc(var(--skew) * -0.6)); }
+  100% { opacity: 0;    transform: scaleY(1.05) skewX(var(--skew)) translateY(-6%); }
+}
+
+/* На светлом фоне «экранное» наложение не видно — рисуем обычным, но бледнее */
+html[data-theme="light"] .intro-sky span { mix-blend-mode: normal; filter: blur(34px); }
+html[data-theme="light"] .intro-sky { opacity: 0.45; }
+
+/* Волна появления: шапка, вкладки, затем карточки открытой вкладки по очереди */
+html.intro .topbar,
+html.intro .tabs,
+html.intro .wrap:not([hidden]) > * {
+  animation: intro-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+html.intro .topbar { animation-delay: 0.15s; }
+html.intro .tabs   { animation-delay: 0.3s; }
+html.intro .wrap:not([hidden]) > :nth-child(1) { animation-delay: 0.42s; }
+html.intro .wrap:not([hidden]) > :nth-child(2) { animation-delay: 0.52s; }
+html.intro .wrap:not([hidden]) > :nth-child(3) { animation-delay: 0.62s; }
+html.intro .wrap:not([hidden]) > :nth-child(n+4) { animation-delay: 0.72s; }
+
+/* Заголовок: градиент один раз проходит по буквам, как всполох */
+html.intro .topbar h1 {
+  background-size: 220% 100%;
+  animation: intro-title 1.8s ease-out 0.2s both;
+}
+
+@keyframes intro-rise {
+  from { opacity: 0; transform: translateY(14px); }
+}
+@keyframes intro-title {
+  from { background-position: 100% 0; }
+  to   { background-position: 0 0; }
+}
+
+/* Страховка: если «уменьшить движение» включили уже после запуска — никакого движения */
+@media (prefers-reduced-motion: reduce) {
+  html.intro .intro-sky { display: none; }
+  html.intro .topbar, html.intro .tabs, html.intro .wrap > *, html.intro .topbar h1 { animation: none; }
+}
+
 /* ---------- Шапка ---------- */
 .topbar {
   position: relative;
