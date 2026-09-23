@@ -6,7 +6,7 @@
 
 ```bash
 node --test tools/*.test.mjs                 # 325 тестов: сайт, настройки, переводы, Луна, клиент push, service worker
-cd worker && npm test                        # 69 тестов сервера уведомлений
+cd worker && npm test                        # 79 тестов сервера уведомлений
 ```
 
 | Файл | Что проверяет |

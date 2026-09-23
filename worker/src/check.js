@@ -6,7 +6,8 @@
 
 import '../../core.js';
 import { sendPush } from './push.js';
-import { alertMessage, DEFAULT_LANG } from './messages.js';
+import { alertMessage, bzMessage, DEFAULT_LANG } from './messages.js';
+import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
 
 export { alertMessage };
 
@@ -113,7 +114,9 @@ async function checkOnce(env, nowMs, fetchFn) {
   // Нет подписчиков — нет и запросов к внешним сервисам.
   if (!points.length) return { skipped: 'нет подписчиков' };
 
-  const [kp, clouds] = await Promise.all([loadKp(nowMs, fetchFn), loadClouds(points, fetchFn)]);
+  const [kp, clouds, bzReading] = await Promise.all([
+    loadKp(nowMs, fetchFn), loadClouds(points, fetchFn), loadBz(nowMs, fetchFn)
+  ]);
 
   // При неполных данных уровень не считаем вовсе: он вышел бы «средним», а на
   // следующем удачном проходе «высокий» выглядел бы переходом и разбудил зря.
@@ -208,5 +211,69 @@ async function checkOnce(env, nowMs, fetchFn) {
     await env.DB.batch(updates);
   }
 
+  // Ранний сигнал — после основных уведомлений: кто только что получил «высокий шанс», тому он
+  // уже не нужен. Сбой здесь (например, база ещё без таблицы sw_state) основную рассылку не трогает.
+  try {
+    await bzAlerts(env, nowMs, fetchFn, bzReading, points, clouds, summary, budget);
+  } catch (e) {
+    summary.bzError = true;
+    console.error('ранний сигнал Bz не проверен: ' + (e && e.message));
+  }
+
   return summary;
+}
+
+/**
+ * Ранний сигнал «Bz повернул на юг» подписчикам точек, где темно и облака не сплошные, а уровень
+ * ещё не «высокий» (иначе уже ушло основное уведомление). Один раз на эпизод южного поля и не
+ * чаще раза в 6 часов на человека; тихие часы соблюдаются так же, как для основных уведомлений.
+ */
+async function bzAlerts(env, nowMs, fetchFn, reading, points, clouds, summary, budget) {
+  const state = nextBzState(await loadBzState(env), reading, nowMs);
+  await saveBzState(env, state);
+  const level = bzLevel(state, nowMs);
+  summary.bz = { value: state.bz, level };
+  summary.bzSent = 0;
+  if (!level || budget <= 0) return;
+
+  const date = new Date(nowMs);
+  const updates = [];
+
+  for (let i = 0; i < points.length && budget > 0; i++) {
+    const point = points[i];
+    const cloud = clouds[i];
+    if (summary.levels[point.id] === 'high' || !bzPointOk(point, cloud, nowMs)) continue;
+
+    const { results: candidates } = await env.DB.prepare(
+      'SELECT id, endpoint, lang, quiet_from, quiet_to, tz FROM subs WHERE point = ? AND created < ? ' +
+      'AND last_bz < ? AND ? - last_bz >= ? AND ? - last_sent >= ? ORDER BY last_bz'
+    ).bind(point.id, state.southSince, state.southSince, nowMs, BZ_COOLDOWN_MS, nowMs, BZ_AFTER_ALERT_MS).all();
+
+    const subs = candidates
+      .filter(c => !Core.inQuietHours(date, c.tz || undefined, c.quiet_from, c.quiet_to))
+      .slice(0, budget);
+    if (!subs.length) continue;
+    budget -= subs.length;
+
+    const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
+    subs.forEach((sub, k) => {
+      const status = statuses[k];
+      if (status >= 200 && status < 300) {
+        summary.bzSent++;
+        const msg = JSON.stringify(bzMessage(point, state.bz, cloud, level, nowMs, sub.lang || DEFAULT_LANG));
+        updates.push(env.DB.prepare('UPDATE subs SET last_bz = ?, msg = ?, fails = 0 WHERE id = ?').bind(nowMs, msg, sub.id));
+      } else if (status === 404 || status === 410) {
+        summary.gone++;
+        updates.push(env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(sub.id));
+      } else {
+        summary.failed++;
+        updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
+      }
+    });
+  }
+
+  if (updates.length) {
+    updates.push(env.DB.prepare('DELETE FROM subs WHERE fails >= ?').bind(MAX_FAILS));
+    await env.DB.batch(updates);
+  }
 }

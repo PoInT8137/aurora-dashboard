@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS subs (
   last_sent INTEGER NOT NULL DEFAULT 0, -- мс последнего уведомления о сиянии
   last_test INTEGER NOT NULL DEFAULT 0, -- мс последнего пробного уведомления
   fails     INTEGER NOT NULL DEFAULT 0, -- подряд неудачных отправок
-  msg       TEXT                        -- последнее сообщение (JSON), его забирает service worker
+  msg       TEXT,                       -- последнее сообщение (JSON), его забирает service worker
+  last_bz   INTEGER NOT NULL DEFAULT 0  -- мс последнего раннего сигнала «Bz повернул на юг»
 );
 
 CREATE INDEX IF NOT EXISTS subs_point ON subs(point);
@@ -23,6 +24,15 @@ CREATE TABLE IF NOT EXISTS heartbeat (
   id      INTEGER PRIMARY KEY CHECK (id = 1),
   at      INTEGER NOT NULL,                 -- мс окончания проверки
   outcome TEXT NOT NULL                     -- ok | no_subs | no_kp | no_cloud | error
+);
+
+-- Солнечный ветер между проходами: последний Bz и с какого момента поле южное (≤ −5 нТл).
+-- Одна строка (id = 1). По ней сервер видит, что поле держится южным, а не мигнуло (src/bz.js).
+CREATE TABLE IF NOT EXISTS sw_state (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  bz          REAL,                     -- нТл; NULL — в прошлый проход данных не было
+  at          INTEGER NOT NULL,         -- мс прохода
+  south_since INTEGER NOT NULL DEFAULT 0-- мс начала южного поля; 0 — сейчас не южное
 );
 
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».

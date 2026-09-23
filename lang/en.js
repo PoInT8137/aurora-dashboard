@@ -98,7 +98,7 @@ i18nRegister('en', {
   'unit.km': '{n} km',
   'unit.mi': { one: '{n} mile', other: '{n} miles' },
   'push.title': 'Notifications when the app is closed',
-  'push.lead': 'The server checks conditions every 10 minutes and sends a notification when the chance of seeing the aurora at the selected location becomes high — even if the app is closed.',
+  'push.lead': 'The server checks conditions every 10 minutes and sends a notification when the chance of seeing the aurora at the selected location becomes high — even if the app is closed. If the solar wind magnetic field turns firmly south, it warns you in advance: the aurora may start within the hour.',
   'push.test': 'Test from the server',
   'push.test_later': 'In 20 seconds',
   'push.tip.close': 'To test with the app closed: tap “In 20 seconds” and close the app completely right away — the notification will come from the server.',

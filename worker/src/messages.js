@@ -62,6 +62,25 @@ const ALERT = {
   }
 };
 
+// Ранний сигнал: поле солнечного ветра повернуло на юг, Kp ещё не вырос.
+const BZ = {
+  ru: {
+    title: name => 'Сияние может начаться в ближайший час — ' + name,
+    body: (bz, cloud, strong) => 'Магнитное поле солнечного ветра ' + (strong ? 'резко ' : '') + 'повернуло на юг: Bz ' + bz +
+      ' нТл. Небо тёмное, облачность ' + cloud + '%. Выходите заранее и смотрите на север.'
+  },
+  en: {
+    title: name => 'Aurora may start within the hour — ' + name,
+    body: (bz, cloud, strong) => 'The solar wind magnetic field has turned ' + (strong ? 'sharply ' : '') + 'south: Bz ' + bz +
+      ' nT. Dark sky, cloud cover ' + cloud + '%. Head out early and look north.'
+  },
+  zh: {
+    title: name => '极光可能在一小时内出现——' + name,
+    body: (bz, cloud, strong) => '太阳风磁场' + (strong ? '急剧' : '') + '转向南：Bz ' + bz +
+      ' nT。夜空漆黑，云量 ' + cloud + '%。请提前出门，朝北看。'
+  }
+};
+
 const TEST = {
   ru: {
     title: 'Пробное уведомление',
@@ -84,6 +103,19 @@ export function alertMessage(point, kp, cloud, nowMs, lang = DEFAULT_LANG) {
     title: texts.title(pointName(point, code)),
     body: texts.body(kpText(kp.value, code), cloud.value),
     lang: code,
+    at: nowMs
+  };
+}
+
+/** Ранний сигнал о Bz: level — 'strong' | 'south' (из bzLevel). */
+export function bzMessage(point, bz, cloud, level, nowMs, lang = DEFAULT_LANG) {
+  const code = normalizeLang(lang) || DEFAULT_LANG;
+  const value = (Math.round(bz * 10) / 10).toFixed(1);
+  return {
+    title: BZ[code].title(pointName(point, code)),
+    body: BZ[code].body((code === 'ru' ? value.replace('.', ',') : value).replace('-', '−'), cloud.value, level === 'strong'),
+    lang: code,
+    kind: 'bz',
     at: nowMs
   };
 }

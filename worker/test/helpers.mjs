@@ -92,6 +92,9 @@ export function makeFetch(now, initial = {}) {
     // ярусы и суммарная облачность; функция от индекса точки может дать разные значения
     cloud: () => ({ low: 5, mid: 5, high: 0, total: 8 }),
     pushStatus: {},             // адрес -> статус; по умолчанию 201
+    bz: 3,                      // Bz из сводки NOAA, нТл; по умолчанию северный — раннего сигнала нет
+    bzAgeMs: 5 * MIN,
+    bzDown: false,
     ...initial
   };
 
@@ -105,6 +108,12 @@ export function makeFetch(now, initial = {}) {
       return json([{ time_tag: t, kp_index: Math.round(opts.kp), estimated_kp: opts.kp, kp: '4P' }]);
     }
     if (u.includes('noaa-planetary-k-index')) return new Response('nope', { status: 404 });
+
+    if (u.includes('solar-wind-mag-field')) {
+      if (opts.bzDown) return new Response('down', { status: 503 });
+      const t = new Date(now - opts.bzAgeMs).toISOString().slice(0, 19) + 'Z';
+      return json([{ bt: 12, bz_gsm: opts.bz, time_tag: t }]);
+    }
 
     if (u.includes('api.open-meteo.com')) {
       if (opts.weatherDown) return new Response('down', { status: 500 });
