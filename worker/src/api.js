@@ -1,7 +1,8 @@
 // Сервер уведомлений о северном сиянии (Cloudflare Worker).
 //
-//   POST /subscribe    { endpoint, point, lang?, quiet?, tz? } оформить подписку, сменить точку,
-//                                              язык или тихие часы (quiet: {from, to} или null)
+//   POST /subscribe    { endpoint, point, lang?, quiet?, tz?, level?, sky? } оформить подписку,
+//                                              сменить точку, язык, тихие часы (quiet: {from, to}
+//                                              или null), порог (level: high | mid) и «небо откроется»
 //   POST /unsubscribe  { endpoint }            удалить подписку
 //   POST /message      { endpoint }            текст последнего уведомления — его
 //                                              забирает service worker при push
@@ -146,6 +147,9 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
       // Тихие часы и пояс: не присланное (старая версия страницы) не трогаем, quiet: null выключает.
       const quiet = normalizeQuiet(body);
       const tz = normalizeZone(body.tz);
+      // Порог и «небо откроется»: не присланное (старая страница) не трогаем.
+      const level = body.level === 'mid' || body.level === 'high' ? body.level : null;
+      const sky = typeof body.sky === 'boolean' ? (body.sky ? 1 : 0) : null;
       await env.DB.prepare(
         "INSERT INTO subs(id, endpoint, point, created, lang, quiet_from, quiet_to, tz) " +
         "VALUES(?, ?, ?, ?, COALESCE(?, 'ru'), ?, ?, ?) " +
@@ -157,6 +161,15 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
         'tz = COALESCE(?, subs.tz)'
       ).bind(id, endpoint, point.id, nowMs, lang, quiet.from ?? null, quiet.to ?? null, tz,
         lang, quiet.set ? 1 : 0, quiet.from ?? null, quiet.set ? 1 : 0, quiet.to ?? null, tz).run();
+      // Отдельным запросом: база до миграции (без колонок) не мешает самой подписке.
+      if (level !== null || sky !== null) {
+        try {
+          await env.DB.prepare('UPDATE subs SET min_level = COALESCE(?, min_level), sky = COALESCE(?, sky) WHERE id = ?')
+            .bind(level, sky, id).run();
+        } catch (e) {
+          console.error('настройки уведомлений не сохранены: ' + (e && e.message));
+        }
+      }
 
       return reply({ ok: true, point: point.id }, 200, cors);
     }

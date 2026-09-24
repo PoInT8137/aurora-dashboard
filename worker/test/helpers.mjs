@@ -120,8 +120,18 @@ export function makeFetch(now, initial = {}) {
       const lats = u.match(/latitude=([^&]+)/)[1].split(',');
       const items = lats.map((lat, i) => {
         const c = opts.cloud(i, lat);
-        return { current: { time: new Date(now).toISOString().slice(0, 16), cloud_cover: c.total,
-          cloud_cover_low: c.low, cloud_cover_mid: c.mid, cloud_cover_high: c.high } };
+        // почасовой прогноз на 4 часа с текущего часа; по умолчанию — как сейчас
+        const start = Math.floor(now / HOUR) * HOUR;
+        const hours = [0, 1, 2, 3].map(h => ({ t: start + h * HOUR, c: opts.hourly ? opts.hourly(i, h, lat) : c }));
+        return {
+          current: { time: new Date(now).toISOString().slice(0, 16), cloud_cover: c.total,
+            cloud_cover_low: c.low, cloud_cover_mid: c.mid, cloud_cover_high: c.high },
+          hourly: {
+            time: hours.map(x => new Date(x.t).toISOString().slice(0, 16)),
+            cloud_cover: hours.map(x => x.c.total), cloud_cover_low: hours.map(x => x.c.low),
+            cloud_cover_mid: hours.map(x => x.c.mid), cloud_cover_high: hours.map(x => x.c.high)
+          }
+        };
       });
       if (opts.weatherBroken) return json(items.concat(items[0]));   // на один элемент больше, чем точек
       return json(items.length === 1 ? items[0] : items);   // как настоящий API

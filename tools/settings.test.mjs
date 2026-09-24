@@ -37,7 +37,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 test('по умолчанию всё как было до появления настроек: Москва, 24 часа, км, °C, 5 минут', () => {
   const { ctx } = page();
-  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5', theme: 'dark', size: 'normal', start: 'last', quiet: 'off' });
+  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5', theme: 'dark', size: 'normal', start: 'last', quiet: 'off', alert: 'high', sky: 'off' });
   assert.equal(ctx.fmtTime(new Date('2026-09-26T16:05:00Z')), '19:05');
   assert.equal(ctx.distText(120), '120 км');
   assert.equal(ctx.tempText(3), '+3 °C');
@@ -57,7 +57,7 @@ test('испорченное или чужое хранилище не лома�
   }
   const { ctx } = page();
   put(ctx, '{"tz":"device","clock":"13","dist":"mi"}');
-  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'device', clock: '24', dist: 'mi', temp: 'c', refresh: '5', theme: 'dark', size: 'normal', start: 'last', quiet: 'off' }, 'годное сохраняется, негодное — умолчание');
+  assert.deepEqual(plain(ctx.loadSettings()), { tz: 'device', clock: '24', dist: 'mi', temp: 'c', refresh: '5', theme: 'dark', size: 'normal', start: 'last', quiet: 'off', alert: 'high', sky: 'off' }, 'годное сохраняется, негодное — умолчание');
 });
 
 test('хранилище недоступно: настройки работают, просто не переживают перезагрузку', () => {

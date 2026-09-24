@@ -62,6 +62,38 @@ const ALERT = {
   }
 };
 
+// Средний шанс — для тех, кто выбрал «сообщать и о среднем».
+const ALERT_MID = {
+  ru: {
+    title: name => 'Средний шанс увидеть сияние — ' + name,
+    body: (kp, cloud) => 'Kp ' + kp + ' · облачность ' + cloud + '%. Слабое сияние возможно — смотрите на север, подальше от огней.'
+  },
+  en: {
+    title: name => 'Moderate chance of aurora — ' + name,
+    body: (kp, cloud) => 'Kp ' + kp + ' · cloud cover ' + cloud + '%. A faint aurora is possible — look north, away from lights.'
+  },
+  zh: {
+    title: name => '极光机会中等——' + name,
+    body: (kp, cloud) => 'Kp ' + kp + ' · 云量 ' + cloud + '%。可能出现微弱极光——请远离灯光朝北看。'
+  }
+};
+
+// «Небо скоро откроется»: сейчас облака, но просвет обещан в ближайшие часы.
+const SKY = {
+  ru: {
+    title: name => 'Небо скоро откроется — ' + name,
+    body: (time, cloud, kp) => 'Облака должны разойтись к ' + time + ' (облачность около ' + cloud + '%). Kp ' + kp + ' — сияние возможно, приготовьтесь.'
+  },
+  en: {
+    title: name => 'The sky should clear soon — ' + name,
+    body: (time, cloud, kp) => 'Clouds are expected to break by ' + time + ' (cloud cover about ' + cloud + '%). Kp ' + kp + ' — aurora is possible, get ready.'
+  },
+  zh: {
+    title: name => '天空即将放晴——' + name,
+    body: (time, cloud, kp) => '云层预计在 ' + time + ' 前散开（云量约 ' + cloud + '%）。Kp ' + kp + '——可能出现极光，请做好准备。'
+  }
+};
+
 // Ранний сигнал: поле солнечного ветра повернуло на юг, Kp ещё не вырос.
 const BZ = {
   ru: {
@@ -96,13 +128,29 @@ const TEST = {
   }
 };
 
-export function alertMessage(point, kp, cloud, nowMs, lang = DEFAULT_LANG) {
-  const texts = ALERT[normalizeLang(lang) || DEFAULT_LANG];
+/** level — 'high' (по умолчанию) или 'mid' для тех, кто выбрал «сообщать и о среднем». */
+export function alertMessage(point, kp, cloud, nowMs, lang = DEFAULT_LANG, level = 'high') {
+  const texts = (level === 'mid' ? ALERT_MID : ALERT)[normalizeLang(lang) || DEFAULT_LANG];
   const code = normalizeLang(lang) || DEFAULT_LANG;
   return {
     title: texts.title(pointName(point, code)),
     body: texts.body(kpText(kp.value, code), cloud.value),
     lang: code,
+    at: nowMs
+  };
+}
+
+/** «Небо скоро откроется»: clear — { time (мс), cloud (%) }; время — по поясу подписчика (или МСК). */
+export function skyMessage(point, kp, clear, nowMs, lang = DEFAULT_LANG, tz) {
+  const code = normalizeLang(lang) || DEFAULT_LANG;
+  const zone = normalizeZone(tz) || 'Europe/Moscow';
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .format(new Date(clear.time));
+  return {
+    title: SKY[code].title(pointName(point, code)),
+    body: SKY[code].body(time, clear.cloud, kpText(kp.value, code)),
+    lang: code,
+    kind: 'sky',
     at: nowMs
   };
 }

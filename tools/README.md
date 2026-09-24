@@ -5,8 +5,8 @@
 ## Тесты
 
 ```bash
-node --test tools/*.test.mjs                 # 352 теста: сайт, настройки, переводы, Луна, клиент push, service worker
-cd worker && npm test                        # 86 тестов сервера уведомлений
+node --test tools/*.test.mjs                 # 354 теста: сайт, настройки, переводы, Луна, клиент push, service worker
+cd worker && npm test                        # 96 тестов сервера уведомлений
 ```
 
 | Файл | Что проверяет |

@@ -12,7 +12,8 @@
 /* ------------------------------------------------------------------ */
 
 var SETTINGS_DEFAULTS = { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5',
-                          theme: 'dark', size: 'normal', start: 'last', quiet: 'off' };
+                          theme: 'dark', size: 'normal', start: 'last', quiet: 'off',
+                          alert: 'high', sky: 'off' };
 var SETTINGS_CHOICES = {
   tz: ['murmansk', 'device'],
   clock: ['24', '12'],
@@ -22,7 +23,9 @@ var SETTINGS_CHOICES = {
   theme: ['dark', 'light', 'auto', 'night'],   // night — красная «ночное зрение»
   size: ['normal', 'large', 'xlarge'],
   start: ['last', 'now', 'tonight', 'map'],  // last — вкладка, на которой закрыли
-  quiet: ['off', '22-08', '23-07', '00-06']   // часы, когда уведомления о сиянии не присылаются
+  quiet: ['off', '22-08', '23-07', '00-06'],  // часы, когда уведомления о сиянии не присылаются
+  alert: ['high', 'mid'],   // о каком шансе сообщать: только о высоком или уже о среднем
+  sky: ['off', 'on']        // сервер сообщает, что небо скоро откроется
 };
 
 function loadSettings() {
@@ -131,7 +134,7 @@ function inQuietNow() {
  */
 function pushPreferences() {
   var quiet = quietWindow();
-  return { lang: getLang(), quiet: quiet, tz: quietZone() };
+  return { lang: getLang(), quiet: quiet, tz: quietZone(), level: setting('alert'), sky: setting('sky') === 'on' };
 }
 
 /** Вкладка при открытии: адрес важнее всего, затем настройка, затем последняя открытая. */
@@ -191,7 +194,7 @@ function afterSettingsChange(changed) {
   armRefresh();
   applyAppearance();
   renderLocalized();
-  if (changed === 'tz' || changed === 'quiet' || changed === 'reset') {
+  if (changed === 'tz' || changed === 'quiet' || changed === 'alert' || changed === 'sky' || changed === 'reset') {
     pushSync(pushPoint().id).then(renderNotifyDiagnostics);
   }
 }

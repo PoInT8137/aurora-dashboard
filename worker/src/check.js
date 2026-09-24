@@ -9,6 +9,7 @@ import { sendPush } from './push.js';
 import { alertMessage, bzMessage, DEFAULT_LANG } from './messages.js';
 import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
 import { purgeReports } from './reports.js';
+import { optionAlerts } from './options.js';
 
 export { alertMessage };
 
@@ -46,12 +47,30 @@ async function loadKp(nowMs, fetchFn) {
   return null;
 }
 
-/** Облачность по всем точкам одним запросом; массив в порядке points. */
+/** Почасовой прогноз облачности из ответа: [{ time (мс), cloud (%) }] — для «небо откроется». */
+function readHours(item) {
+  const hourly = item && item.hourly;
+  if (!hourly || !Array.isArray(hourly.time)) return [];
+  const out = [];
+  hourly.time.forEach((t, i) => {
+    const time = Core.parseUtc(t);
+    let value = Core.effectiveCloud(Core.readLayers(hourly, i));
+    if (value === null) value = Core.num(hourly.cloud_cover ? hourly.cloud_cover[i] : null);
+    if (time && value !== null) out.push({ time: time.getTime(), cloud: Math.round(value) });
+  });
+  return out;
+}
+
+/**
+ * Облачность по всем точкам одним запросом; массив в порядке points. К облачности «сейчас»
+ * приложен почасовой прогноз на 4 часа (cloud.hours) — тем же запросом.
+ */
 async function loadClouds(points, fetchFn) {
   const url = 'https://api.open-meteo.com/v1/forecast'
     + '?latitude=' + points.map(p => p.lat).join(',')
     + '&longitude=' + points.map(p => p.lon).join(',')
     + '&current=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
+    + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high&forecast_hours=4'
     + '&models=' + Core.WEATHER_MODEL
     + '&timezone=UTC';
 
@@ -62,7 +81,11 @@ async function loadClouds(points, fetchFn) {
     // Для одной точки API отдаёт объект, для нескольких — массив.
     const list = Array.isArray(data) ? data : [data];
     if (list.length !== points.length) return null;
-    return list.map(item => Core.cloudFromCurrent(item && item.current));
+    return list.map(item => {
+      const cloud = Core.cloudFromCurrent(item && item.current);
+      if (cloud) cloud.hours = readHours(item);
+      return cloud;
+    });
   } catch {
     return null;
   }
@@ -129,6 +152,8 @@ async function checkOnce(env, nowMs, fetchFn) {
 
   const { results: stateRows } = await env.DB.prepare('SELECT point, level, high_since FROM point_state').all();
   const prevState = new Map(stateRows.map(r => [r.point, r]));
+  const prevLevels = new Map(stateRows.map(r => [r.point, r.level]));
+  const sentIds = new Set();   // кому уже ушло в этот проход: дополнительные сигналы не дублируют
 
   const summary = { levels: {}, sent: 0, gone: 0, failed: 0 };
   const stateWrites = [];
@@ -184,6 +209,7 @@ async function checkOnce(env, nowMs, fetchFn) {
 
     if (!subs.length) continue;
     budget -= subs.length;
+    subs.forEach(s => sentIds.add(s.id));
 
     // Текст собирается на языке каждого подписчика; одинаковые не пересчитываются.
     const texts = new Map();
@@ -213,6 +239,16 @@ async function checkOnce(env, nowMs, fetchFn) {
   if (updates.length) {
     updates.push(env.DB.prepare('DELETE FROM subs WHERE fails >= ?').bind(MAX_FAILS));
     await env.DB.batch(updates);
+  }
+
+  // Настройки подписчиков: «средний шанс» и «небо откроется». Сбой — только в журнал.
+  try {
+    budget = await optionAlerts(env, nowMs, fetchFn, {
+      points, clouds, kp, prevLevels, sentIds, budget, cooldownMs: COOLDOWN_MS
+    }, summary);
+  } catch (e) {
+    summary.optionsError = true;
+    console.error('дополнительные сигналы не проверены: ' + (e && e.message));
   }
 
   // Ранний сигнал — после основных уведомлений: кто только что получил «высокий шанс», тому он

@@ -455,7 +455,7 @@ test('подписка на сервер уведомлений несёт яз�
   const { ctx } = page();
   ctx.setLang('zh');
   const body = plainCopy(ctx.pushSubscription('https://e.example/1', 'teriberka'));
-  assert.deepEqual({ ...body, tz: typeof body.tz }, { endpoint: 'https://e.example/1', point: 'teriberka', lang: 'zh', quiet: null, tz: 'string' });
+  assert.deepEqual({ ...body, tz: typeof body.tz }, { endpoint: 'https://e.example/1', point: 'teriberka', lang: 'zh', quiet: null, tz: 'string', level: 'high', sky: false });
 
   const bare = loadApp([['push.js', read('push.js')]], {});
   assert.deepEqual({ ...bare.pushSubscription('https://e.example/1', 'teriberka') }, { endpoint: 'https://e.example/1', point: 'teriberka' });

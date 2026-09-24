@@ -106,6 +106,23 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXIS
 npx wrangler deploy
 ```
 
+### О чём сообщать: средний шанс и «небо откроется»
+
+Подписчик выбирает на сайте (блок «О чём сообщать»), страница присылает выбор в `/subscribe` (`level: high | mid`, `sky: true | false`; не присланное не меняется). Код — `src/options.js`, после основной рассылки; сбой здесь её не трогает.
+
+- **`min_level = mid`** — уведомление уже при переходе из «низкого» в «средний или выше». Начало такого эпизода хранится в `point_state.mid_since`; первое наблюдение — точка отсчёта, как у «высокого». Лимит общий с основными уведомлениями — раз в 3 часа (`last_sent`); кто в этот проход уже получил «высокий», второго сообщения не получит.
+- **`sky = 1`** — «небо скоро откроется»: сейчас сплошные облака (балл облачности 0), Kp дотягивает до порога точки, а почасовой прогноз (тот же запрос к Open-Meteo, `forecast_hours=4`) обещает облачность не больше 50 % в тёмный час в ближайшие 3 часа. Время в тексте — по поясу подписчика (или МСК). Не чаще раза в 8 часов (`last_sky`) и не раньше чем через час после уведомления о сиянии; тихие часы соблюдаются.
+
+Для развёрнутой базы — один раз, до выкладки кода:
+
+```bash
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE subs ADD COLUMN min_level TEXT NOT NULL DEFAULT 'high'"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE subs ADD COLUMN sky INTEGER NOT NULL DEFAULT 0"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE subs ADD COLUMN last_sky INTEGER NOT NULL DEFAULT 0"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE point_state ADD COLUMN mid_since INTEGER NOT NULL DEFAULT 0"
+npx wrangler deploy
+```
+
 ### Отметки «Вижу сияние»
 
 `POST /report { point, strength }` — очевидец отмечает, что видит сияние у точки (`faint` — слабое, `bright` — яркое); `GET /reports` — сводка за последний час по точкам: `{ window, total, points: { id: { count, bright, last } } }`, кэшируется на минуту. Код — `src/reports.js`.
@@ -189,7 +206,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # запустить п
 ## Тесты
 
 ```bash
-npm test                                            # 86 тестов, работают без сети и без аккаунта
+npm test                                            # 96 тестов, работают без сети и без аккаунта
 node --test ../tools/*.test.mjs                     # клиент, service worker, согласие с сайтом
 ```
 

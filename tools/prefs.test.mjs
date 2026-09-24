@@ -225,7 +225,7 @@ test('предпочтения для сервера: язык, окно тих�
   ctx.setLang('zh');
   ctx.setSetting('quiet', '23-07');
   let prefs = plain(ctx.pushPreferences());
-  assert.deepEqual(prefs, { lang: 'zh', quiet: { from: 23, to: 7 }, tz: 'Europe/Moscow' });
+  assert.deepEqual(prefs, { lang: 'zh', quiet: { from: 23, to: 7 }, tz: 'Europe/Moscow', level: 'high', sky: false });
 
   ctx.setSetting('tz', 'device');
   prefs = plain(ctx.pushPreferences());
@@ -344,4 +344,46 @@ test('кнопка в шапке: включает ночное зрение и 
   other.ctx.setSetting('theme', 'night');
   other.el('night-btn').listeners.click();
   assert.equal(other.ctx.setting('theme'), 'dark');
+});
+
+test('о чём сообщать: порог и «небо откроется» уходят на сервер и меняются кнопками', () => {
+  const { ctx } = page();
+  ctx.setSetting('alert', 'mid');
+  ctx.setSetting('sky', 'on');
+  const prefs = plain(ctx.pushPreferences());
+  assert.equal(prefs.level, 'mid');
+  assert.equal(prefs.sky, true);
+  assert.equal(ctx.setSetting('alert', 'low'), false, 'только high и mid');
+  assert.match(read('js/settings.js'), /changed === 'alert' \|\| changed === 'sky'/, 'смена сообщается серверу');
+});
+
+test('уведомление страницы: с порогом «средний» — о среднем и о росте до высокого; с «высоким» — только о высоком', () => {
+  const shown = [];
+  const setup = alert => {
+    const { ctx } = page();
+    ctx.setSetting('alert', alert);
+    ctx.notifySupported = () => true;
+    ctx.notifyEnabled = () => true;
+    ctx.Notification = { permission: 'granted' };
+    ctx.pushIsActive = () => false;
+    ctx.inQuietNow = () => false;
+    ctx.document.hasFocus = () => false;
+    ctx.showAppNotification = (title) => { shown.push(title); return Promise.resolve(); };
+    return ctx;
+  };
+  const verdict = level => ({ level, stale: false, factors: ['Kp 3'] });
+
+  let ctx = setup('mid');
+  ctx.checkHighChance(verdict('low'));
+  ctx.checkHighChance(verdict('mid'));
+  assert.deepEqual(shown, ['Средний шанс увидеть сияние — Мурманск']);
+  ctx.localStorage.clear?.();
+  shown.length = 0;
+
+  ctx = setup('high');
+  ctx.checkHighChance(verdict('low'));
+  ctx.checkHighChance(verdict('mid'));
+  assert.deepEqual(shown, [], 'средний — не повод');
+  ctx.checkHighChance(verdict('high'));
+  assert.deepEqual(shown, ['Высокий шанс увидеть сияние — Мурманск']);
 });

@@ -748,6 +748,29 @@ try {
     <button class="btn btn--ghost" type="button" id="prefs-reset" data-i18n="prefs.reset">Сбросить настройки</button>
   </section>
 
+  <!-- О чём сообщать: порог шанса и «небо откроется» (сервер — worker/src/options.js) -->
+  <section class="card card--wide card--plain" id="alerts-card">
+    <h2 class="card__label" data-i18n="alerts.title">О чём сообщать</h2>
+    <div class="prefs">
+      <div class="pref">
+        <span class="pref__name" id="pref-alert" data-i18n="pref.alert">Шанс увидеть сияние</span>
+        <div class="seg" role="group" aria-labelledby="pref-alert" data-pref="alert">
+          <button class="seg__btn" type="button" data-value="high" aria-pressed="false" data-i18n="pref.alert.high">Только высокий</button>
+          <button class="seg__btn" type="button" data-value="mid" aria-pressed="false" data-i18n="pref.alert.mid">Средний и высокий</button>
+        </div>
+        <p class="pref__hint" data-i18n="pref.alert.hint">«Средний» — слабое сияние возможно: пригодится тем, кто живёт за городом и готов выйти на всякий случай. Не чаще раза в 3 часа.</p>
+      </div>
+      <div class="pref">
+        <span class="pref__name" id="pref-sky" data-i18n="pref.sky">Небо скоро откроется</span>
+        <div class="seg" role="group" aria-labelledby="pref-sky" data-pref="sky">
+          <button class="seg__btn" type="button" data-value="off" aria-pressed="false" data-i18n="pref.sky.off">Выкл</button>
+          <button class="seg__btn" type="button" data-value="on" aria-pressed="false" data-i18n="pref.sky.on">Вкл</button>
+        </div>
+        <p class="pref__hint" data-i18n="pref.sky.hint">Сейчас сплошные облака, но сияние возможно, а модель обещает просвет в ближайшие 3 часа, — сервер предупредит заранее, раз за ночь. Работает с уведомлениями при закрытом приложении.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- Тихие часы: действуют и на уведомления страницы, и на уведомления с сервера -->
   <section class="card card--wide card--plain" id="quiet-card">
     <h2 class="card__label" data-i18n="quiet.title">Тихие часы</h2>

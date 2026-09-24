@@ -92,12 +92,16 @@ function checkHighChance(verdict) {
   var prev = state.lastLevel;
   state.lastLevel = { pointId: point.id, level: verdict.level };
 
-  if (verdict.level !== 'high') return;
+  // Порог — из настроек: только высокий или уже средний. Сообщаем, когда шанс поднялся
+  // до порога или выше прежнего уровня (средний → высокий); лимит ниже не даёт частить.
+  var rank = { low: 0, mid: 1, high: 2 };
+  var need = setting('alert') === 'mid' ? 1 : 2;
+  if (rank[verdict.level] < need) return;
   // Первый свежий расчёт после открытия или смены точки — только точка
   // отсчёта: высокий шанс и так на экране.
   if (!prev || prev.pointId !== point.id) return;
-  // Шанс уже был высоким — о нём уже сообщили или он был на экране.
-  if (prev.level === 'high') return;
+  // Шанс не вырос — о нём уже сообщили или он был на экране.
+  if (rank[prev.level] >= rank[verdict.level]) return;
 
   if (!notifySupported() || !notifyEnabled() || Notification.permission !== 'granted') return;
   // Уведомления с сервера включены — они придут и без страницы; свои не дублируем.
@@ -109,7 +113,7 @@ function checkHighChance(verdict) {
   if (Date.now() - lastNotifiedAt(point.id) < NOTIFY_COOLDOWN_MS) return;
 
   markNotified(point.id);
-  showAppNotification(t('notif.high.title', { name: pointName(point) }), {
+  showAppNotification(t(verdict.level === 'high' ? 'notif.high.title' : 'notif.mid.title', { name: pointName(point) }), {
     body: t('notif.high.body', { factors: verdict.factors.slice(0, 3).join(t('sep.dot')) }),
     tag: 'aurora-high-' + point.id  // новое уведомление по точке заменяет старое
   }).catch(ignore);
