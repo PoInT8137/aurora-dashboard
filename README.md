@@ -1,5 +1,7 @@
 # Северное сияние — Мурманская область
 
+[![Тесты](https://github.com/PoInT8137/aurora-dashboard/actions/workflows/tests.yml/badge.svg)](https://github.com/PoInT8137/aurora-dashboard/actions/workflows/tests.yml)
+
 Дашборд прогноза северного сияния для семи точек Мурманской области: текущий Kp-индекс, облачность по ярусам, оценка шанса увидеть сияние и лучшее время для наблюдения ближайшей ночью.
 
 **[Открыть живую версию →](https://auroramurmansk.ru/)**

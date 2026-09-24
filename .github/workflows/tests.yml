@@ -1,0 +1,45 @@
+# Тесты сайта и сервера уведомлений на каждый пуш и пулреквест.
+# Зависимостей нет: тестам хватает Node.js 24 (встроенный SQLite для тестов сервера).
+name: Тесты
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Сайт
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Тесты сайта
+        run: node --test tools/*.test.mjs
+
+  worker:
+    name: Сервер уведомлений
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # wrangler нужен только для выкладки — ставить его ради тестов незачем
+      - name: Тесты сервера
+        run: npm test
