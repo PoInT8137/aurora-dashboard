@@ -154,12 +154,14 @@ function renderOutlook() {
 /** Почасовые ряды всех точек из ответа с несколькими координатами. */
 function readAllPointsHours(data) {
   if (!Array.isArray(data)) throw appError('not_list');
-  if (data.length !== POINTS.length) {
-    throw appError('points_count', { got: data.length, want: POINTS.length });
+  var points = allPoints();
+  // Для одной точки API отдаёт объект, но точек всегда не меньше семи.
+  if (data.length !== points.length) {
+    throw appError('points_count', { got: data.length, want: points.length });
   }
 
   // Порядок ответа совпадает с порядком переданных координат.
-  return POINTS.map(function (point, i) {
+  return points.map(function (point, i) {
     return { id: point.id, hours: readHourlyCloud(data[i]) };
   });
 }
@@ -212,8 +214,9 @@ function computeAllWindows() {
 
   var kpNow = state.kp ? state.kp.value : null;
 
-  var list = state.tonight.rows.map(function (row) {
-    var point = findPoint(row.id);
+  // Строки удалённых мест (из кэша) пропускаются: подставлять вместо них другую точку нельзя.
+  var list = state.tonight.rows.filter(function (row) { return findPlace(row.id); }).map(function (row) {
+    var point = findPlace(row.id);
     var win = computeNightWindow({ hours: row.hours, conflict: false },
       state.forecast, kpNow, point);
     return { point: point, window: win };
@@ -319,15 +322,16 @@ function renderBest(list) {
 
   hintEl.textContent = levelWord(win.level).toLowerCase() + t('sep.dot') + cloudRangeText(win) +
     (win.kpMax !== null ? t('sep.dot') + t('win.kp_max', { v: fmtKp(win.kpMax) }) : '') +
-    (best.point.km ? t('best.travel', { dist: distText(best.point.km), drive: driveText(best.point) })
-                   : t('best.here'));
+    (best.point.custom ? t('sep.dot') + t('place.air', { dist: distText(best.point.km) })
+      : best.point.km ? t('best.travel', { dist: distText(best.point.km), drive: driveText(best.point) })
+      : t('best.here'));
 
   [
-    t('best.chip.light', { v: t('light.' + best.point.light + '.label') }),
+    best.point.light ? t('best.chip.light', { v: t('light.' + best.point.light + '.label') }) : '',
     t('best.chip.threshold', { v: fmtKp(kpThresholds(best.point).low) }),
     t(win.fullDark ? 'best.chip.dark_full' : 'best.chip.dark_part'),
     moonWindowText(moonSummary(win.from, win.to, best.point.lat, best.point.lon))
-  ].forEach(function (text) {
+  ].filter(Boolean).forEach(function (text) {
     var li = document.createElement('li');
     li.textContent = text;
     factors.appendChild(li);
@@ -383,11 +387,12 @@ function buildPlaceRow(item, best) {
 
   var travel = document.createElement('div');
   travel.className = 'place__travel';
-  var travelParts = point.km
-    ? [t('place.travel', { dist: distText(point.km), drive: driveText(point) })]
+  // Своё место: расстояние по прямой, дорога и засветка неизвестны.
+  var travelParts = point.custom ? [t('place.mine'), t('place.air', { dist: distText(point.km) })]
+    : point.km ? [t('place.travel', { dist: distText(point.km), drive: driveText(point) })]
     : [t('place.origin')];
   if (point.noteKey) travelParts.push(t('note.' + point.noteKey));
-  travelParts.push(t('place.light', { v: t('light.' + point.light + '.label') }));
+  if (point.light) travelParts.push(t('place.light', { v: t('light.' + point.light + '.label') }));
   travel.textContent = travelParts.join(t('sep.dot'));
 
   row.appendChild(name);

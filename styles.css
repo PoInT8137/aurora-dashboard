@@ -963,6 +963,50 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 .share__status { margin: 0; min-height: 1.2em; font-size: 13px; color: var(--text-dim); text-align: center; }
 .share__close { justify-self: center; margin-top: 0; }
 
+/* Поля ввода (окно «Новое место») */
+.field { display: grid; gap: 4px; min-width: 0; }
+.field__row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field__label { font-size: 13px; color: var(--text-dim); }
+.field__input {
+  font: inherit;
+  font-size: 16px;   /* меньше — iPhone увеличит страницу при фокусе */
+  color: var(--text);
+  background: var(--option-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  min-height: 44px;
+  width: 100%;
+}
+.field__input:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 1px; }
+.field__hint { margin: -6px 0 0; font-size: 12px; color: var(--text-faint); }
+
+/* «Мои места» в настройках */
+.myplaces { list-style: none; margin: 8px 0 12px; padding: 0; display: grid; gap: 8px; }
+.myplaces:empty { display: none; }
+.myplace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(var(--fill), 0.03);
+}
+.myplace__name { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.myplace__meta { margin: 2px 0 0; font-size: 13px; color: var(--text-dim); }
+.myplace .btn { flex: none; }
+
+/* Карта: выбор своего места нажатием */
+.map__pick { width: 100%; margin-bottom: 10px; }
+.map__pick[aria-pressed="true"] { background: rgba(var(--tint), 0.3); border-color: rgba(var(--tint), 0.6); }
+.map__pick-hint { margin: -2px 0 12px; font-size: 13px; color: var(--text-dim); }
+.map--pick { cursor: crosshair; }
+.map--pick .mappt { pointer-events: none; }
+.mappt--custom .mappt__dot { border-radius: 3px; transform: rotate(45deg) scale(0.85); }
+.mappt--quiet .mappt__name { display: none; }
+
 .scale {
   display: grid;
   grid-template-columns: repeat(10, 1fr);

@@ -192,7 +192,7 @@ function afterSettingsChange(changed) {
   applyAppearance();
   renderLocalized();
   if (changed === 'tz' || changed === 'quiet' || changed === 'reset') {
-    pushSync(currentPoint().id).then(renderNotifyDiagnostics);
+    pushSync(pushPoint().id).then(renderNotifyDiagnostics);
   }
 }
 
@@ -292,11 +292,9 @@ function applyLanguage() {
 function renderLocalized() {
   renderSettings();
 
-  // Названия городов в выпадающем списке.
-  var select = $('point');
-  Array.prototype.forEach.call(select.options || [], function (option) {
-    option.textContent = pointName(findPoint(option.value));
-  });
+  // Названия городов в выпадающем списке и «Мои места» в настройках.
+  renderPointOptions();
+  renderPlacesList();
   renderPointMeta();
   $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });
 
@@ -332,6 +330,6 @@ function initLanguage() {
     if (langFromUrl()) history.replaceState(null, '', location.pathname + location.hash);
     applyLanguage();
     // Уведомления с сервера приходят на выбранном языке — сообщаем серверу о смене.
-    pushSync(currentPoint().id).then(renderNotifyDiagnostics);
+    pushSync(pushPoint().id).then(renderNotifyDiagnostics);
   });
 }

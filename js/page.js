@@ -186,26 +186,29 @@ function renderPointMeta() {
 function initPointSelect() {
   var select = $('point');
 
-  POINTS.forEach(function (point) {
-    var option = document.createElement('option');
-    option.value = point.id;
-    option.textContent = pointName(point);
-    select.appendChild(option);
-  });
-
-  state.point = findPoint(savedPointId() || POINTS[0].id);
-  select.value = state.point.id;
+  // Сохранённое место могли удалить в другой вкладке — тогда первая точка области.
+  state.point = pointById(savedPointId() || POINTS[0].id);
+  renderPointOptions();
   renderPointMeta();
 
-  select.addEventListener('change', function () { selectPoint(select.value); });
+  select.addEventListener('change', function () {
+    // «Добавить своё место…» — не точка: выбор остаётся прежним, открывается окно.
+    if (select.value === ADD_PLACE) {
+      select.value = currentPoint().id;
+      openPlaceDialog(null);
+      return;
+    }
+    selectPoint(select.value);
+  });
 }
 
 /** Смена точки наблюдения: из выпадающего списка или с карты. */
 function selectPoint(id) {
-  state.point = findPoint(id);
+  state.point = pointById(id);
   savePointId(state.point.id);
-  // Серверные уведомления привязаны к точке: подписка переезжает вместе с выбором.
-  pushSync(state.point.id).then(function () {
+  // Серверные уведомления привязаны к точке: подписка переезжает вместе с выбором
+  // (для своего места — на ближайшую точку области: сервер знает только их).
+  pushSync(pushPoint().id).then(function () {
     renderPushCard();
     renderNotifyDiagnostics();
   });

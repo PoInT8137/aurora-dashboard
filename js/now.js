@@ -140,8 +140,11 @@ function computeVerdict(kp, cloud) {
   // Засветка в расчёт не входит — только пояснение. Упоминаем её, когда
   // небо в принципе стоит смотреть: при полярном дне или сплошных облаках
   // совет отъехать от фонарей бесполезен.
-  factors.push(t('verdict.f.light', { v: t('light.' + point.light + '.label') }));
-  if (!tooLight && level !== 'low') hint += gap + t('light.' + point.light + '.hint');
+  // У своего места засветка неизвестна — не упоминаем.
+  if (point.light) {
+    factors.push(t('verdict.f.light', { v: t('light.' + point.light + '.label') }));
+    if (!tooLight && level !== 'low') hint += gap + t('light.' + point.light + '.hint');
+  }
 
   // Луна, как и засветка, в расчёт уровня не входит — это фактор и пояснение.
   // Упоминаем её, когда небо в принципе стоит смотреть.
@@ -431,7 +434,7 @@ function loadOvation(force) {
 
   return fetchJson(URLS.ovation)
     .then(function (data) {
-      var summary = ovationSummary(data, POINTS, Date.now());
+      var summary = ovationSummary(data, allPoints(), Date.now());
       if (!summary) throw appError('ov_stale');
       var ov = { observed: summary.observed, forecast: summary.forecast, points: summary.points, stale: null };
       // В кэш — только числа по семи точкам, а не вся сетка Земли.

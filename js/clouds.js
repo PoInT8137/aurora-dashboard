@@ -246,7 +246,7 @@ function renderClouds() {
   if (on) drawCloudLayer(canvas, usable.values[index]);
 
   // Облачность в точке, выбранной на карте, — числом: по заливке на глаз её не оценить.
-  var point = state.mapPoint ? findPoint(state.mapPoint) : currentPoint();
+  var point = state.mapPoint ? pointById(state.mapPoint) : currentPoint();
   var pos = mapPosition(point.lat, point.lon);
   var here = cloudAt(usable.values[index], pos.x, pos.y);
   $('map-clouds-here').textContent = here === null ? '' :

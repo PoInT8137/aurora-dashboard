@@ -12,6 +12,7 @@ function init() {
   applyAppearance();
   initSettings();
   initPointSelect();
+  initPlaces();
   initMapTab();
   initClouds();
   initNightChart();

@@ -93,6 +93,18 @@ var WEATHER_MODEL = 'icon_eu';
 /*  Расчёт                                                             */
 /* ------------------------------------------------------------------ */
 
+/* Северный геомагнитный полюс в дипольном приближении IGRF (эпоха ~2025) — тот же, по которому
+   посчитаны geoLat точек выше. */
+var GEOMAGNETIC_POLE = { lat: 80.7, lon: -72.7 };
+
+/** Геомагнитная широта (дипольное приближение) для любого места: для своих точек наблюдения. */
+function geomagneticLatitude(lat, lon) {
+  var r = Math.PI / 180;
+  var p = GEOMAGNETIC_POLE;
+  var s = Math.sin(lat * r) * Math.sin(p.lat * r) + Math.cos(lat * r) * Math.cos(p.lat * r) * Math.cos((lon - p.lon) * r);
+  return Math.round(Math.asin(Math.max(-1, Math.min(1, s))) / r * 100) / 100;
+}
+
 function findPoint(id) {
   for (var i = 0; i < POINTS.length; i++) {
     if (POINTS[i].id === id) return POINTS[i];
@@ -922,6 +934,7 @@ globalThis.AuroraCore = {
   DARK_FULL: DARK_FULL,
   WEATHER_MODEL: WEATHER_MODEL,
   findPoint: findPoint,
+  geomagneticLatitude: geomagneticLatitude,
   parseUtc: parseUtc,
   solarAltitude: solarAltitude,
   kpThresholds: kpThresholds,

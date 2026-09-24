@@ -244,7 +244,7 @@ function notifyChecks() {
       : { state: 'fail', title: t('chk.push.fail'), detail: t('chk.push.fail.d') });
 
     checks.push(serverOn
-      ? { state: 'ok', title: t('chk.sub.on'), detail: t('chk.sub.on.d', { name: place }) }
+      ? { state: 'ok', title: t('chk.sub.on'), detail: t('chk.sub.on.d', { name: pointName(pushPoint()) }) }
       : { state: 'warn', title: t('chk.sub.off'), detail: t('chk.sub.off.d') });
 
     checks.push(state.pushHealth === true
@@ -439,10 +439,16 @@ function renderPushCard() {
   } else if (permission === 'denied' && !active) {
     hint.textContent = t('push.hint.denied');
   } else if (active) {
-    hint.textContent = t('push.hint.on', { name: pointName(currentPoint()) });
+    hint.textContent = t('push.hint.on', { name: pointName(pushPoint()) }) + customPushNote();
   } else {
-    hint.textContent = t('push.hint.off', { name: pointName(currentPoint()) });
+    hint.textContent = t('push.hint.off', { name: pointName(pushPoint()) }) + customPushNote();
   }
+}
+
+/** Для своего места: сервер знает только семь точек — подписка на ближайшую из них. */
+function customPushNote() {
+  var point = currentPoint();
+  return point.custom ? ' ' + t('push.hint.custom', { place: pointName(point), name: pointName(pushPoint()) }) : '';
 }
 
 /** Операция с индикацией: блокирует кнопки, пишет статус, ошибку показывает человеку. */
@@ -538,7 +544,7 @@ function initPushCard() {
   renderPushCard();
 
   // Разрешение или подписку могли поменять вне приложения — сверяемся при открытии.
-  pushSync(currentPoint().id).then(function () {
+  pushSync(pushPoint().id).then(function () {
     renderPushCard();
     renderNotifyControl();
     renderNotifyDiagnostics();

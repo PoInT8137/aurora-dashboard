@@ -186,6 +186,35 @@ try {
   </form>
 </dialog>
 
+<!-- Своё место наблюдения: название и координаты; хранится только в этом браузере -->
+<dialog class="share" id="place-dialog" aria-labelledby="place-title">
+  <form class="share__inner" id="place-form" novalidate>
+    <h2 class="card__label" id="place-title" data-i18n="place.dlg.title">Новое место</h2>
+    <p class="share__lead" data-i18n="place.dlg.lead">Прогноз для него посчитается так же, как для городов области: облачность, окно наблюдения, пороги Kp по геомагнитной широте.</p>
+    <label class="field">
+      <span class="field__label" data-i18n="place.dlg.name">Название</span>
+      <input class="field__input" type="text" id="place-name" maxlength="40" autocomplete="off" data-i18n-attr="placeholder:place.dlg.name_ph" placeholder="Например, «Озеро у дачи»">
+    </label>
+    <div class="field__row">
+      <label class="field">
+        <span class="field__label" data-i18n="place.dlg.lat">Широта</span>
+        <input class="field__input" type="text" id="place-lat" inputmode="decimal" autocomplete="off" placeholder="68,97">
+      </label>
+      <label class="field">
+        <span class="field__label" data-i18n="place.dlg.lon">Долгота</span>
+        <input class="field__input" type="text" id="place-lon" inputmode="decimal" autocomplete="off" placeholder="33,10">
+      </label>
+    </div>
+    <p class="field__hint" data-i18n="place.dlg.coords_hint">В градусах. Можно вставить обе координаты сразу в поле широты — например, скопированные из карт.</p>
+    <button class="btn" type="button" id="place-here" data-i18n="place.dlg.here">Где я сейчас</button>
+    <p class="share__status" id="place-status" role="status"></p>
+    <div class="share__actions">
+      <button class="btn" type="submit" id="place-save" data-i18n="place.dlg.save">Сохранить</button>
+    </div>
+    <button class="btn btn--ghost share__close" type="button" id="place-cancel" data-i18n="place.dlg.cancel">Отмена</button>
+  </form>
+</dialog>
+
 <main>
 
 <section class="wrap" id="tab-now" role="tabpanel" aria-labelledby="tab-btn-now" tabindex="0">
@@ -532,6 +561,8 @@ try {
       </div>
 
       <div class="mapview__side">
+        <button class="btn map__pick" type="button" id="map-pick" aria-pressed="false" data-i18n="map.pick">Добавить своё место на карте</button>
+        <p class="map__pick-hint" id="map-pick-hint" role="status" data-i18n="map.pick.hint" hidden>Нажмите на карту там, где хотите смотреть сияние.</p>
         <div class="clouds" id="map-clouds-ctl">
           <div class="clouds__head">
             <span class="clouds__title" data-i18n="clouds.title">Облака</span>
@@ -617,6 +648,16 @@ try {
 </section>
 
 <section class="wrap" id="tab-settings" role="tabpanel" aria-labelledby="tab-btn-settings" tabindex="0" hidden>
+
+  <!-- Свои места наблюдения -->
+  <section class="card card--wide card--plain" id="myplaces-card">
+    <h2 class="card__label" data-i18n="places.title">Мои места</h2>
+    <p class="pref__hint" id="myplaces-empty" data-i18n="places.empty">Своих мест пока нет. Добавьте место, куда вы ездите смотреть сияние, — прогноз посчитается для него так же, как для городов.</p>
+    <ul class="myplaces" id="myplaces-list"></ul>
+    <button class="btn" type="button" id="myplaces-add" data-i18n="places.add">Добавить место</button>
+    <p class="pref__hint" id="myplaces-max" hidden></p>
+    <p class="pref__hint" data-i18n="places.hint">Места хранятся только в этом браузере. Уведомления с сервера для своего места приходят по ближайшей из семи точек области.</p>
+  </section>
 
   <!-- Вид и единицы: хранятся в браузере, по умолчанию всё как раньше -->
   <section class="card card--wide card--plain" id="prefs">
@@ -769,6 +810,7 @@ try {
 <script src="lang/zh.js"></script>
 <script src="push.js"></script>
 <script src="js/base.js"></script>
+<script src="js/places.js"></script>
 <script src="js/now.js"></script>
 <script src="js/night.js"></script>
 <script src="js/tonight.js"></script>

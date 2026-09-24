@@ -52,7 +52,7 @@ function initMap() {
 function mapItems() {
   var list = computeAllWindows();
   if (list) return list;
-  return POINTS.map(function (point) { return { point: point, window: undefined }; });
+  return allPoints().map(function (point) { return { point: point, window: undefined }; });
 }
 
 function renderMap() {
@@ -68,10 +68,16 @@ function renderMap() {
   items.forEach(function (item) {
     var point = item.point;
     var pos = mapPosition(point.lat, point.lon);
+    // Своё место за рамкой схемы на карте не показать — оно есть в списке «Куда ехать».
+    if (pos.x < 0 || pos.x > 1 || pos.y < 0 || pos.y > 1) return;
 
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'mappt' + (MAP_LABEL_LEFT[point.id] ? ' mappt--left' : '') +
+    // Своё место рядом с точкой области: подписи наехали бы друг на друга — его подпись
+    // видна, только когда место выбрано (название для скринридера есть всегда).
+    var crowded = point.custom && point.id !== selectedId && airKm(point, nearestBuiltin(point)) < 40;
+    btn.className = 'mappt' + (MAP_LABEL_LEFT[point.id] ? ' mappt--left' : '') + (point.custom ? ' mappt--custom' : '') +
+      (crowded ? ' mappt--quiet' : '') +
       (point.id === currentPoint().id ? ' mappt--current' : '') + (hasData ? '' : ' mappt--nodata');
     btn.style.left = (pos.x * 100) + '%';
     btn.style.top = (pos.y * 100) + '%';
@@ -122,6 +128,7 @@ function renderMapInfo(items, selectedId, hasData) {
   info.innerHTML = '';
 
   var item = items.filter(function (i) { return i.point.id === selectedId; })[0] || items[0];
+  renderMapPick();
   if (hasData) {
     info.appendChild(buildPlaceRow(item, false));
   } else {
@@ -140,8 +147,41 @@ function renderMapInfo(items, selectedId, hasData) {
   info.appendChild(open);
 }
 
+/** Режим «выберите место на карте»: подсказка, курсор-прицел, кнопка отмены. */
+function renderMapPick() {
+  var btn = $('map-pick');
+  if (!btn) return;
+  var full = userPlaces().length >= PLACES.max;
+  if (full) state.mapPick = false;
+  btn.hidden = full;
+  btn.setAttribute('aria-pressed', String(state.mapPick));
+  btn.textContent = t(state.mapPick ? 'map.pick.cancel' : 'map.pick');
+  $('map').className = 'map' + (state.mapPick ? ' map--pick' : '');
+  $('map-pick-hint').hidden = !state.mapPick;
+}
+
+function setMapPick(on) {
+  state.mapPick = on;
+  renderMapPick();
+}
+
 function initMapTab() {
+  $('map-pick').addEventListener('click', function () { setMapPick(!state.mapPick); });
+  // Нажатие на схему в режиме выбора — координаты этого места в окно «Новое место».
+  $('map').addEventListener('click', function (e) {
+    if (!state.mapPick) return;
+    var rect = $('map').getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var at = mapLatLon((e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
+    setMapPick(false);
+    openPlaceDialog(at);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && state.mapPick) setMapPick(false);
+  });
+
   $('map-markers').addEventListener('click', function (e) {
+    if (state.mapPick) return;   // в режиме выбора точки-кнопки не перехватывают нажатие
     var btn = e.target.closest ? e.target.closest('[data-point]') : null;
     if (!btn) return;
     state.mapPoint = btn.getAttribute('data-point');

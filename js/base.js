@@ -70,11 +70,12 @@ var URLS = {
   outlook:    'https://services.swpc.noaa.gov/text/27-day-outlook.txt'
 };
 
-/** Адрес почасовой облачности сразу для всех точек: один запрос вместо семи. */
+/** Адрес почасовой облачности сразу для всех точек (и своих мест): один запрос вместо семи. */
 function allPointsWeatherUrl() {
+  var points = allPoints();
   return 'https://api.open-meteo.com/v1/forecast'
-    + '?latitude=' + POINTS.map(function (p) { return p.lat; }).join(',')
-    + '&longitude=' + POINTS.map(function (p) { return p.lon; }).join(',')
+    + '?latitude=' + points.map(function (p) { return p.lat; }).join(',')
+    + '&longitude=' + points.map(function (p) { return p.lon; }).join(',')
     + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
     + '&models=' + CONFIG.weatherModel
     + '&forecast_days=2&timezone=UTC';
@@ -99,7 +100,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
-              mapPoint: null, nightHour: null,
+              mapPoint: null, nightHour: null, places: null, mapPick: false,
               cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, shareLang: null, shareMatrix: null };
 
 /* ------------------------------------------------------------------ */

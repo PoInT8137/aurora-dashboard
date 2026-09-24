@@ -43,3 +43,11 @@ test('все части в оболочке service worker — приложен�
   const sw = read('sw.js');
   for (const part of [...APP_PARTS, 'app.js']) assert.ok(sw.includes(`'${part}'`), part);
 });
+
+test('все id в index.html уникальны: иначе getElementById молча берёт первый, а второй не работает', () => {
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+  const seen = new Set();
+  const dup = ids.filter(id => (seen.has(id) ? true : (seen.add(id), false)));
+  assert.deepEqual(dup, []);
+  assert.ok(ids.length > 100, 'id найдены: ' + ids.length);
+});
