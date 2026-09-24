@@ -35,6 +35,19 @@ CREATE TABLE IF NOT EXISTS sw_state (
   south_since INTEGER NOT NULL DEFAULT 0-- мс начала южного поля; 0 — сейчас не южное
 );
 
+-- Отметки «Вижу сияние» (src/reports.js): точка, сила, время и обезличенный отправитель —
+-- HMAC от адреса и даты, по нему нельзя восстановить адрес. Хранятся сутки.
+CREATE TABLE IF NOT EXISTS reports (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  point    TEXT NOT NULL,              -- id точки области
+  strength TEXT NOT NULL,              -- faint | bright
+  at       INTEGER NOT NULL,           -- мс
+  who      TEXT NOT NULL               -- 16 hex HMAC(адрес|сутки)
+);
+
+CREATE INDEX IF NOT EXISTS reports_at ON reports(at);
+CREATE INDEX IF NOT EXISTS reports_who ON reports(who, at);
+
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».
 CREATE TABLE IF NOT EXISTS point_state (
   point      TEXT PRIMARY KEY,

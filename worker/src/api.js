@@ -8,6 +8,8 @@
 //   POST /test         { endpoint, delay? }    пробное уведомление (с задержкой до 20 с,
 //                                              чтобы успеть закрыть приложение)
 //   GET  /health                               доступность и пульс: { ok, lastCheck, outcome }
+//   POST /report       { point, strength }     отметка «Вижу сияние» (strength: faint | bright)
+//   GET  /reports                              сводка отметок за последний час
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -16,6 +18,7 @@
 import '../../core.js';
 import { checkEndpoint, sendPush } from './push.js';
 import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './messages.js';
+import { acceptReport, reportSummary } from './reports.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -85,6 +88,20 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     return reply({ ok: true, lastCheck: beat ? beat.at : null, outcome: beat ? beat.outcome : null }, 200, cors);
   }
 
+  if (url.pathname === '/reports' && request.method === 'GET') {
+    // Только числа по точкам за последний час. Меняется не чаще раза в минуту — можно кэшировать.
+    let summary;
+    try {
+      summary = await reportSummary(env, nowMs);
+    } catch {
+      summary = { window: 60, total: 0, points: {} };   // база до миграции
+    }
+    return new Response(JSON.stringify(summary), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60', ...(cors || {}) }
+    });
+  }
+
   if (request.method !== 'POST') return reply({ error: 'not_found' }, 404, cors);
 
   // Запросы принимаем только со страницы сайта. Это не защита от целенаправленной
@@ -94,6 +111,16 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
   const body = await readJson(request);
   if (body && body.tooLarge) return reply({ error: 'too_large' }, 413, cors);
   if (!body) return reply({ error: 'bad_json' }, 400, cors);
+
+  // Отметка очевидца не связана с подпиской: адрес push-сервиса не нужен.
+  if (url.pathname === '/report') {
+    try {
+      const [result, status] = await acceptReport(env, body, request.headers.get('CF-Connecting-IP'), nowMs);
+      return reply(result, status, cors);
+    } catch {
+      return reply({ error: 'unavailable' }, 503, cors);   // база до миграции
+    }
+  }
 
   const endpointUrl = checkEndpoint(body.endpoint);
   if (!endpointUrl) return reply({ error: 'bad_endpoint' }, 400, cors);

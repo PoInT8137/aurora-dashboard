@@ -998,6 +998,17 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 .myplace__meta { margin: 2px 0 0; font-size: 13px; color: var(--text-dim); }
 .myplace .btn { flex: none; }
 
+/* Очевидцы */
+.reports { border-left: 3px solid var(--tone, var(--border)); }
+.reports__summary { margin: 4px 0 14px; font-size: 16px; }
+.reports__actions { display: grid; gap: 10px; }
+.reports__btn { justify-self: start; min-height: 44px; padding: 10px 22px; font-weight: 600; }
+.reports__choice { display: flex; flex-wrap: wrap; gap: 8px; }
+.reports__choice[hidden] { display: none; }
+.reports__choice .btn { min-height: 44px; }
+.reports__note, .reports__status { margin: 8px 0 0; font-size: 13px; color: var(--text-dim); }
+.reports__note:empty, .reports__status:empty { display: none; }
+
 /* Карта: выбор своего места нажатием */
 .map__pick { width: 100%; margin-bottom: 10px; }
 .map__pick[aria-pressed="true"] { background: rgba(var(--tint), 0.3); border-color: rgba(var(--tint), 0.6); }

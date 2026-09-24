@@ -295,6 +295,7 @@ function renderLocalized() {
   // Названия городов в выпадающем списке и «Мои места» в настройках.
   renderPointOptions();
   renderPlacesList();
+  renderReports();
   renderPointMeta();
   $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });
 

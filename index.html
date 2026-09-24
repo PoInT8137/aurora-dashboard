@@ -265,6 +265,22 @@ try {
     </div>
   </section>
 
+  <!-- Очевидцы: отметки «Вижу сияние» за последний час (сервер — worker/src/reports.js) -->
+  <section class="card card--wide reports" id="reports-card" hidden>
+    <h2 class="card__label" data-i18n="reports.title">Очевидцы</h2>
+    <p class="reports__summary" id="reports-summary" aria-live="polite"></p>
+    <div class="reports__actions">
+      <button class="btn reports__btn" type="button" id="report-btn" aria-controls="report-choice" data-i18n="reports.btn">Вижу сияние!</button>
+      <div class="reports__choice" id="report-choice" role="group" data-i18n-attr="aria-label:reports.choice" aria-label="Какое сияние?" hidden>
+        <button class="btn" type="button" data-strength="faint" data-i18n="reports.faint">Слабое, едва заметное</button>
+        <button class="btn" type="button" data-strength="bright" data-i18n="reports.bright_btn">Яркое, с цветом и движением</button>
+      </div>
+    </div>
+    <p class="reports__note" id="report-note"></p>
+    <p class="reports__status" id="report-status" role="status"></p>
+    <p class="card__meta" data-i18n="reports.hint">Отметка анонимна: сохраняются только точка, время и сила сияния — без текста и фото, на сутки.</p>
+  </section>
+
   <div class="grid">
 
     <!-- Kp -->
@@ -811,6 +827,7 @@ try {
 <script src="push.js"></script>
 <script src="js/base.js"></script>
 <script src="js/places.js"></script>
+<script src="js/reports.js"></script>
 <script src="js/now.js"></script>
 <script src="js/night.js"></script>
 <script src="js/tonight.js"></script>

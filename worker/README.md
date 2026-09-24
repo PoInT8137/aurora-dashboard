@@ -106,6 +106,25 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXIS
 npx wrangler deploy
 ```
 
+### Отметки «Вижу сияние»
+
+`POST /report { point, strength }` — очевидец отмечает, что видит сияние у точки (`faint` — слабое, `bright` — яркое); `GET /reports` — сводка за последний час по точкам: `{ window, total, points: { id: { count, bright, last } } }`, кэшируется на минуту. Код — `src/reports.js`.
+
+- **Без текста и фото** — модерировать нечего.
+- **Против накруток**: отметка принимается, только если у точки темно (днём сияния не видно); с одного адреса — не чаще раза в 30 минут и не больше 6 в сутки (сутки по UTC); всего — не больше 300 в час.
+- **Обезличивание**: адрес (IP) не хранится — только 16 знаков HMAC от адреса и даты с секретным ключом (`REPORT_SECRET`, если задан, иначе закрытый ключ VAPID). Без ключа адрес по ним не подобрать, а на следующие сутки значение уже другое. В сводку попадают только числа.
+- **Срок**: отметки старше суток удаляет проход по расписанию.
+- **До миграции**: сводка пустая, отметка отвечает `503 unavailable`, остальное работает как раньше.
+
+Для развёрнутой базы — один раз, до выкладки кода:
+
+```bash
+npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, point TEXT NOT NULL, strength TEXT NOT NULL, at INTEGER NOT NULL, who TEXT NOT NULL)"
+npx wrangler d1 execute aurora-push --remote --command "CREATE INDEX IF NOT EXISTS reports_at ON reports(at)"
+npx wrangler d1 execute aurora-push --remote --command "CREATE INDEX IF NOT EXISTS reports_who ON reports(who, at)"
+npx wrangler deploy
+```
+
 ### Ранний сигнал: Bz повернул на юг
 
 Kp — усреднение за три часа и запаздывает. Магнитное поле солнечного ветра (Bz), измеренное спутниками в точке L1, опережает сияние на 30–60 минут. Поэтому, кроме уведомления о высоком шансе, сервер шлёт ранний сигнал «сияние может начаться в ближайший час» (`src/bz.js`).
@@ -170,7 +189,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # запустить п
 ## Тесты
 
 ```bash
-npm test                                            # 79 тестов, работают без сети и без аккаунта
+npm test                                            # 86 тестов, работают без сети и без аккаунта
 node --test ../tools/*.test.mjs                     # клиент, service worker, согласие с сайтом
 ```
 

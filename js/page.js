@@ -215,6 +215,7 @@ function selectPoint(id) {
   renderPointMeta();
   renderOvation();
   renderOutlook();
+  renderReports();
 
   // Облачность принадлежала прежней точке — её нельзя показывать для новой.
   // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.
@@ -292,7 +293,7 @@ function refreshAll() {
   markLoading('verdict-card');
   markLoading('window-card');
 
-  var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false)];
+  var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false), loadReports(true)];
   if (state.tonight) tasks.push(loadTonight());
   if (state.cloudGrid) tasks.push(loadCloudGrid(true));
 

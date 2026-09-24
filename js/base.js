@@ -100,7 +100,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
-              mapPoint: null, nightHour: null, places: null, mapPick: false,
+              mapPoint: null, nightHour: null, places: null, mapPick: false, reports: null, reportBusy: false,
               cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, shareLang: null, shareMatrix: null };
 
 /* ------------------------------------------------------------------ */

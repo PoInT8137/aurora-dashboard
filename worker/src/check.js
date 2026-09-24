@@ -8,6 +8,7 @@ import '../../core.js';
 import { sendPush } from './push.js';
 import { alertMessage, bzMessage, DEFAULT_LANG } from './messages.js';
 import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
+import { purgeReports } from './reports.js';
 
 export { alertMessage };
 
@@ -94,6 +95,9 @@ async function recordHeartbeat(env, nowMs, outcome) {
  * Возвращает сводку для журнала и тестов.
  */
 export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
+  // Отметки «Вижу сияние» старше суток не нужны. Сбой уборки проверке не мешает.
+  try { await purgeReports(env, nowMs); } catch (e) { console.error('отметки не убраны: ' + (e && e.message)); }
+
   let summary;
   try {
     summary = await checkOnce(env, nowMs, fetchFn);
