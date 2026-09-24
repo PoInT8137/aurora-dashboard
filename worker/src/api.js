@@ -11,6 +11,7 @@
 //   GET  /health                               доступность и пульс: { ok, lastCheck, outcome }
 //   POST /report       { point, strength }     отметка «Вижу сияние» (strength: faint | bright)
 //   GET  /reports                              сводка отметок за последний час
+//   GET  /verify                               насколько сбывается прогноз: статистика за 60 ночей
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -20,6 +21,7 @@ import '../../core.js';
 import { checkEndpoint, sendPush } from './push.js';
 import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './messages.js';
 import { acceptReport, reportSummary } from './reports.js';
+import { verifyStats } from './verify.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -100,6 +102,20 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     return new Response(JSON.stringify(summary), {
       status: 200,
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60', ...(cors || {}) }
+    });
+  }
+
+  if (url.pathname === '/verify' && request.method === 'GET') {
+    // Меняется раз в сутки — кэшируется на час.
+    let stats;
+    try {
+      stats = await verifyStats(env);
+    } catch {
+      stats = { nights: 0, total: 0, exact: 0, offByOne: 0, offByTwo: 0, promised: {} };   // база до миграции
+    }
+    return new Response(JSON.stringify(stats), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=3600', ...(cors || {}) }
     });
   }
 

@@ -1020,6 +1020,8 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   .hnight__facts { grid-column: 1 / -1; }
 }
 
+.accuracy__text { margin: 4px 0 10px; font-size: 16px; }
+
 /* Очевидцы */
 .reports { border-left: 3px solid var(--tone, var(--border)); }
 .reports__summary { margin: 4px 0 14px; font-size: 16px; }

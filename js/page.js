@@ -74,7 +74,7 @@ function showTab(id, historyMode) {
   // Карта и «Куда ехать» опираются на одни и те же данные по семи точкам.
   if ((id === 'tonight' || id === 'map') && !state.tonight && !state.tonightLoading) loadTonight();
   if (id === 'map') { renderMap(); loadCloudGrid(false); }
-  if (id === 'tonight') { loadOutlook(false); loadHistory(false); }
+  if (id === 'tonight') { loadOutlook(false); loadHistory(false); loadAccuracy(false); }
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
   if (id === 'settings') {
     renderNotifyDiagnostics();

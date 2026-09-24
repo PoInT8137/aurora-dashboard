@@ -178,3 +178,56 @@ function renderHistory() {
 
   applyFreshness('history-card', 'history-stale', h.stale, LEAD_OFFLINE);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Насколько сбывается прогноз                                        */
+/*                                                                     */
+/*  Сервер каждый вечер записывает прогноз на ночь для семи точек, а    */
+/*  утром сверяет его с измеренными данными (worker/src/verify.js).     */
+/*  Здесь — итог за последние 60 ночей. Пока сверено меньше пяти ночей, */
+/*  цифр не показываем: по двум-трём ночам они ничего не значат.        */
+/* ------------------------------------------------------------------ */
+
+var ACCURACY = { minNights: 5, refreshMs: 60 * 60 * 1000 };
+
+function loadAccuracy(force) {
+  if (!pushConfigured()) { renderAccuracy(); return Promise.resolve(null); }
+  if (!force && state.accuracy && Date.now() - state.accuracy.loadedAt < ACCURACY.refreshMs) {
+    renderAccuracy();
+    return Promise.resolve(state.accuracy);
+  }
+  return fetchJson(AURORA_CONFIG.pushApi + '/verify')
+    .then(function (data) {
+      if (!data || typeof data.total !== 'number') throw appError('bad_format');
+      state.accuracy = { data: data, loadedAt: Date.now() };
+      renderAccuracy();
+      return state.accuracy;
+    })
+    .catch(function () {
+      renderAccuracy();
+      return null;
+    });
+}
+
+/** Текст итога: доля совпадений, промахи, что было при обещанном высоком шансе. */
+function accuracyText(d) {
+  if (!d || d.nights < ACCURACY.minNights) {
+    return t('accuracy.collecting', { n: d ? d.nights : 0, min: ACCURACY.minNights });
+  }
+  var text = t('accuracy.main', {
+    nights: t('history.nights', { n: d.nights }),
+    pct: Math.round(100 * d.exact / Math.max(1, d.total)),
+    exact: d.exact, total: d.total, one: d.offByOne, two: d.offByTwo
+  });
+  var high = d.promised && d.promised.high;
+  if (high && high.n) text += ' ' + t('accuracy.high', { ok: high.high + high.mid, n: high.n });
+  return text;
+}
+
+function renderAccuracy() {
+  var card = $('accuracy-card');
+  if (!card) return;
+  card.hidden = !pushConfigured() || !state.accuracy;
+  if (card.hidden) return;
+  $('accuracy-text').textContent = accuracyText(state.accuracy.data);
+}

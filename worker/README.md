@@ -106,6 +106,22 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXIS
 npx wrangler deploy
 ```
 
+### Проверка прогноза
+
+Вечером сервер записывает, какой шанс на ночь обещает прогноз для каждой из семи точек, а утром — каким он оказался; `GET /verify` отдаёт итог за последние 60 ночей (`{ nights, total, exact, offByOne, offByTwo, promised: { high: { n, high, mid, low }, … } }`, кэш на час). Код — `src/verify.js`.
+
+- **Правила** — те же, что у окна наблюдения на сайте: ночь — первый тёмный отрезок (Солнце ниже −6°), уровень часа — `verdictLevel` из ядра, уровень ночи — лучший из часов.
+- **Прогноз** (первый проход с 17:00 до 20:00 МСК): Kp — прогноз NOAA (`noaa-planetary-k-index-forecast.json`), облачность — прогноз ICON-EU на сутки для семи точек одним запросом.
+- **Факт** (с 08:00 до 12:00 МСК следующего дня): Kp — измеренные строки (`observed`, `estimated`) того же файла, облачность — та же модель за прошедшие часы (`past_days=1`). Ночь сверяется, только когда все её тёмные часы уже прошли; в полярную ночь это около 10:30 МСК.
+- Шаг — внутри проверки по расписанию, от подписчиков не зависит; нет данных — следующий проход попробует снова. Сбой не мешает рассылке. Летом (белые ночи) записей нет.
+
+Для развёрнутой базы — один раз, до выкладки кода:
+
+```bash
+npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS verify (night TEXT NOT NULL, point TEXT NOT NULL, forecast TEXT NOT NULL, actual TEXT, from_ms INTEGER NOT NULL, PRIMARY KEY (night, point))"
+npx wrangler deploy
+```
+
 ### О чём сообщать: средний шанс и «небо откроется»
 
 Подписчик выбирает на сайте (блок «О чём сообщать»), страница присылает выбор в `/subscribe` (`level: high | mid`, `sky: true | false`; не присланное не меняется). Код — `src/options.js`, после основной рассылки; сбой здесь её не трогает.
@@ -206,7 +222,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # запустить п
 ## Тесты
 
 ```bash
-npm test                                            # 96 тестов, работают без сети и без аккаунта
+npm test                                            # 105 тестов, работают без сети и без аккаунта
 node --test ../tools/*.test.mjs                     # клиент, service worker, согласие с сайтом
 ```
 

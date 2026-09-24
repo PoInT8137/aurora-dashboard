@@ -10,6 +10,7 @@ import { alertMessage, bzMessage, DEFAULT_LANG } from './messages.js';
 import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
 import { purgeReports } from './reports.js';
 import { optionAlerts } from './options.js';
+import { verifyStep } from './verify.js';
 
 export { alertMessage };
 
@@ -120,6 +121,11 @@ async function recordHeartbeat(env, nowMs, outcome) {
 export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
   // Отметки «Вижу сияние» старше суток не нужны. Сбой уборки проверке не мешает.
   try { await purgeReports(env, nowMs); } catch (e) { console.error('отметки не убраны: ' + (e && e.message)); }
+  // Проверка прогноза: вечером — прогноз на ночь, утром — факт. Раз в сутки, от подписчиков не зависит.
+  try {
+    const step = await verifyStep(env, nowMs, fetchFn);
+    if (step) console.log('проверка прогноза: ' + step);
+  } catch (e) { console.error('проверка прогноза не записана: ' + (e && e.message)); }
 
   let summary;
   try {

@@ -571,6 +571,13 @@ try {
     </div>
   </section>
 
+  <!-- Насколько сбывается прогноз: сверка сервера (worker/src/verify.js) -->
+  <section class="card card--wide card--plain" id="accuracy-card" hidden>
+    <h2 class="card__label" data-i18n="accuracy.title">Насколько сбывается прогноз</h2>
+    <p class="accuracy__text" id="accuracy-text"></p>
+    <p class="card__meta" data-i18n="accuracy.note">Прогноз записывается каждый вечер в 18:00 по Москве для семи точек области, а утром сверяется с измеренным Kp NOAA и облачностью модели ICON-EU за прошедшие часы. Совпадение — тот же уровень шанса на ночь.</p>
+  </section>
+
   <footer class="foot">
     <p data-i18n="foot.tonight">Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
   </footer>

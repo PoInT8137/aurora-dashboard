@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS reports_at ON reports(at);
 CREATE INDEX IF NOT EXISTS reports_who ON reports(who, at);
 
+-- Проверка прогноза (src/verify.js): вечером — какой шанс обещан на ночь, утром — каким он был.
+CREATE TABLE IF NOT EXISTS verify (
+  night    TEXT NOT NULL,              -- дата вечера по Москве, 2026-09-24
+  point    TEXT NOT NULL,              -- id точки области
+  forecast TEXT NOT NULL,              -- high | mid | low — прогноз, записанный вечером
+  actual   TEXT,                       -- то же по измеренным данным; NULL — ещё не сверено
+  from_ms  INTEGER NOT NULL,           -- начало тёмного отрезка, который оценивался
+  PRIMARY KEY (night, point)
+);
+
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».
 CREATE TABLE IF NOT EXISTS point_state (
   point      TEXT PRIMARY KEY,

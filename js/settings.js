@@ -322,6 +322,7 @@ function renderLocalized() {
   renderPointOptions();
   renderPlacesList();
   renderReports();
+  renderAccuracy();
   renderPointMeta();
   $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });
 

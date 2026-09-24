@@ -169,3 +169,41 @@ test('разметка: карточка на вкладке «Куда ехат
   assert.match(tonight, /id="history-card"/);
   assert.match(read('sw.js'), /'js\/history\.js'/);
 });
+
+/* ---------------- насколько сбывается прогноз ---------------- */
+
+function accuracyPage(stats) {
+  const elements = new Map();
+  const getElement = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
+  const calls = [];
+  const fetch = async url => { calls.push(String(url)); return stats === 'fail' ? Promise.reject(new TypeError('offline')) : json(stats); };
+  const ctx = loadApp([['config.js', read('config.js')], ['core.js', read('core.js')], ['push.js', read('push.js')], ['app.js', read('app.js')]],
+    { now: NOW, getElement, createElement: () => element(), fetch });
+  return { ctx, el: getElement, calls };
+}
+
+test('точность: итог по-русски — доля совпадений, промахи и что было при обещанном высоком', async () => {
+  const { ctx, el, calls } = accuracyPage({ nights: 23, total: 150, exact: 111, offByOne: 34, offByTwo: 5,
+    promised: { high: { n: 12, high: 7, mid: 3, low: 2 }, mid: { n: 0, high: 0, mid: 0, low: 0 }, low: { n: 0, high: 0, mid: 0, low: 0 } } });
+  await ctx.loadAccuracy(false);
+  assert.equal(calls[0], 'https://aurora-push.aurora-murmansk.workers.dev/verify');
+  assert.equal(el('accuracy-card').hidden, false);
+  assert.equal(el('accuracy-text').textContent,
+    'За 23 ночи по семи точкам прогноз на ночь совпал с тем, что было, в 74% случаев (111 из 150); ошибся на одну ступень — 34, на две — 5. ' +
+    'Когда обещали высокий шанс, он оказался высоким или средним в 10 из 12.');
+  await ctx.loadAccuracy(false);
+  assert.equal(calls.length, 1, 'не чаще раза в час');
+});
+
+test('точность: меньше пяти ночей — «статистика копится», без процентов; сервер недоступен — карточки нет', async () => {
+  const few = accuracyPage({ nights: 2, total: 14, exact: 14, offByOne: 0, offByTwo: 0, promised: {} });
+  await few.ctx.loadAccuracy(false);
+  assert.equal(few.el('accuracy-text').textContent,
+    'Статистика копится: сервер каждый вечер записывает прогноз на ночь, а утром сверяет его с тем, что было. Сверено ночей: 2; цифры появятся после 5.');
+  assert.doesNotMatch(few.el('accuracy-text').textContent, /%/);
+
+  const down = accuracyPage('fail');
+  await down.ctx.loadAccuracy(false);
+  assert.equal(down.el('accuracy-card').hidden, true);
+  assert.match(read('js/page.js'), /loadAccuracy\(false\)/);
+});
