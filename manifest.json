@@ -33,5 +33,46 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Куда ехать ночью",
+      "short_name": "Куда ехать",
+      "description": "Сравнение семи точек на ближайшую ночь · Where to go tonight",
+      "url": "/#tonight",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Карта облаков",
+      "short_name": "Карта",
+      "description": "Точки и облака над областью · Map with clouds",
+      "url": "/#map",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Ночное зрение",
+      "short_name": "Ночное зрение",
+      "description": "Красная тема для наблюдения · Night vision",
+      "url": "/?theme=night#now",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

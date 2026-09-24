@@ -104,10 +104,32 @@ function toggleNight() {
     try { before = localStorage.getItem(CACHE.prefix + 'dayTheme'); } catch (e) { /* нет хранилища */ }
     setSetting('theme', before && before !== 'night' && SETTINGS_CHOICES.theme.indexOf(before) >= 0 ? before : SETTINGS_DEFAULTS.theme);
   } else {
-    try { localStorage.setItem(CACHE.prefix + 'dayTheme', setting('theme')); } catch (e) { /* вернётся тема по умолчанию */ }
-    setSetting('theme', 'night');
+    enterNight();
   }
   afterSettingsChange('theme');
+}
+
+/** Включить ночное зрение, запомнив прежнюю тему — к ней вернёт кнопка в шапке. */
+function enterNight() {
+  try { localStorage.setItem(CACHE.prefix + 'dayTheme', setting('theme')); } catch (e) { /* вернётся тема по умолчанию */ }
+  setSetting('theme', 'night');
+}
+
+/**
+ * Ярлык «Ночное зрение» открывает ?theme=night: тема включается и запоминается, как кнопкой.
+ * Параметр одноразовый — убирается из адреса, иначе перезагрузка снова включала бы тему
+ * после того, как её выключили.
+ */
+function themeFromUrl() {
+  var search = location.search || '';
+  if (!/[?&]theme=night\b/.test(search)) return false;
+  if (setting('theme') !== 'night') {
+    enterNight();
+    applyAppearance();
+  }
+  var rest = search.replace(/[?&]theme=night\b/, '').replace(/^&/, '?');
+  history.replaceState(null, '', location.pathname + rest + location.hash);
+  return true;
 }
 
 /** Окно тихих часов {from, to} или null, если выключено. */
@@ -200,6 +222,7 @@ function afterSettingsChange(changed) {
 }
 
 function initSettings() {
+  themeFromUrl();
   // Тема «авто» следует за системой: переключили — перекрашиваемся.
   try {
     var scheme = window.matchMedia('(prefers-color-scheme: light)');

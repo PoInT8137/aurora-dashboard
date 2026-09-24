@@ -59,6 +59,10 @@ try {
   if (theme === 'light' || theme === 'dark' || theme === 'night') root.setAttribute('data-theme', theme);
   if (saved.size === 'large' || saved.size === 'xlarge') root.setAttribute('data-size', saved.size);
 } catch (e) { /* без хранилища — оформление по умолчанию */ }
+/* Ярлык «Ночное зрение» (manifest.json) открывает ?theme=night — тема сразу, без вспышки */
+try {
+  if (/[?&]theme=night\b/.test(location.search)) document.documentElement.setAttribute('data-theme', 'night');
+} catch (e) { /* без адреса — как сохранено */ }
 </script>
 <script>
 /* Заставка при первом визите: один раз на устройство и никогда при «уменьшить движение».
