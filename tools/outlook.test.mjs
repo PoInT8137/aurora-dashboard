@@ -240,6 +240,6 @@ test('карточка — на вкладке «Куда ехать», запр
   const tonight = html.slice(html.indexOf('id="tab-tonight"'), html.indexOf('id="tab-settings"'));
   assert.ok(tonight.includes('id="outlook-card"'));
   const app = appSource();
-  assert.match(app, /if \(id === 'tonight'\) loadOutlook\(false\);/);
+  assert.match(app, /if \(id === 'tonight'\) \{ loadOutlook\(false\);/);
   assert.match(app, /if \(what === 'outlook'\)\s+loadOutlook\(true\);/);
 });

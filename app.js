@@ -36,6 +36,7 @@ function init() {
     if (what === 'sw')       loadSolarWind().then(renderDerived);
     if (what === 'ov')       loadOvation(true);
     if (what === 'outlook')  loadOutlook(true);
+    if (what === 'history')  loadHistory(true);
   });
 
   applyLanguage();

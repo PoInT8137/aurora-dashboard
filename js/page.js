@@ -74,7 +74,7 @@ function showTab(id, historyMode) {
   // Карта и «Куда ехать» опираются на одни и те же данные по семи точкам.
   if ((id === 'tonight' || id === 'map') && !state.tonight && !state.tonightLoading) loadTonight();
   if (id === 'map') { renderMap(); loadCloudGrid(false); }
-  if (id === 'tonight') loadOutlook(false);
+  if (id === 'tonight') { loadOutlook(false); loadHistory(false); }
   // Состояние service worker и разрешения могло измениться — показываем актуальное.
   if (id === 'settings') {
     renderNotifyDiagnostics();
@@ -216,6 +216,8 @@ function selectPoint(id) {
   renderOvation();
   renderOutlook();
   renderReports();
+  // Прошлые ночи — свои у каждой точки: на открытой вкладке сразу подгружаем новые.
+  if (state.tab === 'tonight') loadHistory(false);
 
   // Облачность принадлежала прежней точке — её нельзя показывать для новой.
   // Kp и его прогноз планетарные, их при смене города не перезапрашиваем.

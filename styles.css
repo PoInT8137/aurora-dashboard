@@ -998,6 +998,28 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 .myplace__meta { margin: 2px 0 0; font-size: 13px; color: var(--text-dim); }
 .myplace .btn { flex: none; }
 
+/* Прошлые ночи */
+.history__summary { margin: 4px 0 12px; }
+.history { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.hnight {
+  display: grid;
+  grid-template-columns: 7.5em 8.5em 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border-left: 3px solid var(--tone, var(--border));
+  border-radius: 8px;
+  background: rgba(var(--fill), 0.03);
+  font-size: 14px;
+}
+.hnight__date { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.hnight__level { color: var(--tone, var(--text)); font-weight: 600; }
+.hnight__facts { color: var(--text-dim); }
+@media (max-width: 560px) {
+  .hnight { grid-template-columns: auto 1fr; }
+  .hnight__facts { grid-column: 1 / -1; }
+}
+
 /* Очевидцы */
 .reports { border-left: 3px solid var(--tone, var(--border)); }
 .reports__summary { margin: 4px 0 14px; font-size: 16px; }

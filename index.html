@@ -551,6 +551,26 @@ try {
     </div>
   </section>
 
+  <!-- Прошлые ночи: как было у выбранной точки (js/history.js) -->
+  <section class="card card--wide" id="history-card" data-state="loading">
+    <h2 class="card__label"><span data-i18n="history.title">Прошлые ночи</span> · <span id="history-title-point"></span></h2>
+
+    <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
+
+    <div class="card__body">
+      <p class="history__summary" id="history-summary"></p>
+      <ul class="history" id="history-list"></ul>
+      <p class="card__meta" data-i18n="history.note">Оценка задним числом по тем же правилам, что и прогноз: Kp — измеренный NOAA, облачность — модель ICON-EU. Видно, что вы пропустили и как часто здесь бывает шанс.</p>
+    </div>
+
+    <p class="card__stale" id="history-stale"><span class="stale__text"></span></p>
+
+    <div class="card__error">
+      <p class="card__error-text" id="history-error" data-i18n="history.error">Не удалось загрузить данные о прошлых ночах.</p>
+      <button class="btn btn--ghost" type="button" data-retry="history" data-i18n="btn.retry">Повторить</button>
+    </div>
+  </section>
+
   <footer class="foot">
     <p data-i18n="foot.tonight">Оценка на ночь считается по прогнозу облачности для каждой точки и общему прогнозу Kp с поправкой на геомагнитную широту точки.</p>
   </footer>
@@ -858,6 +878,7 @@ try {
 <script src="js/now.js"></script>
 <script src="js/night.js"></script>
 <script src="js/tonight.js"></script>
+<script src="js/history.js"></script>
 <script src="js/map-tab.js"></script>
 <script src="js/clouds.js"></script>
 <script src="js/notify.js"></script>
