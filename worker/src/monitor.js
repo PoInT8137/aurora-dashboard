@@ -15,6 +15,8 @@ const MIN = 60 * 1000;
 
 export const ALERT_AFTER_MS = 20 * MIN;
 export const REMIND_EVERY_MS = 6 * 60 * MIN;
+/* Служебная строка в таблице monitor: приветствие уже отправлено. */
+const HELLO = '_hello';
 
 async function getJson(url, fetchFn) {
   const res = await fetchFn(url, { signal: AbortSignal.timeout(10000) });
@@ -72,8 +74,14 @@ export async function notifyOwner(env, text, fetchFn) {
       body: JSON.stringify({ chat_id: env.TELEGRAM_OWNER_CHAT, text, disable_web_page_preview: true }),
       signal: AbortSignal.timeout(10000)
     });
+    if (!res.ok) {
+      // Причина — в журнал (без токена): «chat not found», «bot was blocked», «Unauthorized»…
+      const reason = await res.json().then(d => d.description, () => '');
+      console.error('Telegram не принял сообщение: ' + res.status + ' ' + reason);
+    }
     return res.ok;
-  } catch {
+  } catch (e) {
+    console.error('Telegram недоступен: ' + (e && e.message));
     return false;
   }
 }
@@ -134,6 +142,17 @@ export async function monitorStep(env, nowMs, fetchFn) {
     ).bind(p.name, p.since, notified, p.problem);
   }).filter(Boolean);
   if (writes.length) await env.DB.batch(writes);
+
+  // Приветствие — один раз, как только заданы секреты: так видно, что бот и чат настроены верно.
+  if (!state.has(HELLO) && env.TELEGRAM_TOKEN && env.TELEGRAM_OWNER_CHAT) {
+    const status = names.map((name, i) => (results[i] ? '⚠️ ' : '✅ ') + PROBES[name].title + (results[i] ? ' — ' + results[i] : '')).join('\n');
+    const hello = '🌌 Мониторинг auroramurmansk.ru подключён. Раз в 10 минут проверяю источники и напишу, если что-то ' +
+      'не работает дольше 20 минут.\n\nСейчас:\n' + status;
+    if (await notifyOwner(env, hello, fetchFn)) {
+      await env.DB.prepare('INSERT OR IGNORE INTO monitor(source, down_since, notified_at, detail) VALUES(?, ?, ?, ?)')
+        .bind(HELLO, nowMs, nowMs, 'приветствие отправлено').run();
+    }
+  }
 
   return { problems, sent: sent ? messages.length : 0, pending: messages.length };
 }

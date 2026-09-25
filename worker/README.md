@@ -253,7 +253,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # запустить п
 ## Тесты
 
 ```bash
-npm test                                            # 121 тест, работают без сети и без аккаунта
+npm test                                            # 122 теста, работают без сети и без аккаунта
 node --test ../tools/*.test.mjs                     # клиент, service worker, согласие с сайтом
 ```
 

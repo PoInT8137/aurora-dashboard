@@ -36,12 +36,14 @@ function world(now, { kpAgeMin = 1, swDown = false, meteoDown = false, siteStatu
   return fn;
 }
 
-async function env({ secrets = true } = {}) {
+async function env({ secrets = true, greeted = true } = {}) {
   const { env } = await makeEnv();
   if (secrets) { env.TELEGRAM_TOKEN = TOKEN; env.TELEGRAM_OWNER_CHAT = CHAT; }
+  // приветствие уже ушло — проверяются сами сбои (приветствие — в отдельном тесте)
+  if (greeted) env.DB.raw.prepare("INSERT INTO monitor(source, down_since, notified_at) VALUES('_hello', 0, 0)").run();
   return env;
 }
-const rows = e => e.DB.raw.prepare('SELECT * FROM monitor ORDER BY source').all().map(r => ({ ...r }));
+const rows = e => e.DB.raw.prepare("SELECT * FROM monitor WHERE source != '_hello' ORDER BY source").all().map(r => ({ ...r }));
 
 test('всё в порядке — ни записей, ни сообщений', async () => {
   const e = await env();
@@ -133,4 +135,23 @@ test('проверка NOAA падает с ошибкой разбора — э
   const r = await monitorStep(e, NIGHT, w);
   assert.deepEqual(r.problems, ['noaa_kp']);
   assert.ok(rows(e)[0].detail);
+});
+
+test('приветствие — один раз, как только заданы секреты, с текущим состоянием; без секретов — нет', async () => {
+  const none = await env({ secrets: false, greeted: false });
+  await monitorStep(none, NIGHT, world(NIGHT));
+  assert.equal(rows(none).length, 0);
+
+  const e = await env({ greeted: false });
+  const w = world(NIGHT, { meteoDown: true });
+  await monitorStep(e, NIGHT, w);
+  assert.equal(w.sent.length, 1);
+  const text = w.sent[0].body.text;
+  assert.match(text, /^🌌 Мониторинг auroramurmansk\.ru подключён/);
+  assert.match(text, /✅ Kp \(NOAA\)/);
+  assert.match(text, /⚠️ Open-Meteo — Failed to fetch/);
+  const w2 = world(NIGHT + 10 * MIN);
+  await monitorStep(e, NIGHT + 10 * MIN, w2);
+  assert.equal(w2.sent.length, 0, 'повторно не приветствует');
+  assert.ok(e.DB.raw.prepare("SELECT 1 FROM monitor WHERE source = '_hello'").get());
 });
