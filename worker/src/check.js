@@ -11,6 +11,7 @@ import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_C
 import { purgeReports } from './reports.js';
 import { optionAlerts } from './options.js';
 import { verifyStep } from './verify.js';
+import { monitorStep } from './monitor.js';
 
 export { alertMessage };
 
@@ -126,6 +127,11 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
     const step = await verifyStep(env, nowMs, fetchFn);
     if (step) console.log('проверка прогноза: ' + step);
   } catch (e) { console.error('проверка прогноза не записана: ' + (e && e.message)); }
+  // Мониторинг источников с оповещением владельцу. Сбой мониторинга проверке не мешает.
+  try {
+    const watch = await monitorStep(env, nowMs, fetchFn);
+    if (watch.problems.length) console.log('мониторинг: ' + watch.problems.join(', '));
+  } catch (e) { console.error('мониторинг не выполнен: ' + (e && e.message)); }
 
   let summary;
   try {

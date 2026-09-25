@@ -61,6 +61,15 @@ CREATE TABLE IF NOT EXISTS verify (
   PRIMARY KEY (night, point)
 );
 
+-- Мониторинг источников (src/monitor.js): что сейчас не работает, с какого момента и когда
+-- владельцу последний раз сообщили. Нет строки — источник в порядке.
+CREATE TABLE IF NOT EXISTS monitor (
+  source      TEXT PRIMARY KEY,         -- noaa_kp | noaa_sw | open_meteo | site
+  down_since  INTEGER NOT NULL,         -- мс первой неудачной проверки
+  notified_at INTEGER NOT NULL DEFAULT 0, -- мс последнего сообщения владельцу; 0 — ещё не сообщали
+  detail      TEXT                      -- что именно не так
+);
+
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».
 CREATE TABLE IF NOT EXISTS point_state (
   point      TEXT PRIMARY KEY,

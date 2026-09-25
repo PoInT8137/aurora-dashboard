@@ -106,6 +106,23 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXIS
 npx wrangler deploy
 ```
 
+### Мониторинг источников и оповещение владельцу
+
+Каждый проход по расписанию (`src/monitor.js`) проверяет, что источники отвечают и данные свежие: Kp у NOAA (измерение не старше 30 минут), солнечный ветер (спутники передавали не позже 45 минут назад), Open-Meteo (в ответе есть облачность) и сам сайт. Сбой дольше 20 минут (два прохода подряд — одна осечка не повод) — сообщение владельцу в Telegram, пока сбой длится — напоминание раз в 6 часов, источник вернулся — «✅ Снова работает» с длительностью сбоя. Состояние — в таблице `monitor`; сообщение считается отправленным, только если Telegram его принял, иначе уйдёт следующим проходом.
+
+Бот и чат владельца — секреты worker'а, в репозитории их нет. Задаются один раз:
+
+```bash
+npx wrangler secret put TELEGRAM_TOKEN        # токен бота от @BotFather
+npx wrangler secret put TELEGRAM_OWNER_CHAT   # ваш числовой id в Telegram (его покажет @userinfobot)
+```
+
+Пока секретов нет, мониторинг всё равно ведёт состояние, но ничего не отправляет. Таблица для развёрнутой базы — один раз, до выкладки кода:
+
+```bash
+npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS monitor (source TEXT PRIMARY KEY, down_since INTEGER NOT NULL, notified_at INTEGER NOT NULL DEFAULT 0, detail TEXT)"
+```
+
 ### Данные NOAA для страницы
 
 `GET /noaa/<имя>` — те же файлы NOAA в том же формате, но компактнее (`src/noaa.js`): `kp`, `kp-3h`, `kp-forecast`, `sw-mag`, `sw-speed`, `ovation`, `outlook`. Страница берёт данные NOAA сначала отсюда, а прямой запрос к NOAA — запасной путь.
@@ -236,7 +253,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # запустить п
 ## Тесты
 
 ```bash
-npm test                                            # 115 тестов, работают без сети и без аккаунта
+npm test                                            # 121 тест, работают без сети и без аккаунта
 node --test ../tools/*.test.mjs                     # клиент, service worker, согласие с сайтом
 ```
 

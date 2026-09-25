@@ -15,11 +15,14 @@ const run = (env, now, world = {}) => {
 
 const pushedTo = fetch => fetch.pushCalls().map(c => c.url);
 
-test('нет подписчиков — нет ни одного обращения к внешним сервисам', async () => {
+test('нет подписчиков — к источникам только лёгкие проверки мониторинга, без данных для рассылки', async () => {
   const { env } = await makeEnv();
   const { summary, fetch } = await run(env, T0);
   assert.deepEqual(summary, { skipped: 'нет подписчиков' });
-  assert.equal(fetch.calls.length, 0);
+  // мониторинг (src/monitor.js) ходит всегда; тяжёлых запросов для рассылки нет
+  assert.ok(fetch.calls.length <= 4, fetch.calls.map(c => c.url).join(' '));
+  assert.ok(fetch.calls.every(c => !/latitude=[^&]*,/.test(c.url)), 'облачность по точкам не запрашивается');
+  assert.equal(fetch.pushCalls().length, 0);
 });
 
 test('первое наблюдение — только точка отсчёта: «высокий», который уже идёт, не будит', async () => {
@@ -244,7 +247,8 @@ test('облачность всех точек запрашивается одн
   addSub(env, { n: 4, point: 'murmansk' });
 
   const { fetch } = await run(env, T0, { kp: 0.3 });
-  const weather = fetch.calls.filter(c => c.url.includes('open-meteo'));
+  // кроме проверки мониторинга (одна точка, только current=cloud_cover)
+  const weather = fetch.calls.filter(c => c.url.includes('open-meteo') && c.url.includes('hourly='));
   assert.equal(weather.length, 1);
   assert.match(weather[0].url, /models=icon_eu/);
   assert.equal(weather[0].url.match(/latitude=([^&]+)/)[1].split(',').length, 3, 'по одной координате на точку с подписчиками');
