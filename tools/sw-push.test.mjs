@@ -25,7 +25,7 @@ function worker({ subscription = { endpoint: ENDPOINT }, message, serverStatus =
       vm.runInContext(config, w.ctx, { filename: name });
     },
     fetch: async (url, init) => {
-      w.fetched.push({ url: String(url), init });
+      w.fetched.push({ url: String(url && url.url ? url.url : url), init });
       if (message === 'down') throw new TypeError('Failed to fetch');
       if (String(url).endsWith('/message')) {
         return new Response(message ? JSON.stringify(message) : '{}', { status: message ? serverStatus : 404 });
@@ -220,4 +220,18 @@ test('push: текст, который собрал сервер, показыв
   await w.fire('push');
   assert.equal(w.shown[0].title, 'High chance of aurora — Murmansk');
   assert.equal(w.shown[0].options.lang, 'en');
+});
+
+test('установка качает файлы с меткой версии (мимо кэша CDN), а хранит под обычными адресами', async () => {
+  const w = worker();
+  await w.fire('install');
+  const version = /CACHE_VERSION = '([^']+)'/.exec(swCode)[1];
+  const shellFetches = w.fetched.filter(f => f.url.startsWith(SCOPE));
+  assert.ok(shellFetches.length > 20);
+  for (const f of shellFetches) {
+    assert.ok(f.url.endsWith('?v=' + version), 'без метки версии: ' + f.url);
+    assert.equal(f.init && f.init.cache, undefined, 'Request несёт cache сам');
+  }
+  assert.ok(w.cachePuts.every(u => !u.includes('?v=')), 'в кэше — обычные адреса, по ним и ищет страница');
+  assert.ok(w.cachePuts.includes(SCOPE + 'index.html'));
 });

@@ -15,7 +15,7 @@ try { importScripts('config.js'); } catch (e) { /* без настроек push 
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v39';
+var CACHE_VERSION = 'v40';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -55,11 +55,14 @@ var APP_SHELL = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      // cache: 'reload' — чтобы при смене версии не подхватить старые копии
-      // из HTTP-кэша браузера.
+      // cache: 'reload' — мимо HTTP-кэша браузера. ?v=<версия> — мимо кэша CDN GitHub Pages:
+      // он держит файлы до 10 минут, и новый sw.js мог приехать раньше остальных файлов —
+      // тогда в кэш новой версии легли бы старые копии и остались там до следующей версии
+      // (так было с v39). Хранится файл под обычным адресом, без метки.
       return Promise.all(APP_SHELL.map(function (path) {
         var url = new URL(path, self.registration.scope).href;
-        return fetch(new Request(url, { cache: 'reload' }))
+        var fresh = url + (url.indexOf('?') < 0 ? '?' : '&') + 'v=' + CACHE_VERSION;
+        return fetch(new Request(fresh, { cache: 'reload' }))
           .then(function (response) {
             if (!response.ok) throw new Error('HTTP ' + response.status + ' для ' + path);
             return cache.put(url, response);
