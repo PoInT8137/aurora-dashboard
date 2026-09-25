@@ -256,3 +256,27 @@ test('график: в бурю шкала растягивается до са�
   assert.equal(bars[23].children[0].style.height, '50%');
   assert.equal(bars[0].children[0].style.height, String(5 / 25 * 50) + '%');
 });
+
+test('основной спутник замолчал — берётся самый свежий из остальных, ряды не смешиваются (25.09.2026)', () => {
+  const row = (m, source, active, bz) => ({ time_tag: new Date(NOW - m * MIN).toISOString().slice(0, 19), active, source, bt: 8, bz_gsm: bz });
+  const rows = [];
+  for (let m = 49; m < 170; m++) rows.push(row(m, 'SOLAR1', true, 4));        // основной молчит 49 минут
+  for (let m = 5; m < 120; m++) rows.push(row(m, 'IMAP', false, -8));        // IMAP свежий
+  for (let m = 7; m < 120; m++) rows.push(row(m, 'ACE', false, -2));         // ACE чуть старше
+  const s = core.solarWindSummary(rows, NOW);
+  assert.ok(s, 'данные есть, а не «спутники не передавали»');
+  assert.equal(s.source, 'IMAP');
+  assert.equal(s.fallback, true);
+  assert.equal(s.bz, -8, 'только ряд IMAP, без примеси SOLAR1 и ACE');
+  assert.ok(s.series.every(p => p.bz === -8));
+
+  // основной свежий — он и берётся, даже если другой ещё свежее
+  const fresh = rows.concat([row(3, 'SOLAR1', true, 4), row(2, 'SOLAR1', true, 4)]);
+  for (let m = 1; m < 5; m++) fresh.push(row(m, 'IMAP', false, -8));
+  const main = core.solarWindSummary(fresh, NOW);
+  assert.equal(main.source, 'SOLAR1');
+  assert.equal(main.fallback, false);
+
+  // молчат все — честно «нет данных»
+  assert.equal(core.solarWindSummary(rows.filter(r => Date.parse(r.time_tag + 'Z') < NOW - 40 * MIN), NOW), null);
+});

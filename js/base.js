@@ -100,7 +100,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
-              mapPoint: null, nightHour: null, places: null, mapPick: false, reports: null, reportBusy: false, history: null, accuracy: null,
+              mapPoint: null, nightHour: null, places: null, mapPick: false, reports: null, reportBusy: false, history: null, accuracy: null, meteoViaServer: false,
               cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, shareLang: null, shareMatrix: null };
 
 /* ------------------------------------------------------------------ */
@@ -203,7 +203,38 @@ function refreshErrors() {
 }
 
 /** fetch с таймаутом и повторами. Бросает ошибку с кодом — понятный текст строит errorText(). */
+var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
+
+/**
+ * Запасной путь к Open-Meteo — через сервер уведомлений (worker/src/meteo.js), с теми же
+ * параметрами; null — не Open-Meteo или сервер не настроен.
+ */
+function meteoFallbackUrl(url) {
+  if (typeof pushConfigured !== 'function' || !pushConfigured()) return null;
+  url = String(url);
+  if (url.indexOf(OPEN_METEO + '?') !== 0) return null;
+  return AURORA_CONFIG.pushApi + '/meteo' + url.slice(OPEN_METEO.length);
+}
+
+/**
+ * JSON по адресу. Open-Meteo бывает недоступен именно отсюда: сеть или VPN не пускает к нему,
+ * адрес выбрал суточный лимит (тогда ответ 429 без CORS-заголовков, и браузер видит «нет
+ * соединения»). Тогда тот же запрос уходит через сервер уведомлений, а до конца сеанса запросы
+ * к Open-Meteo сразу идут через него — не ждать каждый раз отказа.
+ */
 function fetchJson(url, attempt, as) {
+  var viaServer = attempt ? null : meteoFallbackUrl(url);
+  if (!viaServer) return fetchJsonDirect(url, attempt, as);
+  if (state.meteoViaServer) return fetchJsonDirect(viaServer, 0, as);
+  return fetchJsonDirect(url, 0, as).catch(function (err) {
+    return fetchJsonDirect(viaServer, 0, as).then(function (data) {
+      state.meteoViaServer = true;
+      return data;
+    }, function () { throw err; });   // не помог и сервер — показываем исходную причину
+  });
+}
+
+function fetchJsonDirect(url, attempt, as) {
   attempt = attempt || 0;
 
   var ctrl = new AbortController();
@@ -221,7 +252,7 @@ function fetchJson(url, attempt, as) {
       if (err && err.code === 'rate_limit') throw err;
       if (attempt < CONFIG.retries) {
         return new Promise(function (resolve) { setTimeout(resolve, 900); })
-          .then(function () { return fetchJson(url, attempt + 1, as); });
+          .then(function () { return fetchJsonDirect(url, attempt + 1, as); });
       }
       if (err.name === 'AbortError') throw appError('timeout');
       // По имени, а не instanceof: тот же довод, что в pushErrorText — ошибка может прийти из другого окружения.

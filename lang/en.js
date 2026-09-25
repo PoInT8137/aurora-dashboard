@@ -190,6 +190,7 @@ i18nRegister('en', {
   'sw.outlook.north': 'Bz is northward — no rise in activity is expected within the hour.',
   'sw.chart': 'Bz over 2 hours in 5-minute steps: down is southward, good for aurora; up is northward.',
   'sw.about': 'Kp describes the past three hours. Satellites 1.5 million km from Earth see the solar wind before it reaches us. When Bz is steadily southward (negative), a substorm may start in 30–60 minutes.',
+  'sw.backup': 'main satellite silent — data from {source}',
   'sw.meta': 'NOAA satellites at L1 · data as of {time}',
   'verdict.hint.sw': 'The solar wind points to rising activity within the hour — worth watching the sky.',
 

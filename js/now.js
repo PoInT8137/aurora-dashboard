@@ -356,7 +356,8 @@ function renderSolarWind(sw) {
   $('sw-facts').textContent = facts.join(t('sep.dot'));
 
   renderSolarWindChart(sw.series || []);
-  $('sw-meta').textContent = sw.time ? t('sw.meta', { time: fmtTime(sw.time) }) : '';
+  $('sw-meta').textContent = sw.time ? t('sw.meta', { time: fmtTime(sw.time) }) +
+    (sw.fallback ? t('sep.dot') + t('sw.backup', { source: sw.source }) : '') : '';
 
   applyFreshness('sw-card', 'sw-stale', sw.stale, sw.refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);
 }

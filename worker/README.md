@@ -106,6 +106,10 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXIS
 npx wrangler deploy
 ```
 
+### Запасной путь к Open-Meteo
+
+`GET /meteo?<параметры /v1/forecast>` — тот же ответ Open-Meteo через сервер (`src/meteo.js`). Страница идёт сюда, только если прямой запрос не прошёл: сеть или VPN не пускает к `api.open-meteo.com`, адрес выбрал суточный лимит (ответ 429 приходит без CORS-заголовков, и браузер видит «нет соединения»). Не открытый прокси: только `/v1/forecast`, только нужные параметры с проверкой значений (до 100 точек), только со страницы сайта (`Origin` из `ALLOWED_ORIGINS`, иначе 403). Ответы хранятся в памяти worker'а 10 минут; ошибки не кэшируются, 429 источника передаётся как 429.
+
 ### Проверка прогноза
 
 Вечером сервер записывает, какой шанс на ночь обещает прогноз для каждой из семи точек, а утром — каким он оказался; `GET /verify` отдаёт итог за последние 60 ночей (`{ nights, total, exact, offByOne, offByTwo, promised: { high: { n, high, mid, low }, … } }`, кэш на час). Код — `src/verify.js`.
@@ -222,7 +226,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # запустить п
 ## Тесты
 
 ```bash
-npm test                                            # 105 тестов, работают без сети и без аккаунта
+npm test                                            # 110 тестов, работают без сети и без аккаунта
 node --test ../tools/*.test.mjs                     # клиент, service worker, согласие с сайтом
 ```
 

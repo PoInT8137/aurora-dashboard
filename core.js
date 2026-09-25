@@ -159,23 +159,38 @@ function meanBz(series, minutes) {
 function solarWindSummary(rows, nowMs) {
   if (!Array.isArray(rows)) return null;
 
-  var series = [];
-  var bt = null;
+  // Ряды по спутникам: смешивать их нельзя — у каждого свои приборы и своя задержка.
+  var groups = {};
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
-    if (!row || row.active === false) continue;
+    if (!row) continue;
     var time = parseUtc(row.time_tag);
     var bz = num(row.bz_gsm);
     if (!time || bz === null) continue;
     var t = time.getTime();
     if (t > nowMs + 5 * 60000 || nowMs - t > SW_WINDOW_MS) continue;
-    series.push({ time: t, bz: bz, bt: num(row.bt) });
+    var key = String(row.source || 'main');
+    var group = groups[key] || (groups[key] = { source: key, active: false, series: [], last: 0 });
+    if (row.active !== false) group.active = true;
+    group.series.push({ time: t, bz: bz, bt: num(row.bt) });
+    if (t > group.last) group.last = t;
   }
-  if (!series.length) return null;
 
+  // Основной поток NOAA (active) — если он свежий. Бывает, что основной спутник замолкает, а
+  // остальные передают (25.09.2026: SOLAR1 молчал почти час, IMAP и ACE — нет): тогда берём
+  // самый свежий из остальных, а не объявляем, что данных нет.
+  var chosen = null;
+  Object.keys(groups).forEach(function (key) {
+    var g = groups[key];
+    if (nowMs - g.last > SW_STALE_MS) return;
+    if (!chosen || (g.active && !chosen.active) || (g.active === chosen.active && g.last > chosen.last)) chosen = g;
+  });
+  if (!chosen) return null;
+
+  var series = chosen.series;
+  var bt = null;
   series.sort(function (a, b) { return a.time - b.time; });
   var last = series[series.length - 1];
-  if (nowMs - last.time > SW_STALE_MS) return null;
 
   // Текущее значение — среднее за 5 минут: поминутные отсчёты заметно дрожат.
   var now = meanBz(series, 5);
@@ -199,6 +214,8 @@ function solarWindSummary(rows, nowMs) {
     bt: bt === null ? null : Math.round(bt * 10) / 10,
     level: level,
     southMinutes: southMinutes,
+    source: chosen.source,
+    fallback: !chosen.active,   // основной спутник молчит — показаны данные запасного
     series: series.map(function (p) { return { time: p.time, bz: p.bz }; })
   };
 }

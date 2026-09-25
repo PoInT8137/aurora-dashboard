@@ -276,7 +276,7 @@ test('лимит Open-Meteo: ответ 429 не повторяется сраз
   let calls = 0;
   const { ctx } = page({ fetch: async () => { calls++; return new Response('{"error":true,"reason":"Daily API request limit exceeded"}', { status: 429 }); } });
   await assert.rejects(ctx.fetchJson('https://api.open-meteo.com/v1/forecast?x=1'), e => e.code === 'rate_limit');
-  assert.equal(calls, 1, 'без повтора');
+  assert.equal(calls, 2, 'без повтора того же запроса: один прямой и один через сервер уведомлений');
   assert.equal(ctx.errorText(ctx.appError('rate_limit')), 'источник временно ограничил запросы — данные обновятся позже');
 });
 

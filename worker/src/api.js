@@ -12,6 +12,7 @@
 //   POST /report       { point, strength }     отметка «Вижу сияние» (strength: faint | bright)
 //   GET  /reports                              сводка отметок за последний час
 //   GET  /verify                               насколько сбывается прогноз: статистика за 60 ночей
+//   GET  /meteo?…                              запасной путь к Open-Meteo для страницы (src/meteo.js)
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -22,6 +23,7 @@ import { checkEndpoint, sendPush } from './push.js';
 import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './messages.js';
 import { acceptReport, reportSummary } from './reports.js';
 import { verifyStats } from './verify.js';
+import { meteoProxy } from './meteo.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -102,6 +104,16 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     return new Response(JSON.stringify(summary), {
       status: 200,
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60', ...(cors || {}) }
+    });
+  }
+
+  if (url.pathname === '/meteo' && request.method === 'GET') {
+    // Только для страницы сайта: иначе это был бы открытый прокси к Open-Meteo.
+    if (!cors) return reply({ error: 'forbidden_origin' }, 403);
+    const [body, status] = await meteoProxy(url.search, nowMs, fetchFn);
+    return new Response(body, {
+      status,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': status === 200 ? 'private, max-age=300' : 'no-store', ...cors }
     });
   }
 
