@@ -7,6 +7,9 @@
 /*  Настройки                                                          */
 /* ------------------------------------------------------------------ */
 
+/* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
+var APP_VERSION = 'v39';
+
 var CONFIG = {
   tz: 'Europe/Moscow',
   timeoutMs: 12000,        // таймаут одного запроса
@@ -216,29 +219,59 @@ function meteoFallbackUrl(url) {
   return AURORA_CONFIG.pushApi + '/meteo' + url.slice(OPEN_METEO.length);
 }
 
+/* Прямой запрос к Open-Meteo ждём недолго и не повторяем: если сеть его не пускает, запрос
+   часто не отклоняется, а повисает (так бывает, когда провайдер блокирует адреса хостинга).
+   Запасной путь через сервер уведомлений должен начаться за секунды, а не за полминуты. */
+var METEO_DIRECT_TIMEOUT_MS = 6000;
+var METEO_VIA_SERVER_MS = 24 * 60 * 60 * 1000;   // сколько помнить, что напрямую не проходит
+
+/** Прямой путь к Open-Meteo недавно не работал — сначала сервер. Помнится сутки и между сеансами. */
+function meteoViaServer() {
+  if (state.meteoViaServer) return true;
+  try {
+    var at = Number(localStorage.getItem(CACHE.prefix + 'meteoViaServer')) || 0;
+    return Date.now() - at < METEO_VIA_SERVER_MS;
+  } catch (e) { return false; }
+}
+
+function rememberMeteoViaServer() {
+  state.meteoViaServer = true;
+  try { localStorage.setItem(CACHE.prefix + 'meteoViaServer', String(Date.now())); } catch (e) { /* до конца сеанса */ }
+}
+
 /**
- * JSON по адресу. Open-Meteo бывает недоступен именно отсюда: сеть или VPN не пускает к нему,
- * адрес выбрал суточный лимит (тогда ответ 429 без CORS-заголовков, и браузер видит «нет
- * соединения»). Тогда тот же запрос уходит через сервер уведомлений, а до конца сеанса запросы
- * к Open-Meteo сразу идут через него — не ждать каждый раз отказа.
+ * JSON по адресу. Open-Meteo бывает недоступен именно отсюда: сеть не пускает к нему (запрос
+ * отклоняется или повисает), адрес выбрал суточный лимит (ответ 429 без CORS-заголовков, и
+ * браузер видит «нет соединения»). Тогда тот же запрос уходит через сервер уведомлений, и сутки
+ * запросы к Open-Meteo сначала идут через него — не ждать каждый раз отказа. Если вдруг не
+ * отвечает сервер — пробуем напрямую.
  */
 function fetchJson(url, attempt, as) {
   var viaServer = attempt ? null : meteoFallbackUrl(url);
   if (!viaServer) return fetchJsonDirect(url, attempt, as);
-  if (state.meteoViaServer) return fetchJsonDirect(viaServer, 0, as);
-  return fetchJsonDirect(url, 0, as).catch(function (err) {
-    return fetchJsonDirect(viaServer, 0, as).then(function (data) {
-      state.meteoViaServer = true;
+
+  var direct = function () { return fetchJsonDirect(url, CONFIG.retries, as, METEO_DIRECT_TIMEOUT_MS); };
+  var server = function () { return fetchJsonDirect(viaServer, 0, as); };
+
+  if (meteoViaServer()) {
+    return server().catch(function (err) {
+      return direct().catch(function () { throw err; });
+    });
+  }
+  return direct().catch(function (err) {
+    return server().then(function (data) {
+      rememberMeteoViaServer();
       return data;
     }, function () { throw err; });   // не помог и сервер — показываем исходную причину
   });
 }
 
-function fetchJsonDirect(url, attempt, as) {
+/** timeoutMs — своё ожидание вместо CONFIG.timeoutMs; attempt = CONFIG.retries — без повтора. */
+function fetchJsonDirect(url, attempt, as, timeoutMs) {
   attempt = attempt || 0;
 
   var ctrl = new AbortController();
-  var timer = setTimeout(function () { ctrl.abort(); }, CONFIG.timeoutMs);
+  var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || CONFIG.timeoutMs);
 
   // cache: 'no-store' — чтобы браузер не отдал вчерашний Kp из кэша
   return fetch(url, { signal: ctrl.signal, cache: 'no-store' })

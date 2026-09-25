@@ -322,6 +322,8 @@ function renderLocalized() {
   renderPointOptions();
   renderPlacesList();
   renderReports();
+  var version = $('foot-version');
+  if (version) version.textContent = t('foot.version', { v: APP_VERSION });
   renderAccuracy();
   renderPointMeta();
   $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });

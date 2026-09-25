@@ -40,6 +40,7 @@ i18nRegister('en', {
   'foot.data': 'Data:',
   'foot.refresh': 'Updates automatically every {every}.',
   'foot.refresh_off': 'Auto-refresh is off — use the Refresh button to update.',
+  'foot.version': 'Version {v}.',
   'foot.note': 'The estimate is approximate. Light pollution is shown in the factors and the explanation but is not part of the chance calculation: it is a property of the place, not a forecast. The model cannot see fog or local gaps in the clouds.',
 
   /* --- second tab --- */

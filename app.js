@@ -63,6 +63,17 @@ function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
 
+  // Вышла новая версия: новый service worker сам берёт управление (skipWaiting + claim), и
+  // страница один раз перезагружается, чтобы исправления пришли сразу, а не со следующего
+  // открытия. При самой первой установке контроллера не было — страница и так свежая.
+  var hadController = !!navigator.serviceWorker.controller;
+  var reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+
   try {
     navigator.serviceWorker.register('sw.js').catch(function (err) {
       // Офлайн-режим необязателен: без него дашборд работает как обычная страница.

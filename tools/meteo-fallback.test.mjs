@@ -62,3 +62,48 @@ test('облачность на «Сейчас» при недоступном O
   const cloud = await ctx.loadCloud();
   assert.ok(cloud && cloud.value >= 0, JSON.stringify(cloud));
 });
+
+test('прямой запрос к Open-Meteo — одна попытка с коротким ожиданием, без повтора', async () => {
+  const { ctx, calls } = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('Failed to fetch')) : json({ ok: 1 })));
+  await ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk')));
+  assert.equal(calls.filter(u => u.startsWith('https://api.open-meteo.com')).length, 1, 'без повтора перед запасным путём');
+  assert.ok(ctx.METEO_DIRECT_TIMEOUT_MS <= 6000, 'ждём недолго: повисший запрос не должен держать карточку полминуты');
+  assert.match(read('js/base.js'), /timeoutMs \|\| CONFIG\.timeoutMs/);
+});
+
+test('сервер выручил — это помнится сутки и между сеансами; не отвечает сервер — пробуем напрямую', async () => {
+  const first = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('x')) : json({ ok: 1 })));
+  await first.ctx.fetchJson(first.ctx.weatherUrl(first.ctx.findPoint('murmansk')));
+  const saved = first.ctx.localStorage.getItem('aurora.meteoViaServer');
+  assert.ok(Number(saved) > 0);
+
+  // новый сеанс: сразу через сервер
+  const next = page(() => json({ ok: 2 }));
+  next.ctx.localStorage.setItem('aurora.meteoViaServer', saved);
+  await next.ctx.fetchJson(next.ctx.weatherUrl(next.ctx.findPoint('murmansk')));
+  assert.ok(next.calls[0].startsWith('https://aurora-push.aurora-murmansk.workers.dev/meteo'));
+  assert.equal(next.calls.length, 1);
+
+  // сервер не отвечает — прямой путь как запасной
+  const serverDown = page(url => (url.includes('/meteo') ? json({ error: 1 }, 502) : json({ direct: true })));
+  serverDown.ctx.localStorage.setItem('aurora.meteoViaServer', saved);
+  const data = await serverDown.ctx.fetchJson(serverDown.ctx.weatherUrl(serverDown.ctx.findPoint('murmansk')));
+  assert.equal(data.direct, true);
+
+  // через сутки — снова сначала напрямую
+  const later = page(() => json({ ok: 3 }));
+  later.ctx.localStorage.setItem('aurora.meteoViaServer', String(Date.parse('2026-09-24T11:00:00Z')));
+  await later.ctx.fetchJson(later.ctx.weatherUrl(later.ctx.findPoint('murmansk')));
+  assert.ok(later.calls[0].startsWith('https://api.open-meteo.com'));
+});
+
+test('версия в подвале совпадает с версией кэша service worker; новая версия перезагружает страницу один раз', () => {
+  const { ctx } = page(() => json({}));
+  const sw = /CACHE_VERSION = '([^']+)'/.exec(read('sw.js'))[1];
+  assert.equal(ctx.APP_VERSION, sw, 'поднимаешь версию в sw.js — подними и APP_VERSION в js/base.js');
+  const app = read('app.js');
+  assert.match(app, /var hadController = !!navigator\.serviceWorker\.controller;/);
+  assert.match(app, /if \(!hadController \|\| reloaded\) return;\s*reloaded = true;\s*location\.reload\(\);/, 'первая установка без перезагрузки, и не больше одной');
+  assert.match(read('sw.js'), /self\.skipWaiting\(\)/);
+  assert.match(read('sw.js'), /self\.clients\.claim\(\)/);
+});
