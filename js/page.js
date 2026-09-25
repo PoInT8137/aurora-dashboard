@@ -297,7 +297,11 @@ function refreshAll() {
 
   var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false), loadReports(true)];
   if (state.tonight) tasks.push(loadTonight());
-  if (state.cloudGrid) tasks.push(loadCloudGrid(true));
+  // Сетка облаков — 90 точек, для Open-Meteo это 90 обращений: не чаще раза в час (loadCloudGrid
+  // сама решает, пора ли) и только на открытой карте. Раньше она перезапрашивалась при каждом
+  // обновлении — открытая весь день вкладка выбирала суточный лимит Open-Meteo на адрес, и
+  // облачность и погода на «Сейчас» переставали загружаться.
+  if (state.cloudGrid && state.tab === 'map') tasks.push(loadCloudGrid(false));
 
   // Загрузчики уже положили на экран сохранённые данные — вердикт и окно
   // считаем по ним сразу, не дожидаясь сети.

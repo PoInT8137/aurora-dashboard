@@ -258,7 +258,9 @@ test('разметка: холст под точками и без нажати�
 test('данные грузятся только при открытии карты и обновляются вместе с остальными, если уже загружены', () => {
   const src = read('js/page.js');
   assert.match(src, /if \(id === 'map'\) \{ renderMap\(\); loadCloudGrid\(false\); \}/);
-  assert.match(src, /if \(state\.cloudGrid\) tasks\.push\(loadCloudGrid\(true\)\);/);
+  assert.match(src, /if \(state\.cloudGrid && state\.tab === 'map'\) tasks\.push\(loadCloudGrid\(false\)\);/,
+    'общее обновление не перезапрашивает сетку чаще раза в час и только на открытой карте');
+  assert.doesNotMatch(src, /loadCloudGrid\(true\)/);
   assert.doesNotMatch(read('app.js'), /loadCloudGrid/, 'не при старте');
 });
 
@@ -268,4 +270,22 @@ test('береговые линии повторены поверх облако
   assert.ok(html.indexOf('id="map-edges"') < html.indexOf('id="map-markers"'), 'но под точками');
   assert.match(read('styles.css'), /\.map__clouds\[hidden\] \+ \.map__edges \{ display: none; \}/);
   assert.match(read('js/map-tab.js'), /\$\('map-edge-land'\)\.setAttribute\('d', REGION_MAP\.region\)/);
+});
+
+test('лимит Open-Meteo: ответ 429 не повторяется сразу и объясняется словами', async () => {
+  let calls = 0;
+  const { ctx } = page({ fetch: async () => { calls++; return new Response('{"error":true,"reason":"Daily API request limit exceeded"}', { status: 429 }); } });
+  await assert.rejects(ctx.fetchJson('https://api.open-meteo.com/v1/forecast?x=1'), e => e.code === 'rate_limit');
+  assert.equal(calls, 1, 'без повтора');
+  assert.equal(ctx.errorText(ctx.appError('rate_limit')), 'источник временно ограничил запросы — данные обновятся позже');
+});
+
+test('автообновление каждые 5 минут не перезапрашивает сетку облаков чаще раза в час', async () => {
+  const { ctx, calls } = loaded();
+  ctx.state.tab = 'map';
+  await ctx.loadCloudGrid(false);
+  assert.equal(calls(), 1);
+  // 11 автообновлений за час — сетка не запрашивается ни разу
+  for (let i = 0; i < 11; i++) await ctx.loadCloudGrid(false);
+  assert.equal(calls(), 1);
 });

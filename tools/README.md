@@ -5,7 +5,7 @@
 ## Тесты
 
 ```bash
-node --test tools/*.test.mjs                 # 369 тестов: сайт, настройки, переводы, Луна, клиент push, service worker
+node --test tools/*.test.mjs                 # 371 тест: сайт, настройки, переводы, Луна, клиент push, service worker
 cd worker && npm test                        # 105 тестов сервера уведомлений
 ```
 

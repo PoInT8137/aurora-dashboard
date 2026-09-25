@@ -158,6 +158,7 @@ i18nRegister('zh', {
   /* --- 加载错误 --- */
   'err.http': '服务器返回 {status}',
   'err.timeout': '请求超时',
+  'err.rate_limit': '数据源暂时限制请求——数据稍后会更新',
   'err.offline': '无网络连接',
   'err.no_cloud': '响应中没有云量数据',
   'err.no_values': '没有当前数值',

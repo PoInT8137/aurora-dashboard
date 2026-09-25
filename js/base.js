@@ -212,10 +212,13 @@ function fetchJson(url, attempt, as) {
   // cache: 'no-store' — чтобы браузер не отдал вчерашний Kp из кэша
   return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
     .then(function (res) {
+      // 429 — источник ограничил запросы с этого адреса: повтор через секунду только усугубит.
+      if (res.status === 429) throw appError('rate_limit');
       if (!res.ok) throw appError('http', { status: res.status });
       return as === 'text' ? res.text() : res.json();
     })
     .catch(function (err) {
+      if (err && err.code === 'rate_limit') throw err;
       if (attempt < CONFIG.retries) {
         return new Promise(function (resolve) { setTimeout(resolve, 900); })
           .then(function () { return fetchJson(url, attempt + 1, as); });

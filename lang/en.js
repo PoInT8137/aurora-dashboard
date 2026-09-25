@@ -158,6 +158,7 @@ i18nRegister('en', {
   /* --- load errors --- */
   'err.http': 'the server responded {status}',
   'err.timeout': 'timed out',
+  'err.rate_limit': 'the source is temporarily limiting requests — data will update later',
   'err.offline': 'no connection',
   'err.no_cloud': 'no cloud data in the response',
   'err.no_values': 'no current values',
