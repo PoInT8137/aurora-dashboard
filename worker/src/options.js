@@ -103,6 +103,7 @@ export async function optionAlerts(env, nowMs, fetchFn, ctx, summary) {
     writes.push(env.DB.prepare('UPDATE point_state SET mid_since = ? WHERE point = ?').bind(since, point.id));
   });
   if (writes.length) await env.DB.batch(writes);
+  summary.midSince = midSince;
 
   for (let i = 0; i < ctx.points.length && budget > 0; i++) {
     const point = ctx.points[i];

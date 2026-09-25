@@ -12,6 +12,7 @@ import { purgeReports } from './reports.js';
 import { optionAlerts } from './options.js';
 import { verifyStep } from './verify.js';
 import { monitorStep } from './monitor.js';
+import { ensureTelegram, telegramAlerts } from './telegram.js';
 
 export { alertMessage };
 
@@ -127,6 +128,11 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
     const step = await verifyStep(env, nowMs, fetchFn);
     if (step) console.log('проверка прогноза: ' + step);
   } catch (e) { console.error('проверка прогноза не записана: ' + (e && e.message)); }
+  // Telegram-бот: webhook, меню и имя бота — один раз после подключения.
+  try {
+    const tg = await ensureTelegram(env, fetchFn);
+    if (tg === 'registered') console.log('telegram: webhook зарегистрирован');
+  } catch (e) { console.error('telegram не подключён: ' + (e && e.message)); }
   // Мониторинг источников с оповещением владельцу. Сбой мониторинга проверке не мешает.
   try {
     const watch = await monitorStep(env, nowMs, fetchFn);
@@ -145,7 +151,13 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
 }
 
 async function checkOnce(env, nowMs, fetchFn) {
-  const { results: rows } = await env.DB.prepare('SELECT DISTINCT point FROM subs').all();
+  // Точки, на которые кто-то подписан: push в браузере или Telegram (таблицы tg_subs может ещё не быть).
+  let rows;
+  try {
+    ({ results: rows } = await env.DB.prepare('SELECT point FROM subs UNION SELECT point FROM tg_subs').all());
+  } catch {
+    ({ results: rows } = await env.DB.prepare('SELECT DISTINCT point FROM subs').all());
+  }
   const points = rows
     .map(r => Core.POINTS.find(p => p.id === r.point))
     .filter(Boolean);
@@ -167,7 +179,7 @@ async function checkOnce(env, nowMs, fetchFn) {
   const prevLevels = new Map(stateRows.map(r => [r.point, r.level]));
   const sentIds = new Set();   // кому уже ушло в этот проход: дополнительные сигналы не дублируют
 
-  const summary = { levels: {}, sent: 0, gone: 0, failed: 0 };
+  const summary = { levels: {}, highSince: {}, sent: 0, gone: 0, failed: 0 };
   const stateWrites = [];
   const targets = [];   // { point, cloud, alt, highSince }
 
@@ -184,6 +196,7 @@ async function checkOnce(env, nowMs, fetchFn) {
     // «высокий» просто оказался на месте, когда мы начали смотреть.
     let highSince = prev ? prev.high_since : 0;
     if (q.level === 'high' && prev && prev.level !== 'high') highSince = nowMs;
+    summary.highSince[point.id] = highSince;
 
     stateWrites.push(env.DB.prepare(
       'INSERT INTO point_state(point, level, high_since, updated) VALUES(?, ?, ?, ?) ' +
@@ -272,6 +285,14 @@ async function checkOnce(env, nowMs, fetchFn) {
     console.error('ранний сигнал Bz не проверен: ' + (e && e.message));
   }
 
+  // Подписчики Telegram — те же сигналы, после браузерных; сбой здесь рассылку не трогает.
+  try {
+    await telegramAlerts(env, nowMs, fetchFn, { points, clouds, kp }, summary, summary.budgetLeft ?? budget);
+  } catch (e) {
+    summary.tgError = true;
+    console.error('telegram-рассылка не выполнена: ' + (e && e.message));
+  }
+
   return summary;
 }
 
@@ -285,6 +306,7 @@ async function bzAlerts(env, nowMs, fetchFn, reading, points, clouds, summary, b
   await saveBzState(env, state);
   const level = bzLevel(state, nowMs);
   summary.bz = { value: state.bz, level };
+  summary.bzState = state;
   summary.bzSent = 0;
   if (!level || budget <= 0) return;
 
@@ -328,4 +350,5 @@ async function bzAlerts(env, nowMs, fetchFn, reading, points, clouds, summary, b
     updates.push(env.DB.prepare('DELETE FROM subs WHERE fails >= ?').bind(MAX_FAILS));
     await env.DB.batch(updates);
   }
+  summary.budgetLeft = budget;
 }

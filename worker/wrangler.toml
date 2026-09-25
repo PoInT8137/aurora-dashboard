@@ -22,6 +22,8 @@ VAPID_PUBLIC = "BIf53FBOesY08hzxQbzCYoZhtZMzNlPAiYKbOKBamvifzu-V305wdH74jysaERFM
 # Откуда принимаются запросы браузера.
 ALLOWED_ORIGINS = "https://auroramurmansk.ru,http://localhost:8765"
 VAPID_SUBJECT = "https://auroramurmansk.ru"
+# Свой адрес сервера — для webhook Telegram-бота (src/telegram.js).
+PUBLIC_URL = "https://aurora-push.aurora-murmansk.workers.dev"
 
 # Секрет VAPID_PRIVATE_KEY (закрытый ключ, 43 символа base64url) задаётся командой
 # `wrangler secret put VAPID_PRIVATE_KEY` и в репозиторий не попадает.

@@ -137,12 +137,22 @@ export function makeFetch(now, initial = {}) {
       return json(items.length === 1 ? items[0] : items);   // как настоящий API
     }
 
+    // Telegram Bot API: запоминаем вызовы, отвечаем как настоящий
+    if (u.startsWith('https://api.telegram.org/')) {
+      const method = u.split('/').pop();
+      fetchFn.telegram.push({ method, body: init.body ? JSON.parse(init.body) : {} });
+      const status = opts.telegramStatus ?? 200;
+      const result = method === 'getMe' ? { username: 'aurora_test_bot' } : true;
+      return json(status === 200 ? { ok: true, result } : { ok: false, description: 'Forbidden: bot was blocked by the user' }, status);
+    }
+
     // push-сервер
     const status = opts.pushStatus[u] ?? 201;
     return new Response(null, { status });
   };
 
   fetchFn.calls = [];
+  fetchFn.telegram = [];
   fetchFn.opts = opts;
   fetchFn.pushCalls = () => fetchFn.calls.filter(c => c.url.startsWith('https://fcm.googleapis.com/')
     || c.url.includes('push.services.mozilla.com') || c.url.includes('push.apple.com') || c.url.includes('notify.windows.com'));

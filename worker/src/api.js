@@ -14,6 +14,7 @@
 //   GET  /verify                               насколько сбывается прогноз: статистика за 60 ночей
 //   GET  /meteo?…                              запасной путь к Open-Meteo для страницы (src/meteo.js)
 //   GET  /noaa/<имя>                           данные NOAA в компактном виде (src/noaa.js)
+//   POST /telegram                             webhook Telegram-бота (src/telegram.js)
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -26,6 +27,7 @@ import { acceptReport, reportSummary } from './reports.js';
 import { verifyStats } from './verify.js';
 import { meteoProxy } from './meteo.js';
 import { noaaProxy } from './noaa.js';
+import { handleTelegram } from './telegram.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -117,6 +119,11 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
       status,
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': status === 200 ? 'private, max-age=300' : 'no-store', ...cors }
     });
+  }
+
+  // Telegram присылает обновления без Origin — подлинность проверяется секретным заголовком.
+  if (url.pathname === '/telegram' && request.method === 'POST') {
+    return handleTelegram(request, env, nowMs, fetchFn);
   }
 
   if (url.pathname.startsWith('/noaa/') && request.method === 'GET') {

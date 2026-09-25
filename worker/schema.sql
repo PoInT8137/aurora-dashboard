@@ -70,6 +70,25 @@ CREATE TABLE IF NOT EXISTS monitor (
   detail      TEXT                      -- что именно не так
 );
 
+-- Подписчики Telegram-бота (src/telegram.js): номер чата, точка, язык и настройки.
+CREATE TABLE IF NOT EXISTS tg_subs (
+  chat_id   TEXT PRIMARY KEY,           -- номер личного чата с ботом
+  point     TEXT NOT NULL,              -- id точки области
+  lang      TEXT NOT NULL DEFAULT 'ru', -- ru | en | zh
+  min_level TEXT NOT NULL DEFAULT 'high', -- high | mid
+  bz        INTEGER NOT NULL DEFAULT 1, -- ранний сигнал «Bz повернул на юг»
+  created   INTEGER NOT NULL,           -- мс; обновляется при смене точки
+  last_sent INTEGER NOT NULL DEFAULT 0, -- мс последнего уведомления о сиянии
+  last_bz   INTEGER NOT NULL DEFAULT 0, -- мс последнего раннего сигнала
+  fails     INTEGER NOT NULL DEFAULT 0  -- подряд неудачных отправок
+);
+
+-- Служебные значения: имя бота, версия webhook.
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
+
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».
 CREATE TABLE IF NOT EXISTS point_state (
   point      TEXT PRIMARY KEY,
