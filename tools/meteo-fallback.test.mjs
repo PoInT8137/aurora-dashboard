@@ -107,3 +107,23 @@ test('версия в подвале совпадает с версией кэш
   assert.match(read('sw.js'), /self\.skipWaiting\(\)/);
   assert.match(read('sw.js'), /self\.clients\.claim\(\)/);
 });
+
+test('резервная модель сервера (MET Norway) — подпись в карточке облачности честная, облачность — по общей', async () => {
+  const body = { generator: 'MET Norway', current: { time: '2026-09-25T12:00', cloud_cover: 64, cloud_cover_low: null, cloud_cover_mid: null, cloud_cover_high: null, temperature_2m: 9 },
+    hourly: { time: ['2026-09-25T12:00'], cloud_cover: [64], cloud_cover_low: [null], cloud_cover_mid: [null], cloud_cover_high: [null] } };
+  const elements = new Map();
+  const make = () => ({ textContent: '', hidden: false, className: '', attrs: {}, children: [], style: { setProperty() {} },
+    setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k] ?? null; }, removeAttribute() {},
+    appendChild(c) { this.children.push(c); return c; }, querySelector() { return make(); }, querySelectorAll() { return []; },
+    getBoundingClientRect() { return { height: 0 }; }, set innerHTML(v) { this.children = []; }, get innerHTML() { return ''; } });
+  const el = id => { if (!elements.has(id)) elements.set(id, make()); return elements.get(id); };
+  const calls = [];
+  const ctx = loadApp([['config.js', read('config.js')], ['core.js', read('core.js')], ['push.js', read('push.js')], ['app.js', read('app.js')]],
+    { now: Date.parse('2026-09-25T12:00:00Z'), fetch: async u => { calls.push(u); return json(body); }, getElement: el, rawFetch: true });
+  ctx.state.point = ctx.findPoint('murmansk');
+  const cloud = await ctx.loadCloud();
+  assert.equal(cloud.value, 64);
+  assert.equal(cloud.byLayers, false);
+  assert.equal(cloud.model, 'MET Norway');
+  assert.equal(el('cloud-model').textContent, 'Модель прогноза: MET Norway');
+});

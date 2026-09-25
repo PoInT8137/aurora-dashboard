@@ -9,7 +9,11 @@
 // значениями, только запросы со страницы сайта (Origin из ALLOWED_ORIGINS). Ответы хранятся
 // в памяти worker'а 10 минут — облачность модель всё равно пересчитывает раз в час.
 
+import { metnoFallback } from './metno.js';
+
 export const METEO_TTL_MS = 10 * 60 * 1000;
+/** Последняя удачная копия выручает, если не ответили ни Open-Meteo, ни MET Norway. */
+export const STALE_KEEP_MS = 3 * 60 * 60 * 1000;
 const MAX_ENTRIES = 60;
 const MAX_POINTS = 100;
 const UPSTREAM = 'https://api.open-meteo.com/v1/forecast';
@@ -63,16 +67,32 @@ export async function meteoProxy(search, nowMs, fetchFn) {
   const hit = memory.get(upstream);
   if (hit && nowMs - hit.at < METEO_TTL_MS) return [hit.body, 200];
 
-  let res;
+  let failure;
   try {
-    res = await fetchFn(upstream, { signal: AbortSignal.timeout(10000) });
+    const res = await fetchFn(upstream, { signal: AbortSignal.timeout(10000) });
+    const body = await res.text();
+    if (res.ok) {
+      remember(upstream, body, nowMs);
+      return [body, 200];
+    }
+    failure = [JSON.stringify({ error: 'upstream', status: res.status }), res.status === 429 ? 429 : 502];
   } catch {
-    return [JSON.stringify({ error: 'upstream_unreachable' }), 502];
+    failure = [JSON.stringify({ error: 'upstream_unreachable' }), 502];
   }
-  const body = await res.text();
-  if (!res.ok) return [JSON.stringify({ error: 'upstream', status: res.status }), res.status === 429 ? 429 : 502];
 
-  memory.set(upstream, { body, at: nowMs });
+  // Open-Meteo не ответил: резерв — MET Norway в том же формате (src/metno.js), затем последняя
+  // удачная копия не старше 3 часов. Резервный ответ хранится так же, 10 минут.
+  const backup = await metnoFallback(upstream, nowMs, fetchFn);
+  if (backup) {
+    const body = JSON.stringify(backup);
+    remember(upstream, body, nowMs);
+    return [body, 200];
+  }
+  if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200];
+  return failure;
+}
+
+function remember(key, body, nowMs) {
+  memory.set(key, { body, at: nowMs });
   if (memory.size > MAX_ENTRIES) memory.delete(memory.keys().next().value);
-  return [body, 200];
 }

@@ -630,6 +630,8 @@ function loadCloud() {
         time: parseUtc(cur.time),
         soon: pickCloudIn(data, 3),
         hours: readHourlyCloud(data),
+        // Open-Meteo не ответил, и сервер взял резервную модель (worker/src/metno.js) — подпись честная.
+        model: data.generator || null,
         pointId: point.id,
         stale: null
       };
@@ -703,6 +705,7 @@ function pickCloudIn(data, hours) {
 }
 
 function renderCloud(cloud) {
+  $('cloud-model').textContent = t('cloud.model', { model: cloud.model || weatherModelLabel() });
   var tone = cloudTone(cloud.value);
   setTone($('cloud-card'), tone);
 

@@ -326,7 +326,7 @@ function renderLocalized() {
   if (version) version.textContent = t('foot.version', { v: APP_VERSION });
   renderAccuracy();
   renderPointMeta();
-  $('cloud-model').textContent = t('cloud.model', { model: weatherModelLabel() });
+  $('cloud-model').textContent = t('cloud.model', { model: (state.cloud && state.cloud.model) || weatherModelLabel() });
 
   if (state.kp) renderKp(state.kp);
   if (state.cloud) renderCloud(state.cloud);
