@@ -13,6 +13,7 @@
 //   GET  /reports                              сводка отметок за последний час
 //   GET  /verify                               насколько сбывается прогноз: статистика за 60 ночей
 //   GET  /meteo?…                              запасной путь к Open-Meteo для страницы (src/meteo.js)
+//   GET  /noaa/<имя>                           данные NOAA в компактном виде (src/noaa.js)
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -24,6 +25,7 @@ import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './mes
 import { acceptReport, reportSummary } from './reports.js';
 import { verifyStats } from './verify.js';
 import { meteoProxy } from './meteo.js';
+import { noaaProxy } from './noaa.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -114,6 +116,21 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     return new Response(body, {
       status,
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': status === 200 ? 'private, max-age=300' : 'no-store', ...cors }
+    });
+  }
+
+  if (url.pathname.startsWith('/noaa/') && request.method === 'GET') {
+    // Как и /meteo — только для страницы сайта.
+    if (!cors) return reply({ error: 'forbidden_origin' }, 403);
+    const [body, status, type, stale] = await noaaProxy(url.pathname.slice('/noaa/'.length), nowMs, fetchFn);
+    return new Response(body, {
+      status,
+      headers: {
+        'Content-Type': (type === 'text' ? 'text/plain' : 'application/json') + '; charset=utf-8',
+        'Cache-Control': status === 200 && !stale ? 'private, max-age=60' : 'no-store',
+        ...(stale ? { 'X-Stale': '1' } : {}),
+        ...cors
+      }
     });
   }
 

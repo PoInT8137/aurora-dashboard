@@ -79,12 +79,30 @@ export function loadApp(sources, options = {}) {
     history: { replaceState() {} },
     performance: { now: () => 0 },
     localStorage,
-    fetch: options.fetch
+    fetch: noaaAware(options)
   };
 
   const ctx = vm.createContext(sandbox);
   for (const [name, code] of withI18n(sources)) vm.runInContext(code, ctx, { filename: name });
   return ctx;
+}
+
+/*
+ * Данные NOAA страница сначала берёт через сервер (/noaa/<имя>, js/base.js NOAA_ON_SERVER), и
+ * сервер отдаёт их в том же формате. Тесты подменяют fetch по адресам NOAA, поэтому запрос к
+ * серверу здесь переводится обратно в адрес NOAA: прежние тесты проверяют и путь через сервер.
+ * options.rawFetch — отдать подмене адрес как есть (для тестов самого пути через сервер).
+ */
+const NOAA_ON_SERVER = Object.fromEntries([...fs.readFileSync(new URL('../js/base.js', import.meta.url), 'utf8')
+  .matchAll(/'(https:\/\/services\.swpc\.noaa\.gov\/[^']+)': '([\w-]+)'/g)].map(m => [m[2], m[1]]));
+
+function noaaAware(options) {
+  const fetchFn = options.fetch;
+  if (!fetchFn || options.rawFetch) return fetchFn;
+  return (url, init) => {
+    const m = /\/noaa\/([\w-]+)$/.exec(String(url));
+    return fetchFn(m && NOAA_ON_SERVER[m[1]] ? NOAA_ON_SERVER[m[1]] : url, init);
+  };
 }
 
 /** JSON-снимок значения: одинаково сериализует объекты из разных контекстов. */

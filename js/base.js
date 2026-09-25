@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v40';
+var APP_VERSION = 'v41';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -246,7 +246,36 @@ function rememberMeteoViaServer() {
  * запросы к Open-Meteo сначала идут через него — не ждать каждый раз отказа. Если вдруг не
  * отвечает сервер — пробуем напрямую.
  */
+/*
+ * Данные NOAA — сначала через сервер уведомлений (worker/src/noaa.js): он отдаёт те же файлы в
+ * компактном виде (солнечный ветер — 30 КБ вместо 1 МБ, OVATION — 10 КБ вместо 900 КБ) и
+ * выручает, если сеть не пускает к NOAA. Прямой запрос к NOAA — запасной путь.
+ */
+var NOAA_ON_SERVER = {
+  'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json': 'kp',
+  'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json': 'kp-3h',
+  'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json': 'kp-forecast',
+  'https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json': 'sw-mag',
+  'https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json': 'sw-speed',
+  'https://services.swpc.noaa.gov/json/ovation_aurora_latest.json': 'ovation',
+  'https://services.swpc.noaa.gov/text/27-day-outlook.txt': 'outlook'
+};
+var NOAA_SERVER_TIMEOUT_MS = 8000;
+
+function noaaServerUrl(url) {
+  if (typeof pushConfigured !== 'function' || !pushConfigured()) return null;
+  var key = Object.prototype.hasOwnProperty.call(NOAA_ON_SERVER, url) ? NOAA_ON_SERVER[url] : null;
+  return key ? AURORA_CONFIG.pushApi + '/noaa/' + key : null;
+}
+
 function fetchJson(url, attempt, as) {
+  var noaa = attempt ? null : noaaServerUrl(String(url));
+  if (noaa) {
+    return fetchJsonDirect(noaa, CONFIG.retries, as, NOAA_SERVER_TIMEOUT_MS).catch(function () {
+      return fetchJsonDirect(url, 0, as);   // сервер не ответил — напрямую к NOAA, как раньше
+    });
+  }
+
   var viaServer = attempt ? null : meteoFallbackUrl(url);
   if (!viaServer) return fetchJsonDirect(url, attempt, as);
 
