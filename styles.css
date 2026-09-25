@@ -1022,6 +1022,15 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 
 .accuracy__text { margin: 4px 0 10px; font-size: 16px; }
 
+/* Небо на веб-камерах */
+.webcams__lead { margin: 4px 0 12px; color: var(--text-dim); }
+.webcams { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.webcam { display: grid; gap: 2px; }
+.webcam__name { color: var(--aurora-teal); font-weight: 600; text-decoration: none; }
+.webcam__name::after { content: ' ↗'; font-weight: 400; }
+.webcam__name:hover, .webcam__name:focus-visible { text-decoration: underline; }
+.webcam__meta { font-size: 13px; color: var(--text-dim); }
+
 /* Очевидцы */
 .reports { border-left: 3px solid var(--tone, var(--border)); }
 .reports__summary { margin: 4px 0 14px; font-size: 16px; }

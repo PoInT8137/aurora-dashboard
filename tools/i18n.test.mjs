@@ -121,7 +121,7 @@ function mentionedKeys() {
 
 /** Семейства ключей, которые собираются из кусков: 'err.' + код, 'light.' + уровень + '.label'. */
 const FAMILIES = [/^err\./, /^light\.\w+\.(label|hint)$/, /^layer\.\w+(\.alt)?$/, /^note\./, /^model\./,
-  /^how\./, /^coord\./, /^moon\.phase\./, /^level\./, /^chance\./, /^unit\./, /^chk\./, /^tz\./, /^sw\.outlook\./, /^ov\.level\./, /^wx\.(clear|windy|snow|rain|fog)$/, /^wind\.dir\./, /^nchart\.row\./];
+  /^how\./, /^coord\./, /^moon\.phase\./, /^level\./, /^chance\./, /^unit\./, /^chk\./, /^tz\./, /^sw\.outlook\./, /^ov\.level\./, /^wx\.(clear|windy|snow|rain|fog)$/, /^wind\.dir\./, /^nchart\.row\./, /^cams\.(kind|country)\./];
 
 test('ключи: все, что называют app.js и index.html, есть в словаре', () => {
   const missing = [...usedKeys()].filter(key => !(key in ru));

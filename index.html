@@ -285,6 +285,14 @@ try {
     <p class="card__meta" data-i18n="reports.hint">Отметка анонимна: сохраняются только точка, время и сила сияния — без текста и фото, на сутки.</p>
   </section>
 
+  <!-- Небо на веб-камерах: ссылки, от ближней к дальней (js/webcams.js) -->
+  <section class="card card--wide card--plain" id="webcams-card">
+    <h2 class="card__label" data-i18n="cams.title">Небо на веб-камерах</h2>
+    <p class="webcams__lead" data-i18n="cams.lead">Прогноз говорит, что сияние возможно, камера — что оно есть. Камеры показывают небо у себя: чем ближе к вам, тем точнее.</p>
+    <ul class="webcams" id="webcams-list"></ul>
+    <p class="card__meta" data-i18n="cams.note">Ссылки открывают сайты камер — у каждой свои условия и своё время обновления. Днём и в облачную погоду сияния на них не видно.</p>
+  </section>
+
   <div class="grid">
 
     <!-- Kp -->
@@ -883,6 +891,7 @@ try {
 <script src="js/base.js"></script>
 <script src="js/places.js"></script>
 <script src="js/reports.js"></script>
+<script src="js/webcams.js"></script>
 <script src="js/now.js"></script>
 <script src="js/night.js"></script>
 <script src="js/tonight.js"></script>

@@ -322,6 +322,7 @@ function renderLocalized() {
   renderPointOptions();
   renderPlacesList();
   renderReports();
+  renderWebcams();
   var version = $('foot-version');
   if (version) version.textContent = t('foot.version', { v: APP_VERSION });
   renderAccuracy();

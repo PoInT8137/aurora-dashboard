@@ -14,6 +14,7 @@ function init() {
   initPointSelect();
   initPlaces();
   initReports();
+  renderWebcams();
   initMapTab();
   initClouds();
   initNightChart();
