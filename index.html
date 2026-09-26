@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Мурманск — прогноз северного сияния</title>
 <meta name="description" content="Прогноз северного сияния для семи точек Мурманской области: Kp-индекс, облачность по ярусам, лучшее время наблюдения и подсказка, куда ехать этой ночью.">
 <meta name="keywords" content="северное сияние, прогноз северного сияния, полярное сияние, Мурманск, Мурманская область, Териберка, Хибины, Кировск, Kp-индекс, aurora forecast, northern lights Murmansk">
@@ -137,26 +137,31 @@ try {
 <div class="tabs" id="tabs" role="tablist" aria-label="Разделы" data-i18n-attr="aria-label:tabs.aria">
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-now" data-tab="now"
           aria-controls="tab-now" aria-selected="true" tabindex="0">
+    <svg class="tabs__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 16c3-4 6-4 9 0s6 4 9 0"/><path d="M3 10c3-4 6-4 9 0s6 4 9 0"/></svg>
     <span class="tabs__title" data-i18n="tab.now">Сейчас</span>
     <span class="tabs__sub" data-i18n="tab.now.sub">условия в точке</span>
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-tonight" data-tab="tonight"
           aria-controls="tab-tonight" aria-selected="false" tabindex="-1">
+    <svg class="tabs__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3l7 18-7-4-7 4z"/></svg>
     <span class="tabs__title"><span class="tabs__long" data-i18n="tab.tonight.long">Куда ехать ночью</span><span class="tabs__short" data-i18n="tab.tonight.short">Куда ехать</span></span>
     <span class="tabs__sub" data-i18n="tab.tonight.sub">сравнение семи точек</span>
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-map" data-tab="map"
           aria-controls="tab-map" aria-selected="false" tabindex="-1">
+    <svg class="tabs__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
     <span class="tabs__title" data-i18n="tab.map">Карта</span>
     <span class="tabs__sub" data-i18n="tab.map.sub">точки на схеме</span>
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-guide" data-tab="guide"
           aria-controls="tab-guide" aria-selected="false" tabindex="-1">
+    <svg class="tabs__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/></svg>
     <span class="tabs__title" data-i18n="tab.guide">Гид</span>
     <span class="tabs__sub" data-i18n="tab.guide.sub">советы и съёмка</span>
   </button>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-settings" data-tab="settings"
           aria-controls="tab-settings" aria-selected="false" tabindex="-1">
+    <svg class="tabs__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h9M17 7h3M15 5v4M4 12h3M11 12h9M9 10v4M4 17h11M19 17h1M17 15v4"/></svg>
     <span class="tabs__title" data-i18n="tab.settings">Настройки</span>
     <span class="tabs__sub" data-i18n="tab.settings.sub">вид и уведомления</span>
   </button>

@@ -7,6 +7,7 @@ import { loadApp } from './app-sandbox.mjs';
 
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 const css = read('styles.css');
+const html = read('index.html');
 
 function app(bar) {
   const ctx = loadApp([['config.js', read('config.js')], ['core.js', read('core.js')], ['push.js', read('push.js')], ['app.js', read('app.js')]],
@@ -38,11 +39,18 @@ test('без поддержки scrollTo ничего не ломается', ()
   assert.doesNotThrow(() => app(null).revealTab({ offsetLeft: 300, offsetWidth: 90 }));
 });
 
-test('стили: на узком экране панель прокручивается вбок, кнопки не сжимаются и не переносят подпись', () => {
+test('стили: на узком экране панель — пять равных ячеек без прокрутки, над полоской Home (жест iPhone не мешает)', () => {
   const mobile = /@media \(max-width: 719px\) \{\s*\.tabs \{[\s\S]*?\n\}/.exec(css)[0];
-  assert.match(mobile, /overflow-x: auto;/);
-  assert.match(mobile, /scroll-snap-type: x proximity;/);
-  assert.match(mobile, /scrollbar-width: none;/);
-  assert.match(mobile, /\.tabs__btn \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;[^}]*scroll-snap-align: center;/);
-  assert.match(mobile, /mask-image: linear-gradient/);
+  assert.match(mobile, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
+  assert.match(mobile, /overflow: hidden;/);
+  assert.doesNotMatch(mobile, /overflow-x: auto|scroll-snap/, 'горизонтальная прокрутка у нижнего края конфликтует с жестом iPhone');
+  assert.match(mobile, /calc\(6px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(mobile, /\.tabs__title \{[^}]*text-overflow: ellipsis;/);
+  assert.match(mobile, /\.tabs__icon \{[^}]*display: block;/);
+  // без viewport-fit=cover iPhone не сообщает отступ полоски Home — панель стояла бы в зоне жеста
+  assert.match(html, /<meta name="viewport" content="[^"]*viewport-fit=cover/);
+  assert.match(css, /body \{[^}]*padding-top: env\(safe-area-inset-top, 0px\);/);
+  // у каждой вкладки значок, скрытый от скринридеров (подпись уже есть)
+  const icons = [...html.matchAll(/<button class="tabs__btn"[^>]*>\s*<svg class="tabs__icon"[^>]*aria-hidden="true"/g)];
+  assert.equal(icons.length, 5);
 });
