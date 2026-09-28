@@ -416,6 +416,11 @@ i18nRegister('zh', {
 
   /* --- 分享 --- */
   'share.btn': '分享',
+  'install.title': '把极光预报添加到主屏幕',
+  'install.ios': '点按“分享”，然后选择“添加到主屏幕”。网站将像应用一样打开——在 iPhone 上，只有这样才能收到极光通知。',
+  'install.text': '将网站安装为应用：一键打开，离线时显示最近的数据，并推送极光通知。',
+  'install.go': '安装',
+  'install.later': '以后再说',
   'share.title': '分享本站',
   'share.lead': '链接和二维码会直接以所选语言打开网站——方便发给酒店客人或旅行团。',
   'share.lang': '链接语言',

@@ -1191,6 +1191,42 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 .map__info .place { margin-bottom: 12px; }
 .map__info .btn { width: 100%; }
 
+/* Подсказка «Добавьте на экран „Домой“»: карточка внизу, над панелью вкладок на телефоне */
+.install {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  width: min(440px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px 14px;
+  padding: 16px;
+  color: var(--text);
+  background: var(--option-bg);
+  border: 1px solid color-mix(in srgb, var(--aurora-teal) 35%, var(--border));
+  border-radius: 20px;
+  box-shadow: var(--shadow), 0 0 40px -12px rgba(var(--ok-rgb), 0.45);
+  animation: install-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.install[hidden] { display: none; }
+@keyframes install-in {
+  from { opacity: 0; transform: translate(-50%, 24px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .install { animation: none; }
+}
+.install__icon { width: 52px; height: 52px; border-radius: 12px; }
+.install__title { margin: 0 0 4px; font-weight: 650; font-size: 16px; }
+.install__text { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-dim); }
+.install__actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+.install__actions .btn--ghost { margin-top: 0; }
+@media (max-width: 719px) {
+  .install { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .install__actions .btn { flex: 1; min-height: 44px; }
+}
+
 /* Окно «Поделиться» */
 .share {
   width: min(420px, calc(100vw - 32px));

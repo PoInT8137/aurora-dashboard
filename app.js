@@ -20,6 +20,7 @@ function init() {
   initNightChart();
   initSolarWindChart();
   initShare();
+  initInstallHint();
   initNotifications();
   initNotifyTab();
   initPushCard();

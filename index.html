@@ -189,6 +189,19 @@ try {
   </button>
 </div>
 
+<!-- Подсказка «Добавьте на экран „Домой“» (js/install.js): не модальная, над панелью вкладок -->
+<aside class="install" id="install" role="dialog" aria-labelledby="install-title" aria-describedby="install-text" hidden>
+  <img class="install__icon" src="icons/apple-touch-icon.png" alt="" width="52" height="52">
+  <div class="install__body">
+    <p class="install__title" id="install-title" data-i18n="install.title">Сияние на экране «Домой»</p>
+    <p class="install__text" id="install-text"></p>
+  </div>
+  <div class="install__actions">
+    <button class="btn" type="button" id="install-go" data-i18n="install.go">Установить</button>
+    <button class="btn btn--ghost" type="button" id="install-later" data-i18n="install.later">Не сейчас</button>
+  </div>
+</aside>
+
 <dialog class="share" id="share-dialog" aria-labelledby="share-title">
   <form method="dialog" class="share__inner">
     <h2 class="card__label" id="share-title" data-i18n="share.title">Поделиться сайтом</h2>
@@ -932,6 +945,7 @@ try {
 <script src="js/notify.js"></script>
 <script src="js/page.js"></script>
 <script src="js/share.js"></script>
+<script src="js/install.js"></script>
 <script src="js/settings.js"></script>
 <script src="app.js"></script>
 </body>

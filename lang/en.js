@@ -416,6 +416,11 @@ i18nRegister('en', {
 
   /* --- share --- */
   'share.btn': 'Share',
+  'install.title': 'Aurora on your Home Screen',
+  'install.ios': 'Tap Share, then “Add to Home Screen”. The site will open like an app — and on iPhone, aurora alerts only work this way.',
+  'install.text': 'Install the site as an app: opens with one tap, shows the latest data offline and sends aurora alerts.',
+  'install.go': 'Install',
+  'install.later': 'Not now',
   'share.title': 'Share this site',
   'share.lead': 'The link and QR code open the site straight in the chosen language — handy for hotel guests or a tour group.',
   'share.lang': 'Link language',
