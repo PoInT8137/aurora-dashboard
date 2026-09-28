@@ -975,15 +975,26 @@ html[lang="zh-CN"] .card__label {
   left: 0; right: 0; top: 50%;
   border-top: 1px dashed var(--border);
 }
-.swbar { position: relative; }
+/* Общий вид графиков: скругление столбиков, выбранный столбик и строка-подпись под графиком */
+:root { --bar-radius: 4px; }
+.swbar { position: relative; border-radius: var(--bar-radius); transition: background 0.15s ease; }
 .swbar__fill {
   position: absolute;
   left: 0; right: 0;
-  border-radius: 2px;
   background: var(--tone, var(--aurora-teal));
 }
-.swbar--south .swbar__fill { top: 50%; }
-.swbar--north .swbar__fill { bottom: 50%; }
+/* Столбик растёт от средней линии: скруглён только дальний конец */
+.swbar--south .swbar__fill { top: 50%; border-radius: 0 0 var(--bar-radius) var(--bar-radius); }
+.swbar--north .swbar__fill { bottom: 50%; border-radius: var(--bar-radius) var(--bar-radius) 0 0; }
+.swbar--pick { background: rgba(var(--tint), 0.14); }
+.swchart { touch-action: pan-y; cursor: crosshair; }
+.chart__detail {
+  margin: 4px 0 8px;
+  min-height: 1.5em;
+  font-size: 14px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
 .swbar--gap .swbar__fill { top: calc(50% - 1px); height: 2px; background: rgba(var(--fill), 0.12); }
 
 /* Когда ехать: дни прогноза на 27 суток */
@@ -1780,7 +1791,7 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 .ncol__bar {
   position: absolute;
   left: 18%; right: 18%; bottom: 0;
-  border-radius: 2px 2px 0 0;
+  border-radius: var(--bar-radius) var(--bar-radius) 0 0;
   background: var(--tone, var(--text-faint));
 }
 /* Облака — нейтральным цветом: это не оценка, а сколько неба закрыто. Без явного цвета
@@ -1804,6 +1815,21 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   font-variant-numeric: tabular-nums;
 }
 .ncol__time--hidden { visibility: hidden; }
+/* «Сейчас»: светящаяся точка над столбцом и выделенное время */
+.ncol--now { position: relative; }
+.ncol--now::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--aurora-teal);
+  box-shadow: 0 0 8px var(--aurora-teal);
+}
+.ncol--now .ncol__time { visibility: visible; color: var(--aurora-teal); font-weight: 700; }
 
 .nchart__detail {
   margin: 10px 0 0;

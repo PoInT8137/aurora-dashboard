@@ -401,7 +401,13 @@ function renderSolarWindChart(series) {
   }
   var LIMIT = Math.max.apply(null, [10].concat(buckets.map(function (v) { return v === null ? 0 : Math.abs(v); })));
 
-  buckets.forEach(function (value) {
+  // Для подписи по касанию: конец каждого отрезка и значение.
+  state.swBuckets = buckets.map(function (value, j) {
+    return { value: value, to: end - (COUNT - 1 - j) * BUCKET };
+  });
+  state.swPick = COUNT - 1;   // новые данные — снова самый свежий отрезок
+
+  buckets.forEach(function (value, j) {
     var bar = document.createElement('div');
     var fill = document.createElement('div');
     fill.className = 'swbar__fill';
@@ -413,9 +419,46 @@ function renderSolarWindChart(series) {
     } else {
       bar.className = 'swbar swbar--gap';   // пропуск в данных — спутники иногда молчат
     }
+    if (j === state.swPick) bar.className += ' swbar--pick';
     bar.appendChild(fill);
     box.appendChild(bar);
   });
+  renderSolarWindDetail();
+}
+
+/** Строка под графиком: время и Bz выбранного столбика (по умолчанию — последнего). */
+function renderSolarWindDetail() {
+  var out = $('sw-detail');
+  var b = state.swBuckets && state.swBuckets[state.swPick];
+  if (!out) return;
+  if (!b) { out.textContent = ''; return; }
+  out.textContent = b.value === null
+    ? t('sw.bar.gap', { time: fmtTime(new Date(b.to)) })
+    : t('sw.bar', { time: fmtTime(new Date(b.to)), v: fmtSigned(b.value) });
+}
+
+/**
+ * Касание или наведение на график Bz выбирает столбик — под графиком его время и значение.
+ * Столбики — не кнопки: график скрыт от скринридера, его смысл уже сказан текстом карточки.
+ */
+function initSolarWindChart() {
+  var box = $('sw-chart');
+  if (!box || !box.addEventListener) return;
+  var pick = function (e) {
+    if (!state.swBuckets || !state.swBuckets.length || !box.getBoundingClientRect) return;
+    var r = box.getBoundingClientRect();
+    if (!r.width) return;
+    var j = Math.floor((e.clientX - r.left) / r.width * state.swBuckets.length);
+    j = Math.max(0, Math.min(state.swBuckets.length - 1, j));
+    if (j === state.swPick) return;
+    state.swPick = j;
+    Array.prototype.forEach.call(box.children, function (bar, k) {
+      bar.classList.toggle('swbar--pick', k === j);
+    });
+    renderSolarWindDetail();
+  };
+  box.addEventListener('pointerdown', pick);
+  box.addEventListener('pointermove', pick);
 }
 
 /* ------------------------------------------------------------------ */

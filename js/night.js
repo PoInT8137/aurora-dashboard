@@ -251,7 +251,9 @@ function renderNightChart(win) {
 
     var col = document.createElement('button');
     col.type = 'button';
-    col.className = 'ncol' + (inWindow ? ' ncol--best' : '') + (h.alt > DARK_FULL ? ' ncol--twilight' : '');
+    // Текущий час — с отметкой: видно, где на графике «сейчас».
+    var isNow = Date.now() >= h.time.getTime() && Date.now() < h.time.getTime() + 3600000;
+    col.className = 'ncol' + (inWindow ? ' ncol--best' : '') + (h.alt > DARK_FULL ? ' ncol--twilight' : '') + (isNow ? ' ncol--now' : '');
     col.setAttribute('data-time', String(h.time.getTime()));
     col.setAttribute('aria-pressed', String(isSelected));
     col.setAttribute('aria-label', text);

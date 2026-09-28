@@ -18,6 +18,7 @@ function init() {
   initMapTab();
   initClouds();
   initNightChart();
+  initSolarWindChart();
   initShare();
   initNotifications();
   initNotifyTab();

@@ -89,6 +89,39 @@ test('условия под вердиктом: у каждого вид для 
   assert.equal(items[0].children[1].textContent, v.factors[0]);
 });
 
+test('график Bz: под ним время и значение последнего отрезка; касание выбирает другой столбик', () => {
+  const { ctx, el } = page();
+  const end = Date.parse('2026-12-15T17:55:00Z');
+  const series = [];
+  for (let m = 0; m < 120; m++) series.push({ time: end - m * 60000, bz: m < 10 ? -6.4 : 2 });
+  series.reverse();
+  const box = el('sw-chart');
+  ctx.renderSolarWindChart(series);
+  assert.equal(box.children.length, 24);
+  assert.match(box.children[23].className, /swbar--pick/);
+  assert.match(el('sw-detail').textContent, /^до \d\d:\d\d · Bz −6,4 нТл$/);
+
+  // касание у левого края — первый отрезок
+  box.classList = { toggle() {} };
+  box.children.forEach(c => { c.classList = { toggle(name, on) { c.picked = on; } }; });
+  box.getBoundingClientRect = () => ({ left: 0, width: 240 });
+  box.addEventListener = (type, fn) => { box[type] = fn; };
+  ctx.initSolarWindChart();
+  box.pointerdown({ clientX: 3 });
+  assert.equal(ctx.state.swPick, 0);
+  assert.equal(box.children[0].picked, true);
+  assert.match(el('sw-detail').textContent, /Bz \+2,0 нТл$/);
+});
+
+test('ночной график и Bz — общее скругление столбиков, у текущего часа отметка', () => {
+  const css = read('styles.css');
+  assert.match(css, /--bar-radius: 4px;/);
+  assert.match(css, /\.swbar--south \.swbar__fill \{[^}]*border-radius: 0 0 var\(--bar-radius\) var\(--bar-radius\);/);
+  assert.match(css, /\.ncol__bar \{[^}]*border-radius: var\(--bar-radius\) var\(--bar-radius\) 0 0;/);
+  assert.match(css, /\.ncol--now::before \{/);
+  assert.match(read('js/night.js'), /' ncol--now'/);
+});
+
 test('стили: фон по уровню без размытия, анимация высокого уровня отключается при «уменьшить движение»', () => {
   const css = read('styles.css');
   for (const level of ['low', 'mid', 'high']) assert.match(css, new RegExp(`#verdict-card\\[data-level="${level}"\\]::before \\{`));
