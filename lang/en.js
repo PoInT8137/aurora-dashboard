@@ -79,6 +79,7 @@ i18nRegister('en', {
   'pref.theme.night': 'Night vision',
   'pref.theme.hint': '“Night vision” makes everything dim and red so your eyes stay adapted to the dark. Turn it on before you go out under the sky; the button at the top switches it quickly.',
   'night.btn': 'Night vision',
+  'menu.btn': 'Language and more',
   'pref.size': 'Text size',
   'pref.size.normal': 'Normal',
   'pref.size.large': 'Large',

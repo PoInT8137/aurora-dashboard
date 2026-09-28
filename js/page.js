@@ -285,6 +285,40 @@ function updateStatus() {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Меню шапки на телефоне: язык, «Поделиться», ночное зрение.         */
+/*  На широком экране кнопки меню нет, а его содержимое стоит в строке. */
+/* ------------------------------------------------------------------ */
+
+function setTopMenu(open) {
+  $('menu-btn').setAttribute('aria-expanded', String(open));
+  $('topbar-menu').classList.toggle('is-open', open);
+}
+
+function topMenuOpen() {
+  return $('menu-btn').getAttribute('aria-expanded') === 'true';
+}
+
+function initTopMenu() {
+  var btn = $('menu-btn');
+  var menu = $('topbar-menu');
+  btn.addEventListener('click', function () { setTopMenu(!topMenuOpen()); });
+  // Выбор сделан — меню больше не нужно. Клик по свободному месту внутри меню его не закрывает.
+  menu.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('button')) setTopMenu(false);
+  });
+  document.addEventListener('click', function (e) {
+    if (!topMenuOpen() || !e.target.closest) return;
+    if (!e.target.closest('#topbar-menu') && !e.target.closest('#menu-btn')) setTopMenu(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && topMenuOpen()) {
+      setTopMenu(false);
+      btn.focus();
+    }
+  });
+}
+
 function refreshAll() {
   // Автообновление, кнопка и возврат на вкладку могут совпасть по времени —
   // второе обновление просто присоединяется к идущему.

@@ -125,16 +125,22 @@ try {
     </div>
     <p class="topbar__place" id="point-meta"></p>
   </div>
+  <!-- На компьютере всё в строку. На телефоне (styles.css, max-width: 719px) шапка компактная:
+       обновление — значком, а язык, «Поделиться» и ночное зрение — в меню за кнопкой «⋯»,
+       чтобы главная карточка была видна сразу при открытии. -->
   <div class="topbar__actions">
-    <div class="lang" id="lang" role="group" aria-label="Language · Язык · 语言">
-      <button class="lang__btn" type="button" data-lang="ru" lang="ru" aria-pressed="false">Русский</button>
-      <button class="lang__btn" type="button" data-lang="en" lang="en" aria-pressed="false">English</button>
-      <button class="lang__btn" type="button" data-lang="zh" lang="zh-CN" aria-pressed="false">中文</button>
-    </div>
     <span id="updated" class="updated" role="status" data-i18n="status.loading">Загрузка…</span>
-    <button id="refresh" class="btn" type="button" data-i18n="btn.refresh">Обновить</button>
-    <button id="share-btn" class="btn" type="button" aria-haspopup="dialog" data-i18n="share.btn">Поделиться</button>
-    <button id="night-btn" class="btn btn--icon" type="button" aria-pressed="false" data-i18n-attr="aria-label:night.btn;title:night.btn" aria-label="Ночное зрение" title="Ночное зрение"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" fill="currentColor"/></svg></button>
+    <button id="refresh" class="btn btn--refresh" type="button"><svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="btn__text" data-i18n="btn.refresh">Обновить</span></button>
+    <button id="menu-btn" class="btn btn--icon topbar__menu-btn" type="button" aria-expanded="false" aria-controls="topbar-menu" data-i18n-attr="aria-label:menu.btn;title:menu.btn" aria-label="Язык и другое" title="Язык и другое"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></svg></button>
+    <div class="topbar__menu" id="topbar-menu">
+      <div class="lang" id="lang" role="group" aria-label="Language · Язык · 语言">
+        <button class="lang__btn" type="button" data-lang="ru" lang="ru" aria-pressed="false">Русский</button>
+        <button class="lang__btn" type="button" data-lang="en" lang="en" aria-pressed="false">English</button>
+        <button class="lang__btn" type="button" data-lang="zh" lang="zh-CN" aria-pressed="false">中文</button>
+      </div>
+      <button id="share-btn" class="btn" type="button" aria-haspopup="dialog" data-i18n="share.btn">Поделиться</button>
+      <button id="night-btn" class="btn btn--icon" type="button" aria-pressed="false" data-i18n-attr="aria-label:night.btn;title:night.btn" aria-label="Ночное зрение" title="Ночное зрение"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" fill="currentColor"/></svg></button>
+    </div>
   </div>
 </header>
 

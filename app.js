@@ -23,6 +23,7 @@ function init() {
   initNotifyTab();
   initPushCard();
   initTabs();
+  initTopMenu();
   $('refresh').addEventListener('click', refreshAll);
 
   // Кнопки «Повторить» внутри карточек перезагружают только свой блок.

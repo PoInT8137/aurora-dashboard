@@ -415,6 +415,98 @@ html.intro .topbar h1 {
   gap: 12px;
 }
 
+/* Меню шапки: на широком экране его нет — содержимое стоит в строке, язык первым, как раньше */
+.topbar__menu { display: contents; }
+.topbar__menu .lang { order: -1; }
+.topbar .topbar__menu-btn { display: none; }
+.btn--refresh .btn__icon { display: none; }
+.btn__icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn--refresh[disabled] .btn__icon { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn--refresh[disabled] .btn__icon { animation: none; }
+}
+
+/* Телефон: компактная шапка — название и кнопки в одну строку, под ними точка и две мелкие
+   строки (координаты и время обновления). Главная карточка видна сразу при открытии. */
+@media (max-width: 719px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "title refresh menu"
+      "point point point"
+      "place place place"
+      "updated updated updated";
+    align-items: center;
+    gap: 0 8px;
+    padding: 14px 16px 4px;
+  }
+  .topbar__title,
+  .topbar__actions { display: contents; }
+  .topbar h1 { grid-area: title; font-size: 22px; line-height: 1.15; }
+  .topbar__region { font-size: 11px; margin-top: 2px; }
+
+  .point { grid-area: point; margin-top: 10px; }
+  .point__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .point__select { width: 100%; min-height: 44px; }
+
+  .topbar__place { grid-area: place; margin-top: 6px; font-size: 12px; line-height: 1.35; color: var(--text-faint); }
+  .updated { grid-area: updated; margin-top: 2px; font-size: 12px; }
+
+  .btn--refresh { grid-area: refresh; }
+  .btn--refresh,
+  .topbar__menu-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; }
+  .btn--refresh .btn__icon { display: block; }
+  .btn--refresh .btn__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .topbar .topbar__menu-btn { grid-area: menu; display: inline-flex; }
+  .topbar__menu-btn[aria-expanded="true"] { background: rgba(var(--tint), 0.28); border-color: rgba(var(--tint), 0.55); }
+
+  /* Выпадающее меню под кнопкой «⋯» */
+  .topbar__menu {
+    display: none;
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    z-index: 20;
+    width: min(300px, calc(100vw - 32px));
+    padding: 12px;
+    gap: 10px;
+    background: var(--option-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+  }
+  .topbar__menu.is-open { display: grid; grid-template-columns: 1fr auto; }
+  .topbar__menu .lang { grid-column: 1 / -1; display: flex; }
+  .topbar__menu .lang__btn { flex: 1; }
+  .topbar__menu #share-btn { min-height: 44px; }
+  .topbar__menu #night-btn { width: 44px; height: 44px; }
+}
+
 /* Переключатели из кнопок: язык в шапке и настройки на третьей вкладке */
 .lang,
 .seg {
@@ -646,7 +738,6 @@ html[lang="zh-CN"] .card__label {
 
 @media (max-width: 720px) {
   .grid { grid-template-columns: 1fr; }
-  .topbar { padding-top: 24px; }
 }
 
 /* ---------- Карточки ---------- */

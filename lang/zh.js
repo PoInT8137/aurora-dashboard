@@ -79,6 +79,7 @@ i18nRegister('zh', {
   'pref.theme.night': '夜视',
   'pref.theme.hint': '“夜视”模式下页面全部变为暗红色，不会破坏眼睛对黑暗的适应。出门观测前开启；顶部按钮可快速切换。',
   'night.btn': '夜视模式',
+  'menu.btn': '语言及更多',
   'pref.size': '文字大小',
   'pref.size.normal': '标准',
   'pref.size.large': '大',
