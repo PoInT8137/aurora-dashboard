@@ -119,6 +119,16 @@ test('SVG: белый фон с тихой зоной в 4 модуля, три 
   assert.match(svg, /aria-label="QR-код ссылки x y"/, 'кавычки и угловые скобки из подписи убраны');
 });
 
+test('стили: код квадратный сам по себе, рамка по нему — без height: 100% (Safari на iPhone растягивал код)', () => {
+  const css = read('styles.css');
+  const frame = /\n\.share__qr \{[^}]*\}/.exec(css)[0];
+  const svg = /\n\.share__qr svg \{[^}]*\}/.exec(css)[0];
+  assert.doesNotMatch(frame, /aspect-ratio/);
+  assert.match(svg, /height: auto;/);
+  assert.match(svg, /aspect-ratio: 1;/);
+  assert.doesNotMatch(svg, /height: 100%/);
+});
+
 test('цвет кода тёмный: контраст каждого оттенка с белым фоном не ниже 6:1', () => {
   const { ctx } = page();
   const lum = hex => {

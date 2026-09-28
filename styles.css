@@ -997,7 +997,6 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   overflow: hidden;
   justify-self: center;
   width: min(280px, 76vw);
-  aspect-ratio: 1;
   box-sizing: border-box;
   padding: 20px;
   border-radius: 24px;
@@ -1035,11 +1034,15 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 @media (prefers-reduced-motion: reduce) {
   .share__qr::before { animation: none; }
 }
-.share__qr:empty { visibility: hidden; }
+/* Высота рамки — от квадратного кода внутри. Раньше квадратной была рамка (aspect-ratio), а код
+   тянулся на height: 100% — Safari на iPhone считал эту высоту от другого размера, код выходил
+   выше ширины, съезжал вниз и обрезался. Пустая рамка (код ещё не готов) держит место сама. */
+.share__qr:empty { aspect-ratio: 1; visibility: hidden; }
 .share__qr svg {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: auto;
+  aspect-ratio: 1;
   display: block;
   border-radius: 14px;
   box-shadow: 0 6px 22px rgba(var(--qr-shade), 0.4), 0 0 0 1px rgba(var(--qr-star), 0.35);
