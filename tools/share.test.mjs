@@ -33,7 +33,15 @@ function page({ withLib = true, navigator = {} } = {}) {
     el.tag = tag;
     if (tag === 'canvas') {
       el.ops = [];
-      el.getContext = () => ({ set fillStyle(v) { el.ops.push(['style', v]); }, fillRect: (...a) => el.ops.push(['rect', ...a]) });
+      el.getContext = () => ({
+        set fillStyle(v) { el.ops.push(['style', v]); },
+        fillRect: (...a) => el.ops.push(['rect', ...a]),
+        createLinearGradient: (...a) => ({ gradient: a, stops: [], addColorStop(o, c) { this.stops.push([o, c]); } }),
+        beginPath: () => el.ops.push(['begin']),
+        roundRect: (...a) => el.ops.push(['round', ...a]),
+        fill: rule => el.ops.push(['fill', rule]),
+        fillText: (...a) => el.ops.push(['text', ...a])
+      });
       el.toDataURL = type => 'data:' + type + ';base64,AAAA';
     }
     if (tag === 'a') el.click = () => { el.clicked = true; };
@@ -92,17 +100,33 @@ test('QR для разных языков разный, для одинаков�
   assert.notEqual(s('en'), s('zh'));
 });
 
-test('SVG: белый фон с тихой зоной в 4 модуля и по квадратику на тёмный модуль', () => {
+test('SVG: белый фон с тихой зоной в 4 модуля, три «глазка» и по скруглённому модулю на каждый тёмный', () => {
   const { ctx } = page();
   const m = ctx.qrMatrix('https://auroramurmansk.ru/?lang=ru');
   const svg = ctx.qrSvg(m, 'QR-код ссылки "x" <y>');
-  const size = m.length + 8;
+  const n = m.length, size = n + 8;
   assert.match(svg, new RegExp(`viewBox="0 0 ${size} ${size}"`));
   assert.match(svg, /<rect width="\d+" height="\d+" fill="#fff"\/>/);
-  const dark = m.flat().filter(Boolean).length;
-  assert.equal((svg.match(/h1v1h-1z/g) || []).length, dark);
+  assert.match(svg, /fill="url\(#qr-ink\)" fill-rule="evenodd"/);
+
+  // тёмные модули вне трёх поисковых узоров 7×7 — каждый своим квадратиком
+  const inEye = (r, c) => [[0, 0], [0, n - 7], [n - 7, 0]].some(([er, ec]) => r >= er && r < er + 7 && c >= ec && c < ec + 7);
+  let dots = 0;
+  m.forEach((row, r) => row.forEach((dark, c) => { if (dark && !inEye(r, c)) dots++; }));
+  const shapes = svg.match(/M[\d.]+ [\d.]+h/g).length;
+  assert.equal(shapes, dots + 3 * 3, 'у каждого «глазка» три контура: рамка, её вырез и центр');
+  assert.match(svg, /M6 4h3a2 2 0 0 1 2 2/, 'левый верхний «глазок» — сразу за тихой зоной');
   assert.match(svg, /aria-label="QR-код ссылки x y"/, 'кавычки и угловые скобки из подписи убраны');
-  assert.match(svg, /M4 4h1v1h-1z/, 'левый верхний модуль узора — сразу за тихой зоной');
+});
+
+test('цвет кода тёмный: контраст каждого оттенка с белым фоном не ниже 6:1', () => {
+  const { ctx } = page();
+  const lum = hex => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  for (const [, color] of ctx.QR_INK) assert.ok(1.05 / (lum(color) + 0.05) >= 6, color);
 });
 
 test('открытие окна: язык по умолчанию — язык страницы, QR и ссылка на месте', async () => {
@@ -171,18 +195,26 @@ test('системное меню «Отправить…»: кнопка тол
   await assert.doesNotReject(() => cancelled.ctx.nativeShare());
 });
 
-test('PNG для печати: белый фон, по квадрату на тёмный модуль, имя файла с языком', async () => {
+test('PNG для печати: белый фон, «глазки» и модули как на экране, адрес под тихой зоной, имя файла с языком', async () => {
   const { ctx, el, created } = page();
+  vm.runInContext("location.host = 'auroramurmansk.ru';", ctx);
   el('share-dialog').showModal = () => {};
   ctx.setLang('zh');
   await ctx.openShare();
   ctx.downloadQrPng();
   const canvas = created.find(e => e.tag === 'canvas');
   const link = created.find(e => e.tag === 'a');
-  const n = ctx.state.shareMatrix.length;
-  assert.equal(canvas.width, (n + 8) * 12);
-  assert.deepEqual(canvas.ops.slice(0, 2), [['style', '#fff'], ['rect', 0, 0, (n + 8) * 12, (n + 8) * 12]]);
-  assert.equal(canvas.ops.filter(o => o[0] === 'rect').length - 1, ctx.state.shareMatrix.flat().filter(Boolean).length);
+  const m = ctx.state.shareMatrix, n = m.length, size = (n + 8) * 12;
+  assert.equal(canvas.width, size);
+  assert.equal(canvas.height, size + 36, 'снизу полоса под подпись');
+  assert.deepEqual(canvas.ops.slice(0, 2), [['style', '#fff'], ['rect', 0, 0, size, size + 36]]);
+  const rounds = canvas.ops.filter(o => o[0] === 'round').length;
+  const dots = ctx.qrShapes(m).dots.length;
+  assert.equal(rounds, 9 + dots);
+  assert.ok(canvas.ops.some(o => o[0] === 'fill' && o[1] === 'evenodd'), 'вырез в рамке «глазка»');
+  const text = canvas.ops.find(o => o[0] === 'text');
+  assert.equal(text[1], 'auroramurmansk.ru');
+  assert.ok(text[3] > size - 12 && text[3] < size + 36, 'подпись ниже кода и тихой зоны');
   assert.equal(link.download, 'aurora-murmansk-qr-zh.png');
   assert.equal(link.href, 'data:image/png;base64,AAAA');
   assert.equal(link.clicked, true);

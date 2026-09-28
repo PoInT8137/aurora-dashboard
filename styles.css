@@ -28,6 +28,11 @@
   --option-bg: #0f1c2e;
   --text-stale: #aab6c0;
 
+  /* Рамка QR-кода — ночное небо в любой теме: на нём видно сияние и звёзды */
+  --qr-sky:   #07101d;
+  --qr-star:  255, 255, 255;
+  --qr-shade: 0, 0, 0;
+
   --radius: 18px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
@@ -61,6 +66,11 @@ html[data-theme="light"] {
   --nav-bg:    rgba(238, 244, 248, 0.94);
   --option-bg: #ffffff;
   --text-stale: #465664;
+
+  /* рамка QR и на светлой теме остаётся ночным небом — так задумано */
+  --qr-sky:   #0b1626;
+  --qr-star:  255, 255, 255;
+  --qr-shade: 20, 40, 60;
 
   --shadow: 0 12px 32px rgba(20, 50, 70, 0.12);
   color-scheme: light;
@@ -97,6 +107,10 @@ html[data-theme="night"] {
   --nav-bg:    rgba(7, 1, 1, 0.94);
   --option-bg: #1a0504;
   --text-stale: #f04a36;
+
+  --qr-sky:   #0a0202;
+  --qr-star:  255, 120, 100;
+  --qr-shade: 0, 0, 0;
 
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
@@ -972,12 +986,64 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 .share::backdrop { background: rgba(var(--fill), 0.08); backdrop-filter: blur(4px); }
 .share__inner { display: grid; gap: 14px; padding: 22px 22px 18px; }
 .share__lead { margin: 0; color: var(--text-dim); font-size: 14px; }
+/* Код в рамке «ночное небо»: звёзды, переливы сияния и мягкое свечение вокруг. Сам код лежит на
+   белой плашке — рамка его не касается, камера видит обычный контрастный QR. */
 .share__qr {
+  --qr-green: 77, 255, 184;
+  --qr-violet: 155, 123, 255;
+  --qr-blue: 64, 196, 255;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   justify-self: center;
-  width: min(240px, 70vw);
+  width: min(280px, 76vw);
   aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.95) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.8) 0 0.7px, transparent 1.3px),
+    radial-gradient(circle at 93% 58%, rgba(255, 255, 255, 0.9) 0 0.9px, transparent 1.5px),
+    radial-gradient(circle at 6% 72%, rgba(255, 255, 255, 0.7) 0 0.6px, transparent 1.2px),
+    radial-gradient(circle at 30% 95%, rgba(255, 255, 255, 0.85) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 72% 96%, rgba(255, 255, 255, 0.7) 0 0.6px, transparent 1.2px),
+    radial-gradient(circle at 50% 4%, rgba(255, 255, 255, 0.8) 0 0.7px, transparent 1.3px),
+    var(--qr-sky);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--qr-star), 0.1),
+    0 14px 40px -14px rgba(var(--qr-green), 0.55),
+    0 22px 50px -22px rgba(var(--qr-violet), 0.6);
 }
-.share__qr svg { width: 100%; height: 100%; display: block; border-radius: 8px; }
+/* Переливы сияния — отдельным слоем, чтобы медленно плыть под звёздами и плашкой */
+.share__qr::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  background:
+    radial-gradient(40% 30% at 25% 20%, rgba(var(--qr-green), 0.7), transparent 70%),
+    radial-gradient(38% 34% at 80% 30%, rgba(var(--qr-violet), 0.7), transparent 70%),
+    radial-gradient(45% 30% at 55% 85%, rgba(var(--qr-blue), 0.5), transparent 70%),
+    radial-gradient(30% 25% at 15% 80%, rgba(var(--qr-violet), 0.45), transparent 70%);
+  animation: qr-aurora 14s ease-in-out infinite alternate;
+}
+@keyframes qr-aurora {
+  from { transform: translate3d(-6%, -4%, 0) rotate(0deg); }
+  to   { transform: translate3d(6%, 5%, 0) rotate(12deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .share__qr::before { animation: none; }
+}
+.share__qr:empty { visibility: hidden; }
+.share__qr svg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 14px;
+  box-shadow: 0 6px 22px rgba(var(--qr-shade), 0.4), 0 0 0 1px rgba(var(--qr-star), 0.35);
+}
 .share__url {
   margin: 0;
   text-align: center;
