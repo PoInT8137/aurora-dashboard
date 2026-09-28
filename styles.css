@@ -812,8 +812,49 @@ html[lang="zh-CN"] .card__label {
 .card__stale,
 .card__error { display: none; }
 
-.card[data-state="loading"] .card__loading { display: block; color: var(--text-faint); }
-.card[data-state="ok"]      .card__body    { display: block; }
+/* Загрузка — заготовка вместо слова «Загрузка…»: плашка под крупное число и три строки текста,
+   мягко пульсирующие. Текст остаётся (прозрачным) — его читает скринридер. */
+.card[data-state="loading"] .card__loading {
+  display: block;
+  position: relative;
+  height: 108px;
+  color: transparent;
+  user-select: none;
+  overflow: hidden;
+}
+.card[data-state="loading"] .card__loading::before,
+.card[data-state="loading"] .card__loading::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  border-radius: 10px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite alternate;
+}
+.card[data-state="loading"] .card__loading::before {
+  top: 0;
+  width: min(46%, 220px);
+  height: 42px;
+  background: rgba(var(--fill), 0.09);
+}
+.card[data-state="loading"] .card__loading::after {
+  top: 58px;
+  width: 100%;
+  height: 50px;
+  border-radius: 0;
+  background:
+    linear-gradient(rgba(var(--fill), 0.07) 0 0) 0 0 / 88% 12px no-repeat,
+    linear-gradient(rgba(var(--fill), 0.07) 0 0) 0 19px / 72% 12px no-repeat,
+    linear-gradient(rgba(var(--fill), 0.07) 0 0) 0 38px / 50% 12px no-repeat;
+  animation-delay: 0.2s;
+}
+@keyframes skeleton-pulse {
+  from { opacity: 0.55; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card[data-state="loading"] .card__loading::before,
+  .card[data-state="loading"] .card__loading::after { animation: none; }
+}.card[data-state="ok"]      .card__body    { display: block; }
 .card[data-state="error"]   .card__error   { display: block; }
 
 .card[data-state="error"] { border-color: rgba(var(--bad-rgb), 0.3); }

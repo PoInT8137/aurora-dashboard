@@ -62,6 +62,15 @@ test('небо за страницей: балл Kp 0 — спокойно, 1–
   assert.match(read('index.html'), /<div class="sky-stars" aria-hidden="true"><\/div>/);
 });
 
+test('загрузка — заготовка: текст прозрачный (для скринридера), плашки пульсируют, без движения при «уменьшить движение»', () => {
+  const css = read('styles.css');
+  const loading = /\.card\[data-state="loading"\] \.card__loading \{[^}]*\}/.exec(css)[0];
+  assert.match(loading, /color: transparent;/);
+  assert.match(css, /\.card\[data-state="loading"\] \.card__loading::before \{[^}]*height: 42px;/);
+  assert.match(css, /@keyframes skeleton-pulse/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.card\[data-state="loading"\] \.card__loading::before,\s*\.card\[data-state="loading"\] \.card__loading::after \{ animation: none; \}/);
+});
+
 test('стили: фон по уровню без размытия, анимация высокого уровня отключается при «уменьшить движение»', () => {
   const css = read('styles.css');
   for (const level of ['low', 'mid', 'high']) assert.match(css, new RegExp(`#verdict-card\\[data-level="${level}"\\]::before \\{`));
