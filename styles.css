@@ -1562,6 +1562,9 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 }
 
 .verdict__factors li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--text-dim);
   background: rgba(var(--fill), 0.05);
@@ -1569,6 +1572,20 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   border-radius: 999px;
   padding: 5px 13px;
 }
+
+.factor__icon { display: inline-flex; flex: none; color: var(--text-faint); }
+.factor__icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.factor--kp .factor__icon   { color: var(--aurora-green); }
+.factor--moon .factor__icon { color: var(--mid); }
+.factor--fog .factor__icon  { color: var(--bad); }
 
 /* ---------- Уведомления ---------- */
 .notify {

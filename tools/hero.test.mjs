@@ -71,6 +71,24 @@ test('загрузка — заготовка: текст прозрачный (
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.card\[data-state="loading"\] \.card__loading::before,\s*\.card\[data-state="loading"\] \.card__loading::after \{ animation: none; \}/);
 });
 
+test('условия под вердиктом: у каждого вид для значка, значки скрыты от скринридера', () => {
+  const { ctx, el } = page();
+  ctx.state.kp = { value: 3, stale: 0 };
+  ctx.state.cloud = { value: 40, conflict: true, stale: 0, weather: null };
+  const v = ctx.computeVerdict(ctx.state.kp, ctx.state.cloud);
+  assert.equal(v.factorKinds.length, v.factors.length);
+  assert.deepEqual([...v.factorKinds.slice(0, 3)], ['kp', 'cloud', 'cloud']);
+  for (const kind of v.factorKinds) assert.ok(ctx.FACTOR_ICONS[kind], kind);
+  assert.ok(v.factorKinds.includes('moon'));
+
+  ctx.renderVerdict();
+  const items = el('verdict-factors').children;
+  assert.equal(items.length, v.factors.length);
+  assert.equal(items[0].className, 'factor factor--kp');
+  assert.equal(items[0].children[0].attrs['aria-hidden'], 'true');
+  assert.equal(items[0].children[1].textContent, v.factors[0]);
+});
+
 test('стили: фон по уровню без размытия, анимация высокого уровня отключается при «уменьшить движение»', () => {
   const css = read('styles.css');
   for (const level of ['low', 'mid', 'high']) assert.match(css, new RegExp(`#verdict-card\\[data-level="${level}"\\]::before \\{`));

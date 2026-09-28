@@ -142,9 +142,20 @@ function renderVerdict() {
 
   var list = $('verdict-factors');
   list.innerHTML = '';
-  v.factors.forEach(function (text) {
+  v.factors.forEach(function (text, i) {
+    var kind = v.factorKinds && v.factorKinds[i];
     var li = document.createElement('li');
-    li.textContent = text;
+    li.className = 'factor' + (kind ? ' factor--' + kind : '');
+    if (kind && FACTOR_ICONS[kind]) {
+      var icon = document.createElement('span');
+      icon.className = 'factor__icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<svg viewBox="0 0 24 24" focusable="false">' + FACTOR_ICONS[kind] + '</svg>';
+      li.appendChild(icon);
+    }
+    var label = document.createElement('span');
+    label.textContent = text;
+    li.appendChild(label);
     list.appendChild(li);
   });
 
@@ -157,6 +168,17 @@ function renderVerdict() {
     ages.length ? Math.max.apply(null, ages) : null,
     'lead.verdict_saved');
 }
+
+/* Значки условий под вердиктом: контуры 24×24, цвет — от текста. Вид условия — computeVerdict. */
+var FACTOR_ICONS = {
+  kp:    '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 .5-7.97A5.5 5.5 0 0 0 6.9 11.2 3.4 3.4 0 0 0 7 18z"/>',
+  sun:   '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  dark:  '<path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z"/><path d="M19 17v4M17 19h4"/>',
+  light: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
+  moon:  '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  fog:   '<path d="M4 9h16M6 13h12M4 17h16"/>'
+};
 
 /**
  * Небо за страницей по активности: балл Kp для выбранной точки 0 — calm, 1–2 — active,

@@ -113,10 +113,12 @@ function computeVerdict(kp, cloud) {
 
   var partial = (ks === null || cs === null);
   var factors = [];
+  var kinds = [];   // вид каждого условия — для значка в карточке, в том же порядке
+  var add = function (kind, text) { factors.push(text); kinds.push(kind); };
 
-  factors.push(ks !== null ? t('verdict.f.kp', { v: fmtKp(kp.value) }) : t('verdict.f.kp_none'));
-  factors.push(cs !== null ? t('verdict.f.cloud', { v: cloud.value }) : t('verdict.f.cloud_none'));
-  if (cloud && cloud.conflict) factors.push(t('verdict.f.conflict'));
+  add('kp', ks !== null ? t('verdict.f.kp', { v: fmtKp(kp.value) }) : t('verdict.f.kp_none'));
+  add('cloud', cs !== null ? t('verdict.f.cloud', { v: cloud.value }) : t('verdict.f.cloud_none'));
+  if (cloud && cloud.conflict) add('cloud', t('verdict.f.conflict'));
 
   var point = currentPoint();
   var alt = solarAltitude(new Date(), point.lat, point.lon);
@@ -125,11 +127,11 @@ function computeVerdict(kp, cloud) {
 
   // Освещённость неба
   if (tooLight) {
-    factors.push(t(alt > 0 ? 'verdict.f.sun_up' : 'verdict.f.twilight'));
+    add('sun', t(alt > 0 ? 'verdict.f.sun_up' : 'verdict.f.twilight'));
   } else if (alt > DARK_FULL) {
-    factors.push(t('verdict.f.dark_part'));
+    add('dark', t('verdict.f.dark_part'));
   } else {
-    factors.push(t('verdict.f.dark'));
+    add('dark', t('verdict.f.dark'));
   }
 
   var hint;
@@ -153,20 +155,20 @@ function computeVerdict(kp, cloud) {
   // совет отъехать от фонарей бесполезен.
   // У своего места засветка неизвестна — не упоминаем.
   if (point.light) {
-    factors.push(t('verdict.f.light', { v: t('light.' + point.light + '.label') }));
+    add('light', t('verdict.f.light', { v: t('light.' + point.light + '.label') }));
     if (!tooLight && level !== 'low') hint += gap + t('light.' + point.light + '.hint');
   }
 
   // Луна, как и засветка, в расчёт уровня не входит — это фактор и пояснение.
   // Упоминаем её, когда небо в принципе стоит смотреть.
   var moon = moonInfo(new Date(), point.lat, point.lon);
-  factors.push(moonFactor(moon));
+  add('moon', moonFactor(moon));
   if (!tooLight && level !== 'low' && moonHint(moon.impact)) hint += gap + moonHint(moon.impact);
 
   // Туман облачность не показывает: модель видит ясное небо, а над головой молоко.
   var wx = cloud && cloud.weather;
   if (wx && !tooLight && weatherCondition(wx) === 'fog') {
-    factors.push(t('verdict.f.fog'));
+    add('fog', t('verdict.f.fog'));
     hint += gap + t('verdict.hint.fog');
   }
 
@@ -185,6 +187,7 @@ function computeVerdict(kp, cloud) {
     tone:  level === 'high' ? TONE.ok  : (level === 'mid' ? TONE.mid  : TONE.bad),
     hint: hint,
     factors: factors,
+    factorKinds: kinds,
     // Из чего сложился уровень — три шкалы 0..3 в карточке (null — данных нет).
     meters: { kp: ks, sky: cs, dark: darkScore(alt) },
     // Посчитан ли хоть частично по сохранённым данным — от этого зависит,
