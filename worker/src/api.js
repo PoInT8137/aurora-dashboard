@@ -129,7 +129,8 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
   if (url.pathname.startsWith('/noaa/') && request.method === 'GET') {
     // Как и /meteo — только для страницы сайта.
     if (!cors) return reply({ error: 'forbidden_origin' }, 403);
-    const [body, status, type, stale] = await noaaProxy(url.pathname.slice('/noaa/'.length), nowMs, fetchFn);
+    const [body, status, type, stale] = await noaaProxy(url.pathname.slice('/noaa/'.length), nowMs, fetchFn,
+      { db: env.DB, waitUntil: p => ctx.waitUntil(p) });
     return new Response(body, {
       status,
       headers: {

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleRequest } from '../src/api.js';
-import { trimRtsw, trimOvation, clearNoaaCache, SOURCES, STALE_KEEP_MS } from '../src/noaa.js';
+import { trimRtsw, trimOvation, clearNoaaCache, SOURCES, STALE_KEEP_MS, REVALIDATE_MS } from '../src/noaa.js';
 import '../../core.js';
 import { makeEnv, apiRequest, fakeCtx, NIGHT, MIN, ORIGIN } from './helpers.mjs';
 
@@ -84,10 +84,45 @@ test('память: в пределах срока — без NOAA; NOAA упа�
   assert.equal(ok.calls.length, 1, 'минута ещё не прошла');
 
   const down = upstream('down');
-  const stale = await get(env, 'sw-speed', { fetchFn: down, now: NIGHT + 10 * MIN });
+  const stale = await get(env, 'sw-speed', { fetchFn: down, now: NIGHT + MIN + REVALIDATE_MS + MIN });
   assert.deepEqual([stale.status, stale.body, stale.headers.get('X-Stale')], [200, first.body, '1']);
   assert.equal((await get(env, 'sw-speed', { fetchFn: down, now: NIGHT + STALE_KEEP_MS + MIN })).status, 502);
   assert.equal((await get(env, 'kp-forecast', { fetchFn: upstream(500) })).status, 502);
+});
+
+test('чуть устаревшая копия отдаётся сразу, свежая грузится в фоне; одновременные запросы — один поход к NOAA', async () => {
+  clearNoaaCache();
+  const { env } = await makeEnv();
+  await get(env, 'sw-speed', { fetchFn: upstream(200, '[1]') });
+
+  const next = upstream(200, '[2]');
+  const ctx = fakeCtx();
+  const res = await handleRequest(apiRequest('/noaa/sw-speed', null, { method: 'GET' }), env, ctx, NIGHT + 3 * MIN, next);
+  assert.equal(await res.text(), '[1]', 'не ждём NOAA');
+  assert.equal(res.headers.get('X-Stale'), null);
+  assert.equal(ctx.pending.length, 1);
+  await Promise.all(ctx.pending);
+  assert.equal(next.calls.length, 1);
+  assert.equal((await get(env, 'sw-speed', { fetchFn: upstream('down'), now: NIGHT + 3 * MIN + 1000 })).body, '[2]');
+
+  clearNoaaCache();
+  const slow = upstream(200, '[3]');
+  await Promise.all([1, 2, 3].map(() => get(env, 'kp-forecast', { fetchFn: slow })));
+  assert.equal(slow.calls.length, 1);
+});
+
+test('копия в базе переживает холодный запуск: память пуста — ответ из noaa_cache без NOAA', async () => {
+  clearNoaaCache();
+  const { env } = await makeEnv();
+  await get(env, 'kp', { fetchFn: upstream(200, '[{"kp_index":5}]') });
+  clearNoaaCache();   // новый экземпляр worker'а
+  const none = upstream('down');
+  const r = await get(env, 'kp', { fetchFn: none, now: NIGHT + 20 * 1000 });
+  assert.deepEqual([r.status, r.body, none.calls.length], [200, '[{"kp_index":5}]', 0]);
+  // база недоступна — работаем как раньше, через NOAA
+  const broken = { ...env, DB: { prepare() { throw new Error('no db'); } } };
+  clearNoaaCache();
+  assert.equal((await get(broken, 'kp', { fetchFn: upstream(200, '[7]') })).body, '[7]');
 });
 
 test('текстовый прогноз на 27 дней отдаётся как текст; сроки хранения разумные', async () => {

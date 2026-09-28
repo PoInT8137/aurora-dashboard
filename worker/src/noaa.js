@@ -9,8 +9,10 @@
 // около 7 мс, поэтому тяжёлые файлы не разбираются целиком: нужный кусок вырезается поиском по
 // строке, и разбирается только он.
 //
-// Ответы хранятся в памяти worker'а (у каждого файла свой срок); если NOAA не отвечает, отдаётся
-// последняя удачная копия — страница сама видит её возраст по времени внутри данных.
+// Ответы хранятся в памяти worker'а и в таблице noaa_cache (у каждого файла свой срок свежести).
+// Поход к NOAA из Европы — около секунды, поэтому копия чуть старше срока (до REVALIDATE_MS сверх
+// него) отдаётся сразу, а свежая загружается в фоне для следующего запроса. Если NOAA не отвечает,
+// отдаётся последняя удачная копия — страница сама видит её возраст по времени внутри данных.
 
 const BASE = 'https://services.swpc.noaa.gov/';
 const MIN = 60 * 1000;
@@ -60,26 +62,71 @@ export const SOURCES = {
 /** Последняя удачная копия дольше срока свежести — на случай, если NOAA не отвечает. */
 export const STALE_KEEP_MS = 6 * 60 * MIN;
 
+/** Насколько копия может быть старше срока свежести, чтобы её отдать сразу и обновить в фоне. */
+export const REVALIDATE_MS = 10 * MIN;
+
 const memory = new Map();
+const pending = new Map();   // идущие загрузки: одновременные запросы ждут одну и ту же
 
 export function clearNoaaCache() {
   memory.clear();
+  pending.clear();
 }
 
-/** [тело, статус, тип содержимого, из запаса ли] для /noaa/<name>. */
-export async function noaaProxy(name, nowMs, fetchFn) {
-  const source = Object.prototype.hasOwnProperty.call(SOURCES, name) ? SOURCES[name] : null;
-  if (!source) return [JSON.stringify({ error: 'unknown_source' }), 404, 'json', false];
-
-  const hit = memory.get(name);
-  if (hit && nowMs - hit.at < source.ttl) return [hit.body, 200, source.type, false];
-
+async function readSaved(db, name) {
+  if (!db) return null;
   try {
+    const row = await db.prepare('SELECT body, at FROM noaa_cache WHERE name = ?').bind(name).first();
+    return row ? { body: row.body, at: row.at } : null;
+  } catch (e) {
+    return null;   // таблицы нет или база недоступна — просто идём к NOAA
+  }
+}
+
+function load(name, source, nowMs, fetchFn, db) {
+  if (pending.has(name)) return pending.get(name);
+  const job = (async () => {
     const res = await fetchFn(BASE + source.path, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error('http ' + res.status);
     const text = await res.text();
     const body = source.trim ? source.trim(text, nowMs) : text;
     memory.set(name, { body, at: nowMs });
+    if (db) {
+      try {
+        await db.prepare('INSERT INTO noaa_cache (name, body, at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT(name) DO UPDATE SET body = excluded.body, at = excluded.at').bind(name, body, nowMs).run();
+      } catch (e) { /* копия в базе — только ускорение */ }
+    }
+    return body;
+  })();
+  pending.set(name, job);
+  job.then(() => pending.delete(name), () => pending.delete(name));
+  return job;
+}
+
+/**
+ * [тело, статус, тип содержимого, из запаса ли] для /noaa/<name>. opts.db — база с таблицей
+ * noaa_cache, opts.waitUntil — чтобы фоновая загрузка пережила ответ.
+ */
+export async function noaaProxy(name, nowMs, fetchFn, opts = {}) {
+  const source = Object.prototype.hasOwnProperty.call(SOURCES, name) ? SOURCES[name] : null;
+  if (!source) return [JSON.stringify({ error: 'unknown_source' }), 404, 'json', false];
+  const db = opts.db || null;
+
+  let hit = memory.get(name);
+  if (!hit || nowMs - hit.at >= source.ttl) {
+    const saved = await readSaved(db, name);
+    if (saved && (!hit || saved.at > hit.at)) { hit = saved; memory.set(name, saved); }
+  }
+  if (hit && nowMs - hit.at < source.ttl) return [hit.body, 200, source.type, false];
+
+  if (hit && nowMs - hit.at < source.ttl + REVALIDATE_MS && opts.waitUntil) {
+    opts.waitUntil(load(name, source, nowMs, fetchFn, db).catch(() => {}));
+    return [hit.body, 200, source.type, false];
+  }
+
+  try {
+    const body = await load(name, source, nowMs, fetchFn, db);
     return [body, 200, source.type, false];
   } catch (e) {
     if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200, source.type, true];

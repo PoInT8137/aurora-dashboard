@@ -186,7 +186,11 @@ function armRefresh() {
   if (state.timer) clearInterval(state.timer);
   state.timer = null;
   var every = refreshMs();
-  if (every) state.timer = setInterval(refreshAll, every);
+  // Скрытая вкладка не обновляется: это трафик, батарея и лимит Open-Meteo впустую.
+  // При возврате данные обновит обработчик visibilitychange (app.js), если пора.
+  if (every) state.timer = setInterval(function () {
+    if (document.visibilityState !== 'hidden') refreshAll();
+  }, every);
 }
 
 /** Кнопки настроек: выбранное значение отмечено для скринридеров и для глаз. */

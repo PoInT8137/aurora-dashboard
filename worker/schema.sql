@@ -89,6 +89,14 @@ CREATE TABLE IF NOT EXISTS meta (
   value TEXT
 );
 
+-- Последние копии данных NOAA для страницы (src/noaa.js): память worker'а пропадает при каждом
+-- холодном запуске, а отсюда копия читается за десятки миллисекунд вместо похода к NOAA.
+CREATE TABLE IF NOT EXISTS noaa_cache (
+  name TEXT PRIMARY KEY,                -- имя из SOURCES: kp | sw-mag | ovation | …
+  body TEXT NOT NULL,                   -- ответ в том виде, в каком уходит странице
+  at   INTEGER NOT NULL                 -- мс, когда получен от NOAA
+);
+
 -- Прошлый уровень вердикта по точке: по нему находится переход в «высокий».
 CREATE TABLE IF NOT EXISTS point_state (
   point      TEXT PRIMARY KEY,
