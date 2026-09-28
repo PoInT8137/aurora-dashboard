@@ -51,6 +51,17 @@ test('вердикт отдаёт шкалы; карточка получает 
   assert.equal(el('verdict-card').attrs['data-level'], v.level);
 });
 
+test('небо за страницей: балл Kp 0 — спокойно, 1–2 — активно, 3 — буря; без данных — без изменений', () => {
+  const { ctx } = page();
+  assert.deepEqual([0, 1, 2, 3, null].map(ctx.skyMood), ['calm', 'active', 'active', 'storm', null]);
+  const css = read('styles.css');
+  const bg = /\n\.aurora-bg \{[^}]*\}/.exec(css)[0];
+  assert.doesNotMatch(bg, /filter:/, 'размытие большого движущегося слоя — лишняя работа каждый кадр');
+  assert.match(css, /html\[data-sky="active"\] \.aurora-bg \{/);
+  assert.match(css, /html\[data-sky="storm"\] \.aurora-bg \{/);
+  assert.match(read('index.html'), /<div class="sky-stars" aria-hidden="true"><\/div>/);
+});
+
 test('стили: фон по уровню без размытия, анимация высокого уровня отключается при «уменьшить движение»', () => {
   const css = read('styles.css');
   for (const level of ['low', 'mid', 'high']) assert.match(css, new RegExp(`#verdict-card\\[data-level="${level}"\\]::before \\{`));

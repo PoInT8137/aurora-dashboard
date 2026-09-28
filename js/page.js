@@ -137,6 +137,7 @@ function renderVerdict() {
   $('verdict-hint').textContent = v.hint;
   // Уровень — для оформления карточки: фон «оживает» вместе с шансом.
   $('verdict-card').setAttribute('data-level', v.level);
+  setSky(v.meters.kp);
   renderVerdictMeters(v.meters);
 
   var list = $('verdict-factors');
@@ -155,6 +156,20 @@ function renderVerdict() {
   applyFreshness('verdict-card', 'verdict-stale',
     ages.length ? Math.max.apply(null, ages) : null,
     'lead.verdict_saved');
+}
+
+/**
+ * Небо за страницей по активности: балл Kp для выбранной точки 0 — calm, 1–2 — active,
+ * 3 — storm. Нет данных — прежнее состояние не трогаем.
+ */
+function skyMood(score) {
+  if (score === null || score === undefined) return null;
+  return score >= 3 ? 'storm' : (score >= 1 ? 'active' : 'calm');
+}
+
+function setSky(score) {
+  var mood = skyMood(score);
+  if (mood) document.documentElement.setAttribute('data-sky', mood);
 }
 
 var VERDICT_METERS = ['kp', 'sky', 'dark'];

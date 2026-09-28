@@ -152,7 +152,11 @@ body {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* Мягкое «сияние» на фоне */
+/* «Живое» небо за страницей: сияние отвечает активности (html[data-sky], ставит setSky() по
+   баллу Kp выбранной точки): спокойно — приглушено, активно — ярче, буря — ещё ярче, быстрее
+   и с розовой кромкой, как у настоящих сильных сияний. Только градиенты: размытие (filter: blur)
+   убрано — края радиальных градиентов и так мягкие, а размытие большого движущегося слоя
+   пересчитывалось на каждом кадре. */
 .aurora-bg {
   position: fixed;
   inset: -20% -10% auto -10%;
@@ -160,17 +164,51 @@ body {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(60% 45% at 20% 10%, rgba(77, 255, 184, 0.16), transparent 70%),
-    radial-gradient(55% 40% at 70% 0%,  rgba(155, 123, 255, 0.16), transparent 70%),
-    radial-gradient(45% 35% at 45% 25%, rgba(var(--tint), 0.12), transparent 70%);
-  filter: blur(30px);
+    radial-gradient(60% 45% at 20% 10%, rgba(77, 255, 184, 0.16), transparent 75%),
+    radial-gradient(55% 40% at 70% 0%,  rgba(155, 123, 255, 0.16), transparent 75%),
+    radial-gradient(45% 35% at 45% 25%, rgba(var(--tint), 0.12), transparent 75%);
+  opacity: 0.6;
+  transition: opacity 2s ease;
   animation: drift 26s ease-in-out infinite alternate;
+}
+html[data-sky="active"] .aurora-bg { opacity: 1; }
+html[data-sky="storm"] .aurora-bg {
+  opacity: 1;
+  background:
+    radial-gradient(60% 45% at 20% 10%, rgba(77, 255, 184, 0.26), transparent 75%),
+    radial-gradient(55% 40% at 70% 0%,  rgba(155, 123, 255, 0.24), transparent 75%),
+    radial-gradient(40% 25% at 50% 0%,  rgba(255, 111, 174, 0.16), transparent 75%),
+    radial-gradient(45% 35% at 45% 25%, rgba(var(--tint), 0.16), transparent 75%);
+  animation-duration: 14s;
 }
 
 @keyframes drift {
   from { transform: translate3d(-3%, 0, 0) scale(1); }
   to   { transform: translate3d(3%, 2%, 0) scale(1.08); }
 }
+
+/* Звёзды — неподвижный слой из повторяющейся плитки с точками: ничего не пересчитывается */
+.sky-stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.9) 0 0.8px, transparent 1.3px),
+    radial-gradient(circle at 67% 9%,  rgba(255, 255, 255, 0.7) 0 0.6px, transparent 1.1px),
+    radial-gradient(circle at 38% 52%, rgba(255, 255, 255, 0.8) 0 0.7px, transparent 1.2px),
+    radial-gradient(circle at 88% 64%, rgba(255, 255, 255, 0.6) 0 0.6px, transparent 1.1px),
+    radial-gradient(circle at 22% 83%, rgba(255, 255, 255, 0.7) 0 0.7px, transparent 1.2px),
+    radial-gradient(circle at 74% 91%, rgba(255, 255, 255, 0.9) 0 0.9px, transparent 1.4px),
+    radial-gradient(circle at 53% 27%, rgba(200, 230, 255, 0.7) 0 0.6px, transparent 1.1px);
+  background-size: 260px 260px;
+  /* к низу экрана звёзды тают: там карточки и панель вкладок */
+  -webkit-mask-image: linear-gradient(to bottom, black 0, black 45%, transparent 90%);
+  mask-image: linear-gradient(to bottom, black 0, black 45%, transparent 90%);
+}
+html[data-theme="light"] .sky-stars,
+html[data-theme="night"] .sky-stars { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .aurora-bg { animation: none; }
