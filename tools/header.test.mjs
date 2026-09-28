@@ -26,6 +26,16 @@ test('стили: на компьютере меню «раскрыто» в с�
   assert.match(mobile, /\.topbar__menu\.is-open \{ display: grid;/);
 });
 
+test('настройки на телефоне: название над переключателем, кнопки равные в одну строку, подсказка не уезжает', () => {
+  const start = css.indexOf('/* Телефон: название всегда над переключателем');
+  const mobile = css.slice(start, css.indexOf('\n}\n', start));
+  assert.match(mobile, /\.pref \{ flex-direction: column; align-items: stretch;/);
+  assert.match(mobile, /\.pref \.seg \{[^}]*grid-auto-flow: column;[^}]*grid-auto-columns: minmax\(0, 1fr\);/);
+  assert.match(mobile, /\.pref \.seg__btn \{[^}]*white-space: normal;/);
+  // .pref__hint задан позже с той же силой — нужен более сильный селектор
+  assert.match(mobile, /\.pref \.pref__hint \{ flex-basis: auto; \}/);
+});
+
 function menuPage() {
   const handlers = {};
   const make = id => ({

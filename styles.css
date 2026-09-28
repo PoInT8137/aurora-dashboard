@@ -604,6 +604,31 @@ html.intro .topbar h1 {
 
 .pref__name { color: var(--text-dim); font-size: 15px; }
 
+/* Телефон: название всегда над переключателем, переключатель — во всю ширину, кнопки равные и
+   в одну строку. Раньше короткие переключатели стояли справа от названия, а длинные
+   переносились на вторую строку «пилюлей» неровной формы — строки настроек не совпадали. */
+@media (max-width: 719px) {
+  .pref { flex-direction: column; align-items: stretch; gap: 8px; }
+  /* flex-basis: 100% в колонке стал бы высотой — подсказка уехала бы вбок */
+  .pref .pref__hint { flex-basis: auto; }
+  .pref .seg {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    border-radius: 14px;
+  }
+  .pref .seg__btn {
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px 4px;
+    border-radius: 11px;
+    white-space: normal;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+}
+
 .pref__hint {
   flex-basis: 100%;
   margin: 0;
