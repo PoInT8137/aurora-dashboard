@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v51';
+var APP_VERSION = 'v52';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -373,6 +373,42 @@ function tempText(celsius) {
 
 function fmtKp(value) {
   return fmtNum(value.toFixed(1));
+}
+
+/** Можно ли анимировать: есть requestAnimationFrame, вкладка видна, «уменьшить движение» выключено. */
+function motionAllowed() {
+  if (typeof requestAnimationFrame !== 'function') return false;
+  if (document.visibilityState === 'hidden') return false;
+  try {
+    return !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  } catch (e) {
+    return true;
+  }
+}
+
+/**
+ * Крупное число плавно досчитывается от прежнего значения до нового (в первый раз — от нуля),
+ * format(x) превращает промежуточное значение в текст. Без анимации — сразу итог.
+ */
+function tweenNumber(el, to, format) {
+  var from = typeof el.tweenValue === 'number' ? el.tweenValue : 0;
+  el.tweenValue = to;
+  if (el.tweenFrame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(el.tweenFrame);
+  el.tweenFrame = null;
+  if (!motionAllowed() || from === to) {
+    el.textContent = format(to);
+    return;
+  }
+  var start = null;
+  var duration = 700;
+  var step = function (now) {
+    if (start === null) start = now;
+    var p = Math.min(1, (now - start) / duration);
+    var eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = format(p < 1 ? from + (to - from) * eased : to);
+    el.tweenFrame = p < 1 ? requestAnimationFrame(step) : null;
+  };
+  el.tweenFrame = requestAnimationFrame(step);
 }
 
 /** Возраст данных словами: «12 минут назад», «1 час 5 минут назад». */

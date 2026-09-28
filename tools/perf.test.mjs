@@ -24,6 +24,45 @@ test('карточки без backdrop-filter: под ними движется 
   assert.doesNotMatch(card, /backdrop-filter:/);
 });
 
+test('досчёт числа: без requestAnimationFrame или при «уменьшить движение» — сразу итог; с ним — от прежнего к новому', () => {
+  const src = read('js/base.js');
+  const code = ['motionAllowed', 'tweenNumber'].map(n => new RegExp('function ' + n + '\\([^)]*\\) \\{[\\s\\S]*?\\n\\}').exec(src)[0]).join('\n');
+  const run = (extra) => {
+    const ctx = { document: { visibilityState: 'visible' }, window: { matchMedia: () => ({ matches: false }) }, ...extra };
+    vm.runInNewContext(code, ctx);
+    return ctx;
+  };
+  const plain = run({});
+  const el = {};
+  plain.tweenNumber(el, 4.3, x => x.toFixed(1));
+  assert.equal(el.textContent, '4.3');
+
+  const frames = [];
+  const reduced = run({ requestAnimationFrame: fn => frames.push(fn), cancelAnimationFrame() {}, window: { matchMedia: () => ({ matches: true }) } });
+  const el2 = {};
+  reduced.tweenNumber(el2, 70, x => Math.round(x) + '%');
+  assert.equal(el2.textContent, '70%');
+  assert.equal(frames.length, 0);
+
+  const anim = run({ requestAnimationFrame: fn => { frames.push(fn); return frames.length; }, cancelAnimationFrame() {} });
+  const el3 = {};
+  anim.tweenNumber(el3, 80, x => Math.round(x) + '%');
+  frames.shift()(0);
+  assert.equal(el3.textContent, '0%', 'первый кадр — от нуля');
+  frames.shift()(350);
+  const mid = parseInt(el3.textContent, 10);
+  assert.ok(mid > 40 && mid < 80, el3.textContent);
+  frames.shift()(700);
+  assert.equal(el3.textContent, '80%');
+  assert.equal(frames.length, 0, 'после итога кадров больше нет');
+});
+
+test('смена вкладки — появление только прозрачностью и без анимации при «уменьшить движение»', () => {
+  const css = read('styles.css');
+  assert.match(css, /\[role="tabpanel"\]:not\(\[hidden\]\) \{ animation: tab-in/);
+  assert.doesNotMatch(/@keyframes tab-in \{[^}]*\}/.exec(css)[0], /transform/);
+});
+
 test('автообновление пропускает скрытую вкладку и идёт снова, когда её открыли', () => {
   const src = read('js/settings.js');
   const armRefresh = /function armRefresh\(\) \{[\s\S]*?\n\}/.exec(src)[0];

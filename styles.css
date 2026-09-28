@@ -847,6 +847,16 @@ html[lang="zh-CN"] .card__label {
     linear-gradient(rgba(var(--fill), 0.07) 0 0) 0 38px / 50% 12px no-repeat;
   animation-delay: 0.2s;
 }
+/* Смена вкладки — мягкое появление. Только прозрачность: transform у панели сделал бы её
+   «рамкой» для fixed-элементов внутри. Анимация перезапускается сама, когда hidden снят. */
+[role="tabpanel"]:not([hidden]) { animation: tab-in 0.28s ease-out; }
+@keyframes tab-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="tabpanel"]:not([hidden]) { animation: none; }
+}
+
 @keyframes skeleton-pulse {
   from { opacity: 0.55; }
   to   { opacity: 1; }

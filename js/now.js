@@ -247,7 +247,7 @@ function renderKp(kp) {
   setTone($('kp-card'), tone);
 
   var valueEl = $('kp-value');
-  valueEl.textContent = fmtKp(kp.value);
+  tweenNumber(valueEl, kp.value, fmtKp);
   setTone(valueEl, tone);
 
   $('kp-caption').textContent = kpText(kp.value);
@@ -723,7 +723,7 @@ function renderCloud(cloud) {
   setTone($('cloud-card'), tone);
 
   var valueEl = $('cloud-value');
-  valueEl.textContent = cloud.value + '%';
+  tweenNumber(valueEl, cloud.value, function (x) { return Math.round(x) + '%'; });
   setTone(valueEl, tone);
 
   $('cloud-caption').textContent = cloudText(cloud.value);
