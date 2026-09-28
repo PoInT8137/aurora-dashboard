@@ -135,6 +135,9 @@ function renderVerdict() {
   setTone(valueEl, v.tone);
 
   $('verdict-hint').textContent = v.hint;
+  // Уровень — для оформления карточки: фон «оживает» вместе с шансом.
+  $('verdict-card').setAttribute('data-level', v.level);
+  renderVerdictMeters(v.meters);
 
   var list = $('verdict-factors');
   list.innerHTML = '';
@@ -152,6 +155,46 @@ function renderVerdict() {
   applyFreshness('verdict-card', 'verdict-stale',
     ages.length ? Math.max.apply(null, ages) : null,
     'lead.verdict_saved');
+}
+
+var VERDICT_METERS = ['kp', 'sky', 'dark'];
+
+/**
+ * Три шкалы под уровнем: активность, небо, темнота — по три деления. Уровень высокий, только
+ * когда все три хороши, поэтому по шкалам сразу видно, чего не хватает.
+ */
+function renderVerdictMeters(meters) {
+  var box = $('verdict-meters');
+  if (!box) return;
+  box.innerHTML = '';
+  VERDICT_METERS.forEach(function (key) {
+    var score = meters ? meters[key] : null;
+    var row = document.createElement('li');
+    row.className = 'meter meter--' + (score === null ? 'none' : score);
+
+    var name = document.createElement('span');
+    name.className = 'meter__name';
+    name.textContent = t('meter.' + key);
+
+    var pips = document.createElement('span');
+    pips.className = 'meter__pips';
+    pips.setAttribute('aria-hidden', 'true');
+    for (var i = 1; i <= 3; i++) {
+      var pip = document.createElement('span');
+      pip.className = 'meter__pip' + (score !== null && i <= score ? ' meter__pip--on' : '');
+      pips.appendChild(pip);
+    }
+
+    // Для скринридера — словами: «Небо: 2 из 3».
+    var value = document.createElement('span');
+    value.className = 'meter__value';
+    value.textContent = score === null ? t('meter.none') : t('meter.of', { n: score });
+
+    row.appendChild(name);
+    row.appendChild(pips);
+    row.appendChild(value);
+    box.appendChild(row);
+  });
 }
 
 /* ------------------------------------------------------------------ */

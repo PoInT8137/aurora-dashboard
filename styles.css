@@ -22,6 +22,7 @@
   --ok-rgb:  77, 255, 184;
   --mid-rgb: 255, 209, 102;
   --bad-rgb: 255, 122, 138;
+  --violet-rgb: 155, 123, 255;
 
   --tab-bg:    rgba(17, 27, 43, 0.6);
   --nav-bg:    rgba(6, 11, 20, 0.92);
@@ -61,6 +62,7 @@ html[data-theme="light"] {
   --ok-rgb:  7, 112, 75;
   --mid-rgb: 138, 93, 0;
   --bad-rgb: 184, 40, 63;
+  --violet-rgb: 110, 80, 210;
 
   --tab-bg:    rgba(255, 255, 255, 0.7);
   --nav-bg:    rgba(238, 244, 248, 0.94);
@@ -102,6 +104,7 @@ html[data-theme="night"] {
   --ok-rgb:  255, 138, 92;
   --mid-rgb: 255, 90, 58;
   --bad-rgb: 227, 58, 42;
+  --violet-rgb: 200, 50, 60;
 
   --tab-bg:    rgba(34, 6, 5, 0.6);
   --nav-bg:    rgba(7, 1, 1, 0.94);
@@ -1353,6 +1356,104 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   letter-spacing: -0.02em;
   color: var(--tone, var(--text));
   text-shadow: 0 0 40px color-mix(in srgb, var(--tone, var(--aurora-teal)) 45%, transparent);
+}
+
+/* Главная карточка — «герой»: фон отвечает уровню. Низкий — спокойное тёмное небо, средний —
+   тёплое свечение у горизонта, высокий — занавес сияния, медленно переливающийся. Слой под
+   содержимым, только градиенты — без размытия, чтобы не нагружать телефон. */
+#verdict-card { isolation: isolate; overflow: hidden; }
+#verdict-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+#verdict-card[data-level="low"]::before {
+  opacity: 1;
+  background: radial-gradient(120% 70% at 100% 0%, rgba(var(--bad-rgb), 0.07), transparent 60%);
+}
+#verdict-card[data-level="mid"]::before {
+  opacity: 1;
+  background:
+    radial-gradient(90% 60% at 85% 0%, rgba(var(--mid-rgb), 0.16), transparent 65%),
+    radial-gradient(70% 50% at 10% 100%, rgba(var(--tint), 0.1), transparent 70%);
+}
+#verdict-card[data-level="high"]::before {
+  opacity: 1;
+  inset: -40% -20%;
+  background:
+    radial-gradient(35% 45% at 25% 30%, rgba(var(--ok-rgb), 0.38), transparent 70%),
+    radial-gradient(30% 50% at 60% 20%, rgba(var(--tint), 0.28), transparent 70%),
+    radial-gradient(35% 45% at 85% 35%, rgba(var(--violet-rgb), 0.32), transparent 70%);
+  animation: verdict-aurora 12s ease-in-out infinite alternate;
+}
+#verdict-card[data-level="high"] { box-shadow: var(--shadow), 0 0 60px -20px rgba(var(--ok-rgb), 0.55); }
+@keyframes verdict-aurora {
+  from { transform: translate3d(-6%, 0, 0) skewX(-4deg); }
+  to   { transform: translate3d(6%, 4%, 0) skewX(4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #verdict-card[data-level="high"]::before { animation: none; }
+}
+
+/* Уровень и три шкалы рядом; на узком экране шкалы под словом */
+.verdict__hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.meters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+  min-width: 210px;
+}
+.meter {
+  display: grid;
+  grid-template-columns: minmax(84px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.meter__pips { display: inline-flex; gap: 5px; }
+.meter__pip {
+  width: 26px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(var(--fill), 0.1);
+  box-shadow: inset 0 0 0 1px rgba(var(--fill), 0.08);
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+/* Цвет делений — по баллу шкалы: 3 — зелёный, 1–2 — жёлтый, 0 — ни одного */
+.meter--3 .meter__pip--on { background: var(--ok); box-shadow: 0 0 10px rgba(var(--ok-rgb), 0.5); }
+.meter--2 .meter__pip--on,
+.meter--1 .meter__pip--on { background: var(--mid); box-shadow: 0 0 8px rgba(var(--mid-rgb), 0.35); }
+.meter--0 .meter__name,
+.meter--none .meter__name { color: var(--text-faint); }
+/* Число «2 из 3» — для скринридера: глазу хватает делений */
+.meter__value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .verdict__value { font-size: 46px; }
+  .meters { width: 100%; }
+  .meter { grid-template-columns: 1fr auto; }
+  .meter__pip { width: 32px; }
 }
 
 .verdict__hint {

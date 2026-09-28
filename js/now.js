@@ -90,6 +90,17 @@ function cloudTone(pct) {
 }
 
 /**
+ * Темнота неба баллом 0..3, как Kp и облачность: день, сумерки (ещё светло), неполная
+ * темнота, полная. Пороги — те же, что в verdictLevel (core.js).
+ */
+function darkScore(alt) {
+  if (alt > 0) return 0;
+  if (alt > DARK_USABLE) return 1;
+  if (alt > DARK_FULL) return 2;
+  return 3;
+}
+
+/**
  * Итоговая оценка. Основа — Kp и облачность.
  * Дополнительно учитывается высота Солнца: в полярный день сияние не видно
  * ни при каком Kp, поэтому светлое небо опускает вердикт.
@@ -174,6 +185,8 @@ function computeVerdict(kp, cloud) {
     tone:  level === 'high' ? TONE.ok  : (level === 'mid' ? TONE.mid  : TONE.bad),
     hint: hint,
     factors: factors,
+    // Из чего сложился уровень — три шкалы 0..3 в карточке (null — данных нет).
+    meters: { kp: ks, sky: cs, dark: darkScore(alt) },
     // Посчитан ли хоть частично по сохранённым данным — от этого зависит,
     // можно ли по нему будить человека уведомлением.
     stale: !!((kp && kp.stale) || (cloud && cloud.stale))
