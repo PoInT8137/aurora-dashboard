@@ -1,14 +1,12 @@
-/* Заставка первого визита, «вид с орбиты»: край Земли, сияние из-за горизонта, кольцо-эмблема,
-   название за сканирующей линией, координаты. ~3,4 с; пропуск кнопкой, Esc, нажатием. В конце
-   эмблема перелетает на кольцо вердикта, небо растворяется. Показывать ли — решает скрипт в <head>
-   (класс has-splash, не splash: стиль слоя .splash скрыл бы <html>). Данные заставка не ждёт.
-   Лучи — на холсте в половину разрешения; эмблема и тексты — разметка и CSS. */
+/* Заставка первого визита, «вид с орбиты»; пропуск кнопкой, Esc, нажатием. Уход: сияние за
+   горизонт, эмблема на кольцо вердикта, дашборд поднимается. Показывать ли — решает <head>
+   (класс has-splash, не splash: стиль .splash скрыл бы <html>). Данные заставка не ждёт. */
 'use strict';
 
 var SPLASH = {
-  showMs: 2800,      // когда начинать уход
-  fadeMs: 600,       // уход к дашборду: перелёт эмблемы и растворение неба
-  skipFadeMs: 250,   // после «Пропустить» — быстрее и без перелёта
+  showMs: 2700,      // когда начинать уход
+  fadeMs: 1200,      // уход: сияние за горизонт, эмблема на кольцо вердикта, дашборд поднимается
+  skipFadeMs: 250,   // после «Пропустить» — быстро и без перелёта
   scale: 2           // во сколько раз холст сияния меньше экрана
 };
 
@@ -38,7 +36,7 @@ function splashLang(search, saved, browserLangs) {
   return 'en';
 }
 
-/** Цвет #rrggbb → [r, g, b]; всё остальное — запасной цвет. */
+/** #rrggbb → [r, g, b]; иначе запасной цвет. */
 function splashRgb(value, fallback) {
   var m = /^#?([0-9a-f]{6})$/i.exec(String(value || '').trim());
   if (!m) return fallback;
@@ -52,7 +50,7 @@ var SPLASH_CURTAINS = [
   { k: 9,   speed: 0.7,   height: 0.3,  alpha: 1.25, phase: 0 }
 ];
 
-/** Спрайт луча: снизу зелёный, выше бирюзовый, вверху фиолетовый и прозрачный. */
+/** Спрайт луча: снизу зелёный, выше бирюзовый, вверху фиолетовый. */
 function splashRay(green, teal, violet) {
   var sprite = document.createElement('canvas');
   sprite.width = 1;
@@ -92,10 +90,12 @@ function splashHorizon(w, h) {
   };
 }
 
-/** Кадр неба w×h в момент t (с): лучи, поверх Земля и дуга атмосферы. Возвращает число лучей. */
-function splashFrame(ctx, w, h, t, sprites, glow) {
+/** Кадр неба w×h в момент t (с): лучи, поверх Земля и дуга атмосферы. sink 0..1 — уход
+    сияния за горизонт. Возвращает число лучей. */
+function splashFrame(ctx, w, h, t, sprites, glow, sink) {
   var TAU = Math.PI * 2;
-  var rise = splashEnvelope(t);
+  var down = 1 - splashEase(sink || 0);
+  var rise = splashEnvelope(t) * down;
   var earth = splashHorizon(w, h);
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, w, h);
@@ -127,7 +127,7 @@ function splashFrame(ctx, w, h, t, sprites, glow) {
   ctx.beginPath();
   ctx.arc(earth.cx, earth.cy, earth.r, 0, TAU);
   ctx.fill();
-  var draw = splashEase((t - 0.2) / 0.9);
+  var draw = splashEase((t - 0.2) / 0.9) * down;
   if (draw > 0 && glow) {
     var span = Math.asin(Math.min(1, (w * 0.62) / earth.r)) * draw;
     ctx.save();
@@ -173,10 +173,7 @@ function splashFlight(from, to, viewHeight) {
   };
 }
 
-/**
- * Запуск. env — зависимости окружения (для тестов): now(), raf(fn), setTimeout(fn, ms).
- * Возвращает объект заставки с finish(fast) либо null, если показывать нечего.
- */
+/** Запуск; env (для тестов): now, raf, setTimeout. Возвращает { finish(fast) } или null. */
 function startSplash(env) {
   var root = document.documentElement;
   // Решение уже принято в <head>; класса нет — заставки нет (повторный визит, «уменьшить движение»).
@@ -218,13 +215,21 @@ function startSplash(env) {
 
   var start = now();
   var done = false;
+  var leaving = null;   // начало плавного ухода
 
   // Цель перелёта — кольцо вердикта, если данные уже есть; иначе просто растворение
   var flight = function () {
     if (typeof document.querySelector !== 'function') return null;
     var from = document.getElementById('splash-ring');
     var to = document.querySelector('#verdict-card[data-state="ok"] .ring, #verdict-card[data-state="stale"] .ring');
-    return from && to ? splashFlight(from.getBoundingClientRect(), to.getBoundingClientRect(), innerHeight) : null;
+    var move = from && to ? splashFlight(from.getBoundingClientRect(), to.getBoundingClientRect(), innerHeight) : null;
+    if (move) {
+      // цвет и число делений вердикта — посадка без подмены
+      var card = document.getElementById('verdict-card');
+      move.tone = card.style.getPropertyValue('--tone');
+      move.level = card.getAttribute('data-level');
+    }
+    return move;
   };
 
   var splash = {
@@ -234,16 +239,25 @@ function startSplash(env) {
       done = true;
       var move = fast ? null : flight();
       box.style.setProperty('--splash-fade', (fast ? SPLASH.skipFadeMs : SPLASH.fadeMs) + 'ms');
-      if (move) {
-        box.style.setProperty('--fly', 'translate(' + move.x + 'px, ' + move.y + 'px) scale(' + move.scale + ')');
-        box.classList.add('splash--fly');
-      } else {
+      if (fast) {
         box.classList.add('splash--out');
+      } else {
+        leaving = now();
+        box.classList.add('splash--leave');
+        root.classList.add('splash-rise');
+        if (move) {
+          box.style.setProperty('--fly', 'translate(' + move.x + 'px, ' + move.y + 'px) scale(' + move.scale + ')');
+          if (move.tone) box.style.setProperty('--fly-tone', move.tone);
+          if (move.level) box.setAttribute('data-level', move.level);
+          box.classList.add('splash--fly');
+          root.classList.add('splash-flying');
+        }
       }
       root.classList.add('splash-leaving');
       later(function () {
-        root.classList.remove('has-splash', 'splash-leaving');
-        box.classList.remove('splash--out', 'splash--fly');
+        leaving = null;
+        root.classList.remove('has-splash', 'splash-leaving', 'splash-rise', 'splash-flying');
+        box.classList.remove('splash--out', 'splash--leave', 'splash--fly');
         document.removeEventListener('keydown', onKey);
         document.removeEventListener('visibilitychange', onHidden);
       }, fast ? SPLASH.skipFadeMs : SPLASH.fadeMs);
@@ -251,17 +265,19 @@ function startSplash(env) {
   };
 
   var tick = function () {
-    if (done) return;   // после завершения кадров больше нет
-    splashFrame(ctx, w, h, (now() - start) / 1000, sprites, glow);
+    // после пропуска кадров нет; при плавном уходе — пока сияние не скроется
+    if (done && leaving === null) return;
+    var sink = leaving === null ? 0 : (now() - leaving) / (SPLASH.fadeMs * 0.6);
+    splashFrame(ctx, w, h, (now() - start) / 1000, sprites, glow, sink);
     splash.frames++;
     raf(tick);
   };
   var onKey = function (e) { if (e.key === 'Escape') splash.finish(true); };
-  // Вкладку свернули — досматривать некому: сразу к дашборду, без кадров в фоне.
+  // вкладку свернули — сразу к дашборду
   var onHidden = function () { if (document.visibilityState === 'hidden') splash.finish(true); };
 
   box.addEventListener('click', function () { splash.finish(true); });
-  // Прокрутка под заставкой не нужна: она на мгновение, а страница под ней не должна уехать.
+  // страница под заставкой не должна уехать
   box.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
   box.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('keydown', onKey);

@@ -373,15 +373,65 @@ html.has-splash:not(.splash-leaving) body > :not(.splash) { visibility: hidden; 
 @keyframes splash-scan { 0% { opacity: 1; left: 0; } 85% { opacity: 1; } 100% { opacity: 0; left: 100%; } }
 @keyframes splash-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes splash-type { to { clip-path: inset(0 0 0 0); } }
-@keyframes splash-land { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
 
-/* Уход к дашборду: небо и тексты растворяются, эмблема перелетает на кольцо вердикта
-   (--fly — сдвиг и масштаб от splash.js) и в конце гаснет — на её месте уже настоящее кольцо */
-.splash--fly { background-color: transparent; pointer-events: none; }
-.splash--fly > :not(.splash__emblem) { opacity: 0; transition: opacity calc(var(--splash-fade, 600ms) / 2) ease; }
-.splash--fly .splash__emblem { transform: var(--fly); }
-.splash--fly .splash__orbit { opacity: 0; }
-.splash--fly .splash__ring { animation: splash-land var(--splash-fade, 600ms) ease forwards; }
+/* Плавный уход (~1,2 с, --splash-fade): тексты поднимаются и растворяются, сияние опускается за
+   горизонт (рисует splash.js), тёмный фон заставки открывает небо страницы, а дашборд поднимается
+   волной. Если оценка уже на экране — эмблема по пути принимает цвет и число делений вердикта и
+   садится на его кольцо; настоящее кольцо спрятано до посадки, поэтому подмены не видно. */
+.splash--leave {
+  background-color: transparent;
+  pointer-events: none;
+  transition: background-color calc(var(--splash-fade, 1200ms) * 0.7) ease calc(var(--splash-fade, 1200ms) * 0.1);
+}
+.splash--leave .splash__title {
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.splash--leave .splash__skip { opacity: 0; transition: opacity 0.2s ease; }
+.splash--leave .splash__stars {
+  opacity: 0;
+  transition: opacity calc(var(--splash-fade, 1200ms) * 0.7) ease calc(var(--splash-fade, 1200ms) * 0.2);
+}
+.splash--leave .splash__sky {
+  opacity: 0;
+  transition: opacity 0.3s ease calc(var(--splash-fade, 1200ms) * 0.6);
+}
+/* Без перелёта (данных ещё нет) эмблема просто растворяется вместе с текстами */
+.splash--leave:not(.splash--fly) .splash__emblem { opacity: 0; transition: opacity 0.4s ease; }
+
+/* Перелёт: быстрый старт и долгое мягкое торможение */
+.splash--fly .splash__emblem {
+  transform: var(--fly);
+  transition: transform calc(var(--splash-fade, 1200ms) * 0.8) cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+}
+/* Орбита расходится волной и гаснет */
+.splash--fly .splash__orbit {
+  opacity: 0;
+  transform: scale(1.5);
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* По пути — цвет и деления вердикта, без свечения: как у кольца в карточке */
+.splash--fly .splash__seg,
+.splash--fly .splash__wave { transition: stroke 0.6s ease 0.2s, opacity 0.6s ease 0.2s, filter 0.4s ease; filter: none; }
+.splash--fly .splash__seg { stroke: var(--fly-tone, var(--text-dim)); }
+.splash--fly .splash__wave { stroke: var(--fly-tone, var(--text-dim)); opacity: 0.85; }
+.splash--fly[data-level="low"] .splash__seg:nth-of-type(n+2),
+.splash--fly[data-level="mid"] .splash__seg:nth-of-type(3) { stroke: rgba(var(--fill), 0.1); }
+/* Настоящее кольцо вердикта ждёт посадки */
+html.splash-flying #verdict-card .ring { visibility: hidden; }
+
+/* Дашборд поднимается волной: шапка, вкладки, затем карточки */
+html.splash-rise .topbar,
+html.splash-rise .tabs,
+html.splash-rise [role="tabpanel"]:not([hidden]) > * { animation: splash-page-in 0.7s cubic-bezier(0.23, 1, 0.32, 1) both; }
+html.splash-rise .topbar { animation-delay: 0.12s; }
+html.splash-rise .tabs { animation-delay: 0.18s; }
+html.splash-rise [role="tabpanel"]:not([hidden]) > :nth-child(1) { animation-delay: 0.24s; }
+html.splash-rise [role="tabpanel"]:not([hidden]) > :nth-child(2) { animation-delay: 0.31s; }
+html.splash-rise [role="tabpanel"]:not([hidden]) > :nth-child(3) { animation-delay: 0.38s; }
+html.splash-rise [role="tabpanel"]:not([hidden]) > :nth-child(n+4) { animation-delay: 0.44s; }
+@keyframes splash-page-in { from { opacity: 0; transform: translateY(14px); } }
 
 /* Ночное зрение (ярлык ?theme=night): без свечения */
 html[data-theme="night"] .splash__seg { filter: none; }

@@ -263,37 +263,77 @@ test('язык и тексты заставки ставятся сразу; к�
   assert.equal(w.byId('splash-skip').focused, true, 'Enter и пробел сразу пропускают');
 });
 
-test('полная версия: кадры идут, в 2,8 с плавное исчезновение 0,6 с, затем класс снят — итого 3,4 с', () => {
+test('полная версия: в 2,7 с плавный уход 1,2 с — сияние за горизонт, дашборд поднимается; итого до 4 с', () => {
   const w = world();
   for (let i = 0; i < 10; i++) w.advance(16);
   assert.equal(w.splash.frames, 10);
-  const auto = w.timers.find(t => t.ms === 2800);
-  assert.ok(auto, 'исчезновение назначено на 2,8 с');
+  const auto = w.timers.find(t => t.ms === 2700);
+  assert.ok(auto, 'уход назначен на 2,7 с');
   auto.fn();
-  assert.ok(w.byId('splash').classes.has('splash--out'));
-  assert.equal(w.byId('splash').style.props['--splash-fade'], '600ms');
+  const box = w.byId('splash');
+  assert.ok(box.classes.has('splash--leave'));
+  assert.ok(!box.classes.has('splash--fly'), 'без кольца вердикта на экране — без перелёта');
+  assert.ok(!box.classes.has('splash--out'), 'слой не гаснет целиком');
+  assert.equal(box.style.props['--splash-fade'], '1200ms');
+  assert.ok(w.root.classes.has('splash-rise'), 'дашборд поднимается волной');
   assert.ok(w.root.classes.has('has-splash'), 'пока идёт переход, слой ещё на месте');
-  w.timers.find(t => t.ms === 600).fn();
+  w.timers.find(t => t.ms === 1200).fn();
   assert.ok(!w.root.classes.has('has-splash'));
+  assert.ok(!w.root.classes.has('splash-rise'));
   assert.equal(w.docListeners.keydown, undefined, 'обработчики сняты');
-  assert.ok(2800 + 600 <= 4000);
+  assert.ok(2700 + 1200 <= 4000);
 });
 
-test('уход с данными на экране: эмблема перелетает на кольцо вердикта, небо растворяется; потом всё снято', () => {
+test('при плавном уходе сияние ещё рисуется и опускается, после снятия слоя кадров нет', () => {
+  const w = world();
+  w.advance(16);
+  w.timers.find(t => t.ms === 2700).fn();
+  const before = w.splash.frames;
+  w.advance(16);
+  w.advance(16);
+  assert.equal(w.splash.frames, before + 2, 'кадры продолжаются');
+  w.timers.find(t => t.ms === 1200).fn();
+  w.advance(16);
+  w.advance(16);
+  assert.equal(w.frames.length, 0, 'после ухода кадры остановлены');
+});
+
+test('сияние уходит за горизонт: при sink = 1 лучей нет, дуга атмосферы гаснет', () => {
+  const s = lib();
+  const ctx = fakeCtx();
+  let strokes = 0;
+  ctx.stroke = () => strokes++;
+  assert.equal(s.splashFrame(ctx, 188, 406, 2.5, [{}], 'x', 1), 0);
+  assert.equal(strokes, 0);
+  const half = fakeCtx();
+  const all = s.splashFrame(fakeCtx(), 188, 406, 2.5, [{}], 'x', 0);
+  assert.ok(s.splashFrame(half, 188, 406, 2.5, [{}], 'x', 0.3) <= all);
+});
+
+test('уход с данными на экране: эмблема в цвете вердикта садится на его кольцо, настоящее кольцо ждёт посадки', () => {
   const w = world();
   const rect = (left, top, size) => ({ left, top, width: size, height: size, right: left + size, bottom: top + size });
   let asked = '';
   w.document.querySelector = sel => { asked = sel; return { getBoundingClientRect: () => rect(40, 300, 64) }; };
   w.byId('splash-ring').getBoundingClientRect = () => rect(140, 200, 96);
-  w.timers.find(t => t.ms === 2800).fn();
-  assert.match(asked, /#verdict-card\[data-state="ok"\] \.ring/, 'летим только на кольцо с данными');
+  const card = w.byId('verdict-card');
+  card.style.getPropertyValue = k => (k === '--tone' ? 'var(--mid)' : '');
+  card.getAttribute = k => (k === 'data-level' ? 'mid' : null);
   const box = w.byId('splash');
-  assert.ok(box.classes.has('splash--fly'));
+  box.attrs = {};
+  box.setAttribute = (k, v) => { box.attrs[k] = v; };
+  w.timers.find(t => t.ms === 2700).fn();
+  assert.match(asked, /#verdict-card\[data-state="ok"\] \.ring/, 'летим только на кольцо с данными');
+  assert.ok(box.classes.has('splash--fly') && box.classes.has('splash--leave'));
   assert.ok(!box.classes.has('splash--out'), 'слой целиком не гаснет — эмблема летит');
   assert.equal(box.style.props['--fly'], 'translate(-116px, 84px) scale(0.667)');
+  assert.equal(box.style.props['--fly-tone'], 'var(--mid)', 'по пути — цвет вердикта');
+  assert.equal(box.attrs['data-level'], 'mid', 'и число его делений');
   assert.ok(w.root.classes.has('splash-leaving'), 'дашборд виден под пролетающей эмблемой');
-  w.timers.find(t => t.ms === 600).fn();
+  assert.ok(w.root.classes.has('splash-flying'), 'настоящее кольцо ждёт посадки');
+  w.timers.find(t => t.ms === 1200).fn();
   assert.ok(!box.classes.has('splash--fly'));
+  assert.ok(!w.root.classes.has('splash-flying'));
   assert.ok(!w.root.classes.has('has-splash'));
 });
 
@@ -397,5 +437,5 @@ test('страница под заставкой скрыта до начала 
   const finish = /finish: function \(fast\) \{([\s\S]*?)\n    \}\n  \};/.exec(code)[1];
   const leaving = finish.indexOf("root.classList.add('splash-leaving')");
   assert.ok(leaving > 0 && leaving < finish.indexOf('later('), 'дашборд проявляется вместе с исчезновением, а не после');
-  assert.match(finish, /root\.classList\.remove\('has-splash', 'splash-leaving'\)/);
+  assert.match(finish, /root\.classList\.remove\('has-splash', 'splash-leaving'[^)]*\)/);
 });
