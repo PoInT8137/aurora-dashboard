@@ -116,9 +116,23 @@ try {
 <div class="splash" id="splash" aria-label="Северное сияние">
   <canvas class="splash__stars" id="splash-stars" aria-hidden="true"></canvas>
   <canvas class="splash__sky" id="splash-sky" aria-hidden="true"></canvas>
+  <!-- Эмблема — то же кольцо из трёх делений, что у вердикта: в конце оно перелетает на его место -->
+  <div class="splash__emblem" aria-hidden="true">
+    <svg class="splash__orbit" viewBox="0 0 132 132" focusable="false">
+      <circle class="splash__track" cx="66" cy="66" r="62"/>
+      <circle class="splash__sat" cx="66" cy="4" r="2.6"/>
+    </svg>
+    <svg class="splash__ring" id="splash-ring" viewBox="0 0 96 96" focusable="false">
+      <circle class="splash__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(146.5 48 48)"/>
+      <circle class="splash__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(236.5 48 48)"/>
+      <circle class="splash__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(326.5 48 48)"/>
+      <path class="splash__wave" d="M34 55c4.7-6.3 9.3-6.3 14 0s9.3 6.3 14 0M34 45c4.7-6.3 9.3-6.3 14 0s9.3 6.3 14 0"/>
+    </svg>
+  </div>
   <div class="splash__title">
-    <p class="splash__name" id="splash-title">Северное сияние</p>
+    <p class="splash__name"><span id="splash-title">Северное сияние</span><span class="splash__scan" aria-hidden="true"></span></p>
     <p class="splash__region" id="splash-region">Мурманская область</p>
+    <p class="splash__coords" id="splash-coords" aria-hidden="true"></p>
   </div>
   <button class="btn splash__skip" type="button" id="splash-skip">Пропустить</button>
 </div>

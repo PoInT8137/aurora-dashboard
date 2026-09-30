@@ -1,29 +1,22 @@
-/* Заставка при первом визите: северное сияние на холсте, ~3,4 с, пропускается кнопкой, Esc и
-   нажатием где угодно. Показывать или нет, решает встроенный скрипт в <head> (класс splash на <html>)
-   ещё до первой отрисовки; этот файл только рисует и убирает заставку.
-   Класс на <html> — has-splash, а не splash: иначе стиль слоя .splash (display: none; fixed)
-   срабатывал бы на самом <html> и скрывал страницу целиком.
-
-   Заставка — отдельный слой поверх страницы: разметку не трогает и данные не ждёт — запросы к NOAA
-   и Open-Meteo уходят как обычно, параллельно с анимацией.
-
-   Сияние рисуется на холсте в четверть разрешения, растянутом на весь экран: оно и так размытое,
-   а работы в 16 раз меньше. Каждая лента — ряд столбиков из заранее готового градиента. */
+/* Заставка первого визита, «вид с орбиты»: край Земли, сияние из-за горизонта, кольцо-эмблема,
+   название за сканирующей линией, координаты. ~3,4 с; пропуск кнопкой, Esc, нажатием. В конце
+   эмблема перелетает на кольцо вердикта, небо растворяется. Показывать ли — решает скрипт в <head>
+   (класс has-splash, не splash: стиль слоя .splash скрыл бы <html>). Данные заставка не ждёт.
+   Лучи — на холсте в половину разрешения; эмблема и тексты — разметка и CSS. */
 'use strict';
 
 var SPLASH = {
-  showMs: 2800,      // когда начинать исчезать
-  fadeMs: 600,       // плавный переход к дашборду
-  skipFadeMs: 250,   // после «Пропустить» — быстрее
-  scale: 4           // во сколько раз холст сияния меньше экрана
+  showMs: 2800,      // когда начинать уход
+  fadeMs: 600,       // уход к дашборду: перелёт эмблемы и растворение неба
+  skipFadeMs: 250,   // после «Пропустить» — быстрее и без перелёта
+  scale: 2           // во сколько раз холст сияния меньше экрана
 };
 
-/* Тексты заставки: словари загружаются позже, а заставка нужна сразу. Совпадение со словарями
-   (app.title, app.region, splash.skip) проверяет tools/splash.test.mjs. */
+/* Тексты: словари грузятся позже. Совпадение со словарями — tools/splash.test.mjs. */
 var SPLASH_TEXT = {
-  ru: { title: 'Северное сияние', region: 'Мурманская область', skip: 'Пропустить' },
-  en: { title: 'Northern Lights', region: 'Murmansk Region', skip: 'Skip' },
-  zh: { title: '北极光', region: '摩尔曼斯克州', skip: '跳过' }
+  ru: { title: 'Северное сияние', region: 'Мурманская область', skip: 'Пропустить', coords: '68,97° С. Ш. · 33,10° В. Д.' },
+  en: { title: 'Northern Lights', region: 'Murmansk Region', skip: 'Skip', coords: '68.97° N · 33.10° E' },
+  zh: { title: '北极光', region: '摩尔曼斯克州', skip: '跳过', coords: '北纬 68.97° · 东经 33.10°' }
 };
 
 /** Язык по тем же правилам, что у сайта (detectLang в i18n.js): адрес, выбор, браузер, английский. */
@@ -53,59 +46,99 @@ function splashRgb(value, fallback) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/* Три ленты: базовая высота (доля экрана), волна, скорость, высота занавеса, яркость. */
-var SPLASH_RIBBONS = [
-  { color: '--aurora-green',  fallback: [77, 255, 184],  base: 0.44, amp: 0.06, k: 1.7, speed: 0.09,  height: 0.34, phase: 0,   alpha: 1 },
-  { color: '--aurora-teal',   fallback: [53, 214, 232],  base: 0.37, amp: 0.05, k: 2.6, speed: -0.07, height: 0.24, phase: 1.9, alpha: 0.8 },
-  { color: '--aurora-violet', fallback: [155, 123, 255], base: 0.30, amp: 0.04, k: 1.3, speed: 0.05,  height: 0.2,  phase: 3.4, alpha: 0.55 }
+/* Занавесы: дальний и ближний. k — складки, speed — дрейф, height — доля экрана, alpha — яркость. */
+var SPLASH_CURTAINS = [
+  { k: 5.1, speed: -0.35, height: 0.16, alpha: 0.55, phase: 2.4 },
+  { k: 9,   speed: 0.7,   height: 0.3,  alpha: 1.25, phase: 0 }
 ];
 
-/** Вертикальный градиент одной ленты: прозрачный верх, свечение, яркий нижний край — как у занавеса. */
-function splashSprite(rgb) {
+/** Спрайт луча: снизу зелёный, выше бирюзовый, вверху фиолетовый и прозрачный. */
+function splashRay(green, teal, violet) {
   var sprite = document.createElement('canvas');
   sprite.width = 1;
-  sprite.height = 64;
+  sprite.height = 128;
   var g = sprite.getContext('2d');
-  var c = rgb.join(',');
-  var grad = g.createLinearGradient(0, 0, 0, 64);
-  grad.addColorStop(0, 'rgba(' + c + ',0)');
-  grad.addColorStop(0.55, 'rgba(' + c + ',0.28)');
-  grad.addColorStop(0.9, 'rgba(' + c + ',0.9)');
-  grad.addColorStop(1, 'rgba(' + c + ',0)');
+  var c = function (rgb, a) { return 'rgba(' + rgb.join(',') + ',' + a + ')'; };
+  var grad = g.createLinearGradient(0, 128, 0, 0);
+  grad.addColorStop(0, c(green, 0));
+  grad.addColorStop(0.06, c(green, 0.95));
+  grad.addColorStop(0.35, c(teal, 0.45));
+  grad.addColorStop(0.7, c(violet, 0.25));
+  grad.addColorStop(1, c(violet, 0));
   g.fillStyle = grad;
-  g.fillRect(0, 0, 1, 64);
+  g.fillRect(0, 0, 1, 128);
   return sprite;
 }
 
-/** Нарастание сияния: с 0,3 с до 1,3 с, дальше в полную силу (исчезает весь слой). */
-function splashEnvelope(t) {
-  return Math.max(0, Math.min(1, (t - 0.3) / 1.0));
+/** Плавный выход 0 → 1 (кубический). */
+function splashEase(v) {
+  v = Math.max(0, Math.min(1, v));
+  return 1 - Math.pow(1 - v, 3);
 }
 
-/** Один кадр сияния на холсте w×h в момент t (секунды). */
-function splashFrame(ctx, w, h, t, sprites) {
+/** Подъём сияния: с 0,6 с до 1,9 с, дальше в полную силу. */
+function splashEnvelope(t) {
+  return splashEase((t - 0.6) / 1.3);
+}
+
+/** Край Земли: большая окружность, верх на 80% высоты; y(x) — горизонт в точке x. */
+function splashHorizon(w, h) {
+  var r = Math.max(w, h) * 1.6;
+  var cx = w / 2;
+  var cy = h * 0.8 + r;
+  return {
+    r: r, cx: cx, cy: cy,
+    y: function (x) { var dx = x - cx; return cy - Math.sqrt(Math.max(0, r * r - dx * dx)); }
+  };
+}
+
+/** Кадр неба w×h в момент t (с): лучи, поверх Земля и дуга атмосферы. Возвращает число лучей. */
+function splashFrame(ctx, w, h, t, sprites, glow) {
   var TAU = Math.PI * 2;
-  var env = splashEnvelope(t);
+  var rise = splashEnvelope(t);
+  var earth = splashHorizon(w, h);
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, w, h);
-  if (env <= 0) return 0;
-  ctx.globalCompositeOperation = 'lighter';
   var drawn = 0;
-  for (var r = 0; r < SPLASH_RIBBONS.length; r++) {
-    var rb = SPLASH_RIBBONS[r];
-    for (var x = 0; x < w; x++) {
-      var u = x / w;
-      var y = h * (rb.base + rb.amp * Math.sin(TAU * (rb.k * u + rb.speed * t) + rb.phase) +
-        rb.amp * 0.4 * Math.sin(TAU * (2.7 * rb.k * u - 1.3 * rb.speed * t)));
-      var height = h * rb.height * (0.72 + 0.28 * Math.sin(TAU * (3.1 * u) + 1.1 * t + rb.phase));
-      var glow = 0.55 + 0.45 * Math.sin(TAU * (2.3 * u) + 1.7 * t + rb.phase);
-      var rays = 0.8 + 0.2 * Math.sin(40 * u + 3 * t + rb.phase);
-      var a = env * rb.alpha * glow * glow * rays;
-      if (a < 0.02) continue;
-      ctx.globalAlpha = a;
-      ctx.drawImage(sprites[r], x, y - height, 1, height);
-      drawn++;
+
+  if (rise > 0) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (var c = 0; c < SPLASH_CURTAINS.length; c++) {
+      var cu = SPLASH_CURTAINS[c];
+      for (var x = 0; x < w; x++) {
+        var u = x / w;
+        var fold = Math.pow(0.5 + 0.5 * Math.sin(u * cu.k + t * cu.speed + cu.phase) *
+          Math.sin(u * 3.3 - t * 0.4 + 1.2 + cu.phase), 1.6);
+        var fine = 0.6 + 0.4 * Math.sin(u * 180 + Math.sin(u * 23 + t * 2.1) * 3);
+        var a = Math.min(1, rise * cu.alpha * fold * fine * (0.4 + 0.6 * Math.sin(Math.PI * u)));
+        if (a < 0.03) continue;
+        var base = Math.min(h, earth.y(x) + h * 0.01);
+        var height = Math.min(base, h * (0.1 + cu.height * (0.4 + fold)) * rise);
+        ctx.globalAlpha = a;
+        ctx.drawImage(sprites[0], x, base - height, 1.3, height);
+        drawn++;
+      }
     }
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.arc(earth.cx, earth.cy, earth.r, 0, TAU);
+  ctx.fill();
+  var draw = splashEase((t - 0.2) / 0.9);
+  if (draw > 0 && glow) {
+    var span = Math.asin(Math.min(1, (w * 0.62) / earth.r)) * draw;
+    ctx.save();
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = glow;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(earth.cx, earth.cy, earth.r, -Math.PI / 2 - span, -Math.PI / 2 + span);
+    ctx.stroke();
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
   return drawn;
@@ -127,6 +160,17 @@ function splashStars(canvas, width, height, dpr, random) {
     g.fill();
   }
   return count;
+}
+
+/** Сдвиг и масштаб, ставящие кольцо заставки на кольцо вердикта; нет цели или вне экрана — null. */
+function splashFlight(from, to, viewHeight) {
+  if (!from || !to || !from.width || !to.width) return null;
+  if (to.bottom < 0 || to.top > viewHeight) return null;
+  return {
+    x: Math.round(to.left + to.width / 2 - (from.left + from.width / 2)),
+    y: Math.round(to.top + to.height / 2 - (from.top + from.height / 2)),
+    scale: Math.round(to.width / from.width * 1000) / 1000
+  };
 }
 
 /**
@@ -152,12 +196,19 @@ function startSplash(env) {
   root.setAttribute('lang', lang === 'zh' ? 'zh-CN' : lang);
   document.getElementById('splash-title').textContent = text.title;
   document.getElementById('splash-region').textContent = text.region;
+  var coords = document.getElementById('splash-coords');
+  coords.textContent = text.coords;
+  // печать по буквам — шагами CSS-анимации
+  coords.style.setProperty('--chars', String(text.coords.length));
   var skip = document.getElementById('splash-skip');
   skip.textContent = text.skip;
 
   var sky = document.getElementById('splash-sky');
   var style = getComputedStyle(root);
-  var sprites = SPLASH_RIBBONS.map(function (rb) { return splashSprite(splashRgb(style.getPropertyValue(rb.color), rb.fallback)); });
+  var color = function (name, fallback) { return splashRgb(style.getPropertyValue(name), fallback); };
+  var teal = color('--aurora-teal', [53, 214, 232]);
+  var sprites = [splashRay(color('--aurora-green', [77, 255, 184]), teal, color('--aurora-violet', [155, 123, 255]))];
+  var glow = 'rgba(' + teal.join(',') + ',0.85)';
   var w = Math.max(1, Math.ceil(innerWidth / SPLASH.scale));
   var h = Math.max(1, Math.ceil(innerHeight / SPLASH.scale));
   sky.width = w;
@@ -168,17 +219,31 @@ function startSplash(env) {
   var start = now();
   var done = false;
 
+  // Цель перелёта — кольцо вердикта, если данные уже есть; иначе просто растворение
+  var flight = function () {
+    if (typeof document.querySelector !== 'function') return null;
+    var from = document.getElementById('splash-ring');
+    var to = document.querySelector('#verdict-card[data-state="ok"] .ring, #verdict-card[data-state="stale"] .ring');
+    return from && to ? splashFlight(from.getBoundingClientRect(), to.getBoundingClientRect(), innerHeight) : null;
+  };
+
   var splash = {
     frames: 0,
     finish: function (fast) {
       if (done) return;
       done = true;
+      var move = fast ? null : flight();
       box.style.setProperty('--splash-fade', (fast ? SPLASH.skipFadeMs : SPLASH.fadeMs) + 'ms');
-      box.classList.add('splash--out');
+      if (move) {
+        box.style.setProperty('--fly', 'translate(' + move.x + 'px, ' + move.y + 'px) scale(' + move.scale + ')');
+        box.classList.add('splash--fly');
+      } else {
+        box.classList.add('splash--out');
+      }
       root.classList.add('splash-leaving');
       later(function () {
         root.classList.remove('has-splash', 'splash-leaving');
-        box.classList.remove('splash--out');
+        box.classList.remove('splash--out', 'splash--fly');
         document.removeEventListener('keydown', onKey);
         document.removeEventListener('visibilitychange', onHidden);
       }, fast ? SPLASH.skipFadeMs : SPLASH.fadeMs);
@@ -187,7 +252,7 @@ function startSplash(env) {
 
   var tick = function () {
     if (done) return;   // после завершения кадров больше нет
-    splashFrame(ctx, w, h, (now() - start) / 1000, sprites);
+    splashFrame(ctx, w, h, (now() - start) / 1000, sprites, glow);
     splash.frames++;
     raf(tick);
   };

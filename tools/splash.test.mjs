@@ -108,13 +108,18 @@ test('цвета берутся из темы (#rrggbb), мусор — запа
   assert.deepEqual([...s.splashRgb('', [9, 9, 9])], [9, 9, 9]);
 });
 
-test('сияние нарастает с 0,3 до 1,3 с; до этого кадр пустой', () => {
+test('сияние поднимается с 0,6 до 1,9 с, плавно и без откатов; до этого кадр без лучей', () => {
   const s = lib();
   assert.equal(s.splashEnvelope(0), 0);
-  assert.equal(s.splashEnvelope(0.3), 0);
-  assert.ok(Math.abs(s.splashEnvelope(0.8) - 0.5) < 1e-9);
-  assert.equal(s.splashEnvelope(1.3), 1);
+  assert.equal(s.splashEnvelope(0.6), 0);
+  assert.equal(s.splashEnvelope(1.9), 1);
   assert.equal(s.splashEnvelope(3), 1);
+  let prev = 0;
+  for (let t = 0.6; t <= 1.9; t += 0.05) {
+    const v = s.splashEnvelope(t);
+    assert.ok(v >= prev, 't=' + t);
+    prev = v;
+  }
 });
 
 /** Холст-заглушка, считающий вызовы. */
@@ -123,35 +128,60 @@ function fakeCtx() {
   return {
     calls, globalAlpha: 1, globalCompositeOperation: 'source-over',
     clearRect() { calls.clearRect++; },
-    drawImage(img, x, y, w, h) { calls.drawImage++; calls.last = { x, y, w, h, alpha: this.globalAlpha, op: this.globalCompositeOperation }; }
+    drawImage(img, x, y, w, h) { calls.drawImage++; calls.last = { x, y, w, h, alpha: this.globalAlpha, op: this.globalCompositeOperation }; },
+    beginPath() {}, arc() {}, fill() {}, stroke() {}, save() {}, restore() {}
   };
 }
 
-test('кадр: по столбику на колонку каждой ленты, не больше; сложение света; прозрачность в пределах', () => {
+test('кадр: не больше луча на колонку каждого занавеса; сложение света; прозрачность в пределах', () => {
   const s = lib();
   const ctx = fakeCtx();
-  const w = 94, h = 203;   // телефон 375×812 при уменьшении в 4 раза
-  const drawn = s.splashFrame(ctx, w, h, 2, [{}, {}, {}]);
+  const w = 188, h = 406;   // телефон 375×812 в половину разрешения
+  const drawn = s.splashFrame(ctx, w, h, 2, [{}], 'rgba(53,214,232,0.85)');
   assert.equal(drawn, ctx.calls.drawImage);
-  assert.ok(drawn <= w * 3 && drawn > w, 'столбиков ' + drawn);
+  assert.ok(drawn <= w * s.SPLASH_CURTAINS.length && drawn > w / 2, 'лучей ' + drawn);
   assert.equal(ctx.calls.clearRect, 1);
   assert.equal(ctx.calls.last.op, 'lighter');
   assert.ok(ctx.calls.last.alpha > 0 && ctx.calls.last.alpha <= 1);
   assert.equal(ctx.globalAlpha, 1, 'после кадра прозрачность возвращена');
 
   const early = fakeCtx();
-  assert.equal(s.splashFrame(early, w, h, 0.1, [{}, {}, {}]), 0);
+  assert.equal(s.splashFrame(early, w, h, 0.3, [{}], 'x'), 0);
   assert.equal(early.calls.drawImage, 0);
 });
 
-test('ленты не уходят за экран: верх и низ столбиков внутри холста', () => {
+test('лучи не уходят за экран и растут от горизонта вверх', () => {
   const s = lib();
   const w = 120, h = 200;
-  for (const t of [0.5, 1, 1.7, 2.4, 3.3]) {
+  const earth = s.splashHorizon(w, h);
+  for (const t of [0.8, 1.2, 1.9, 2.4, 3.3]) {
     const ctx = fakeCtx();
-    ctx.drawImage = (img, x, y, cw, ch) => { assert.ok(y >= 0 && y + ch <= h, `t=${t}: ${y}..${y + ch}`); };
-    s.splashFrame(ctx, w, h, t, [{}, {}, {}]);
+    ctx.drawImage = (img, x, y, cw, ch) => {
+      assert.ok(y >= 0 && y + ch <= h, `t=${t}: ${y}..${y + ch}`);
+      assert.ok(Math.abs(y + ch - Math.min(h, earth.y(x) + h * 0.01)) < 1e-6, 'основание луча — на горизонте');
+    };
+    s.splashFrame(ctx, w, h, t, [{}], 'x');
   }
+  assert.ok(Math.abs(earth.y(w / 2) - h * 0.8) < 1e-6, 'верх Земли — на 80% высоты');
+  assert.ok(earth.y(0) > earth.y(w / 2), 'к краям горизонт опускается');
+});
+
+test('перелёт эмблемы: сдвиг центра к центру и масштаб по ширине; без цели или за экраном — нет перелёта', () => {
+  const s = lib();
+  const rect = (left, top, size) => ({ left, top, width: size, height: size, right: left + size, bottom: top + size });
+  const fly = s.splashFlight(rect(140, 200, 96), rect(40, 300, 64), 812);
+  assert.deepEqual({ ...fly }, { x: 40 + 32 - (140 + 48), y: 300 + 32 - (200 + 48), scale: 0.667 });
+  assert.equal(s.splashFlight(rect(140, 200, 96), rect(40, 900, 64), 812), null, 'кольцо ниже экрана');
+  assert.equal(s.splashFlight(rect(140, 200, 96), rect(0, 0, 0), 812), null, 'карточка ещё без данных');
+  assert.equal(s.splashFlight(null, rect(40, 300, 64), 812), null);
+});
+
+test('координаты на трёх языках, в английском и китайском без кириллицы', () => {
+  const s = lib();
+  assert.match(s.SPLASH_TEXT.ru.coords, /68,97°.*33,10°/);
+  assert.match(s.SPLASH_TEXT.en.coords, /68\.97° N · 33\.10° E/);
+  assert.match(s.SPLASH_TEXT.zh.coords, /68\.97°.*33\.10°/);
+  assert.doesNotMatch(s.SPLASH_TEXT.en.coords + s.SPLASH_TEXT.zh.coords, /[А-Яа-я]/);
 });
 
 test('звёзды: число — по площади экрана, выше гуще', () => {
@@ -172,7 +202,7 @@ test('звёзды: число — по площади экрана, выше г
 function element(id) {
   return {
     id, textContent: '', listeners: {}, classes: new Set(), style: { props: {}, setProperty(k, v) { this.props[k] = v; } },
-    classList: { add(c) { this.owner.classes.add(c); }, remove(c) { this.owner.classes.delete(c); }, contains(c) { return this.owner.classes.has(c); } },
+    classList: { add(c) { this.owner.classes.add(c); }, remove(...cs) { cs.forEach(c => this.owner.classes.delete(c)); }, contains(c) { return this.owner.classes.has(c); } },
     addEventListener(type, fn) { this.listeners[type] = fn; },
     getContext: () => ({ ...fakeCtx(), createLinearGradient: () => ({ addColorStop() {} }), fillRect() {}, beginPath() {}, arc() {}, fill() {} }),
     focus() { this.focused = true; }
@@ -247,6 +277,32 @@ test('полная версия: кадры идут, в 2,8 с плавное �
   assert.ok(!w.root.classes.has('has-splash'));
   assert.equal(w.docListeners.keydown, undefined, 'обработчики сняты');
   assert.ok(2800 + 600 <= 4000);
+});
+
+test('уход с данными на экране: эмблема перелетает на кольцо вердикта, небо растворяется; потом всё снято', () => {
+  const w = world();
+  const rect = (left, top, size) => ({ left, top, width: size, height: size, right: left + size, bottom: top + size });
+  let asked = '';
+  w.document.querySelector = sel => { asked = sel; return { getBoundingClientRect: () => rect(40, 300, 64) }; };
+  w.byId('splash-ring').getBoundingClientRect = () => rect(140, 200, 96);
+  w.timers.find(t => t.ms === 2800).fn();
+  assert.match(asked, /#verdict-card\[data-state="ok"\] \.ring/, 'летим только на кольцо с данными');
+  const box = w.byId('splash');
+  assert.ok(box.classes.has('splash--fly'));
+  assert.ok(!box.classes.has('splash--out'), 'слой целиком не гаснет — эмблема летит');
+  assert.equal(box.style.props['--fly'], 'translate(-116px, 84px) scale(0.667)');
+  assert.ok(w.root.classes.has('splash-leaving'), 'дашборд виден под пролетающей эмблемой');
+  w.timers.find(t => t.ms === 600).fn();
+  assert.ok(!box.classes.has('splash--fly'));
+  assert.ok(!w.root.classes.has('has-splash'));
+});
+
+test('пропуск — без перелёта, даже если кольцо вердикта уже на экране', () => {
+  const w = world();
+  w.document.querySelector = () => { throw new Error('при пропуске цель не ищем'); };
+  w.byId('splash').listeners.click();
+  assert.ok(w.byId('splash').classes.has('splash--out'));
+  assert.ok(!w.byId('splash').classes.has('splash--fly'));
 });
 
 test('после завершения кадров больше нет — процессор не тратится зря', () => {
