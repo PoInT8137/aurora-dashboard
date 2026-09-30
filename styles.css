@@ -2548,7 +2548,16 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
 /* ---------- Движение на вкладке «Сейчас» ---------- */
 /* Только transform и opacity. Столбики и кольцо — при первом показе данных (JS ставит
    класс --enter один раз), выбор часа и обновление раз в 5 минут ничего не двигают. */
-:root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+/* Язык движения — один ритм на весь сайт:
+   быстро — наведение и нажатие; обычно — появление элементов; медленно — вкладки и перелёты */
+:root {
+  --dur-fast: 150ms;
+  --dur: 250ms;
+  --dur-slow: 450ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
 
 /* Новые данные в карточке: мягкое проявление с коротким подъёмом */
 .card[data-state="ok"] > .card__body { animation: body-in 0.24s var(--ease-out); }
@@ -2625,3 +2634,40 @@ html[data-tab-dir="prev"]::view-transition-new(tab-panel) { animation-name: tab-
 /* С переходом собственное проявление панели не нужно: было бы двойное движение. Класс остаётся
    после первого перехода — иначе после него проявление проигралось бы ещё раз */
 html.vt-tabs [role="tabpanel"]:not([hidden]) { animation: none; }
+
+/* ---------- Появление при прокрутке ----------
+   Класс reveal ставит revealPanel() (js/page.js) только карточкам ниже экрана; is-in — когда
+   карточка показалась. Графики внутри не растут, пока карточку не видно. */
+.card.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity var(--dur-slow) var(--ease-out), transform 0.6s var(--ease-out);
+}
+.card.reveal.is-in { opacity: 1; transform: none; }
+.card.reveal:not(.is-in) .ncol__bar,
+.card.reveal:not(.is-in) .kpcol__bar,
+.card.reveal:not(.is-in) .ring__seg { animation-play-state: paused; }
+
+/* ---------- Плавное раскрытие ----------
+   «Подробнее», «Как это считается», предупреждение об облаках: высота меняется плавно.
+   Нужны interpolate-size и ::details-content (Chrome 131+); в остальных браузерах — сразу. */
+@supports (interpolate-size: allow-keywords) {
+  :root { interpolate-size: allow-keywords; }
+  .verdict__more::details-content,
+  .more::details-content,
+  .card__warn::details-content {
+    height: 0;
+    overflow: clip;
+    transition: height var(--dur-slow) var(--ease-out), content-visibility var(--dur-slow) allow-discrete;
+  }
+  .verdict__more[open]::details-content,
+  .more[open]::details-content,
+  .card__warn[open]::details-content { height: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.reveal { opacity: 1; transform: none; transition: none; }
+  .verdict__more::details-content,
+  .more::details-content,
+  .card__warn::details-content { transition: none; }
+}

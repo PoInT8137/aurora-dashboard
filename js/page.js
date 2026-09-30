@@ -61,6 +61,37 @@ function switchPanel(id) {
     btn.tabIndex = selected ? 0 : -1;
     if (selected) { revealTab(btn); placeTabPill(btn); }
   });
+  revealPanel(id);
+}
+
+/* Появление при прокрутке: карточки открытой вкладки, которых при её показе не видно (ниже
+   экрана), поднимаются, когда до них доходишь, — один раз. Видимое сразу не прячется. Графики
+   внутри ждут появления карточки (CSS: animation-play-state). Без IntersectionObserver и при
+   «уменьшить движение» — всё как раньше, сразу. */
+var revealer = null;
+
+function revealPanel(id) {
+  var panel = $('tab-' + id);
+  if (!panel || !panel.querySelectorAll || typeof IntersectionObserver !== 'function') return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!revealer) {
+    revealer = new IntersectionObserver(function (entries) {
+      var shown = 0;
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        // карточки одного ряда — лесенкой, не все разом
+        entry.target.style.transitionDelay = Math.min(shown++, 3) * 70 + 'ms';
+        entry.target.classList.add('is-in');
+        revealer.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+  }
+  Array.prototype.forEach.call(panel.querySelectorAll('.card'), function (card) {
+    if (card.classList.contains('reveal')) return;          // уже под наблюдением или показана
+    if (card.getBoundingClientRect().top < innerHeight) return;   // видна сразу — не прячем
+    card.classList.add('reveal');
+    revealer.observe(card);
+  });
 }
 
 /** Капсула под выбранной вкладкой: позиция и размер — по кнопке. */
