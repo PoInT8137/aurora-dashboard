@@ -447,6 +447,7 @@ i18nRegister('zh', {
   'kp.scale': '范围 0–9',
   'kp.measured': '测量于 {time} · {ago}',
   'forecast.now': '现在',
+  'forecast.visible': 'Kp {kp} 起可见',
 
   /* --- 云量 --- */
   'cloud.clear': '晴朗——天空开阔',

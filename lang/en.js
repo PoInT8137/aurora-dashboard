@@ -447,6 +447,7 @@ i18nRegister('en', {
   'kp.scale': 'Scale 0–9',
   'kp.measured': 'Measured at {time} · {ago}',
   'forecast.now': 'now',
+  'forecast.visible': 'visible from Kp {kp}',
 
   /* --- clouds --- */
   'cloud.clear': 'Clear — open sky',

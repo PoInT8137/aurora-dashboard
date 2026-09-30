@@ -297,6 +297,8 @@ function selectPoint(id) {
   renderOvation();
   renderOutlook();
   renderReports();
+  // Цвет столбиков и порог видимости в прогнозе Kp — свои у каждой точки
+  if (state.forecast) renderForecast(state.forecast, state.forecastAge, false);
   // Прошлые ночи — свои у каждой точки: на открытой вкладке сразу подгружаем новые.
   if (state.tab === 'tonight') loadHistory(false);
 

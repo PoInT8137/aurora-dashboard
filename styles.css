@@ -2094,40 +2094,132 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   .place__level { grid-row: 1; justify-self: start; }
 }
 
-/* ---------- Прогноз ---------- */
-.forecast {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 10px;
-}
-
-.slot {
-  background: rgba(var(--fill), 0.04);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 12px;
-}
-
-.slot--now { border-color: color-mix(in srgb, var(--aurora-teal) 55%, transparent); }
-
-.slot__time {
-  font-size: 12px;
-  color: var(--text-faint);
+/* ---------- Прогноз Kp: столбик на трёхчасовку ---------- */
+/* Текст только для скринридера */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
 
-.slot__kp {
-  font-size: 27px;
-  font-weight: 700;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-  color: var(--tone, var(--text));
+.kpchart {
+  --plot-h: 120px;
+  --col-gap: 4px;
+  /* день (16px) + отступ + число (12px × 1.5) + отступ */
+  --top-h: calc(16px + 4px + 18px + 4px);
+  position: relative;
+  margin-top: 4px;
 }
+.kpchart__cols {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(var(--n, 24), minmax(0, 1fr));
+  gap: var(--col-gap);
+}
+.kpcol {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+/* Строки колонки: день недели, число, столбик, время */
+.kpcol__day {
+  align-self: flex-start;
+  height: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+.kpcol__value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.kpcol__plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: var(--plot-h);
+  border-radius: 6px;
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+.kpcol__bar {
+  width: min(100%, 22px);
+  border-radius: var(--bar-radius) var(--bar-radius) 0 0;
+  background: var(--tone, var(--text-faint));
+  opacity: 0.85;
+}
+.kpcol__time {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+/* Новые сутки — тонкий разделитель слева через всю колонку */
+.kpcol--day::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--col-gap) / -2);
+  border-left: 1px solid var(--border);
+}
+.kpcol--day .kpcol__day { padding-left: 4px; }
+/* Текущая трёхчасовка — подсветка за столбиком и акцентное время */
+.kpcol--now .kpcol__plot { background: rgba(var(--tint), 0.14); }
+.kpcol--now .kpcol__bar { opacity: 1; }
+.kpcol--now .kpcol__value,
+.kpcol--now .kpcol__time { color: var(--text); font-weight: 700; }
 
-.slot__day {
+/* Порог видимости для точки: пунктир на своей высоте шкалы. Над столбиками — день недели
+   и число (--top-h), от верха столбиков линия опускается на (1 − --at) их высоты. */
+.kpchart__line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--top-h) + var(--plot-h) * (1 - var(--at, 0)));
+  height: 0;
+  border-top: 1.5px dashed rgba(var(--fill), 0.35);
+  pointer-events: none;
+}
+/* Столбики — поверх линии порога */
+.kpchart__cols { position: relative; z-index: 1; }
+.kpchart__legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
   font-size: 12px;
   color: var(--text-dim);
-  text-transform: capitalize;
+}
+.kpchart__legend::before {
+  content: "";
+  width: 18px;
+  border-top: 1.5px dashed rgba(var(--fill), 0.5);
+}
+
+/* Широкий экран: подписи времени через одну, чтобы не слипались */
+.kpcol:nth-child(even):not(.kpcol--now) .kpcol__time { visibility: hidden; }
+
+/* Телефон: 24 столбика в ~300px — чисел и времени нет, кроме текущей трёхчасовки и максимума */
+@media (max-width: 719px) {
+  .kpchart { --plot-h: 100px; --col-gap: 2px; }
+  .kpcol__value { visibility: hidden; }
+  .kpcol--label .kpcol__value { visibility: visible; }
+  .kpcol__time { visibility: hidden; }
+  .kpcol--now .kpcol__time { visibility: visible; }
+  .kpcol__day { font-size: 11px; }
 }
 
 /* ---------- Подвал ---------- */

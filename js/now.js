@@ -904,35 +904,88 @@ function buildForecastRows(source) {
   return rows;
 }
 
+/**
+ * Прогноз Kp столбиками по трёхчасовкам. Высота — Kp на шкале от 0 до верха (не ниже 5),
+ * цвет — как у Kp для выбранной точки, пунктир — с какого Kp сияние здесь заметно.
+ * Новые сутки начинаются с разделителя и дня недели. Число над столбиком видно на
+ * широком экране; на телефоне — только у текущей трёхчасовки и у максимума, но в
+ * подписи каждого столбика для скринридера оно есть всегда.
+ */
 function renderForecast(rows, ageMs, refreshing) {
   var list = $('forecast-list');
   list.innerHTML = '';
   var lastDay = '';
+  var point = currentPoint();
+  var visible = kpThresholds(point).low;
+  var peak = rows.reduce(function (m, row) { return Math.max(m, row.value); }, 0);
+  var top = Math.max(5, Math.ceil(peak));
+  var peakIndex = rows.findIndex(function (row) { return row.value === peak; });
 
-  rows.forEach(function (row) {
-    var slot = document.createElement('div');
-    slot.className = 'slot' + (row.current ? ' slot--now' : '');
+  list.style.setProperty('--n', String(rows.length));
 
+  // Порог видимости для точки — пунктиром поперёк графика
+  var line = document.createElement('div');
+  line.className = 'kpchart__line';
+  line.setAttribute('aria-hidden', 'true');
+  line.style.setProperty('--at', String(Math.min(visible, top) / top));
+  // Подпись порога — в легенде под графиком: на линии она наезжала бы на столбики
+  var legend = document.createElement('p');
+  legend.className = 'kpchart__legend';
+  legend.textContent = t('forecast.visible', { kp: fmtKp(visible) });
+
+  var cols = document.createElement('ol');
+  cols.className = 'kpchart__cols';
+
+  rows.forEach(function (row, i) {
     var dayKey = fmtDayKey(row.time);
-    var dayEl = document.createElement('div');
-    dayEl.className = 'slot__day';
-    dayEl.textContent = (dayKey !== lastDay) ? fmtWeekday(row.time) : ' ';
+    var newDay = dayKey !== lastDay;
     lastDay = dayKey;
 
-    var kpEl = document.createElement('div');
-    kpEl.className = 'slot__kp';
-    kpEl.textContent = fmtKp(row.value);
-    setTone(kpEl, kpTone(row.value));
+    var col = document.createElement('li');
+    col.className = 'kpcol' + (row.current ? ' kpcol--now' : '') + (newDay && i ? ' kpcol--day' : '')
+      + (row.current || i === peakIndex ? ' kpcol--label' : '');
 
-    var timeEl = document.createElement('div');
-    timeEl.className = 'slot__time';
-    timeEl.textContent = row.current ? t('forecast.now') : fmtTime(row.time);
+    var day = document.createElement('span');
+    day.className = 'kpcol__day';
+    day.textContent = newDay ? fmtWeekday(row.time) : '';
 
-    slot.appendChild(dayEl);
-    slot.appendChild(kpEl);
-    slot.appendChild(timeEl);
-    list.appendChild(slot);
+    var value = document.createElement('span');
+    value.className = 'kpcol__value';
+    value.textContent = fmtKp(row.value);
+
+    var plot = document.createElement('span');
+    plot.className = 'kpcol__plot';
+    plot.setAttribute('aria-hidden', 'true');
+    var bar = document.createElement('span');
+    bar.className = 'kpcol__bar';
+    bar.style.height = Math.max(2, Math.min(row.value, top) / top * 100) + '%';
+    setTone(bar, kpTone(row.value, point));
+    plot.appendChild(bar);
+
+    var time = document.createElement('span');
+    time.className = 'kpcol__time';
+    time.textContent = row.current ? t('forecast.now') : fmtTime(row.time);
+
+    // Для скринридера — одной фразой: «чт 03:00 — Kp 3,3»; видимые подписи он пропускает
+    var said = document.createElement('span');
+    said.className = 'sr-only';
+    said.textContent = fmtWeekday(row.time) + ' ' + fmtTime(row.time)
+      + (row.current ? ' (' + t('forecast.now') + ')' : '') + ' — Kp ' + fmtKp(row.value);
+    day.setAttribute('aria-hidden', 'true');
+    value.setAttribute('aria-hidden', 'true');
+    time.setAttribute('aria-hidden', 'true');
+
+    col.appendChild(said);
+    col.appendChild(day);
+    col.appendChild(value);
+    col.appendChild(plot);
+    col.appendChild(time);
+    cols.appendChild(col);
   });
+
+  list.appendChild(line);
+  list.appendChild(cols);
+  list.appendChild(legend);
 
   applyFreshness('forecast-card', 'forecast-stale', ageMs === undefined ? null : ageMs,
     refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);

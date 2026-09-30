@@ -448,6 +448,7 @@ i18nRegister('ru', {
   'kp.scale': 'Шкала 0–9',
   'kp.measured': 'Измерено в {time} · {ago}',
   'forecast.now': 'сейчас',
+  'forecast.visible': 'заметно от Kp {kp}',
 
   /* --- облачность --- */
   'cloud.clear': 'Ясно — небо открыто',
