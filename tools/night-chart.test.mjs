@@ -190,6 +190,8 @@ test('полярный день: график и подробности убра
   summer.ctx.renderWindow();
   assert.equal(summer.el('window-hours').children.length, 0);
   assert.equal(summer.el('window-detail').textContent, '');
+  assert.equal(summer.el('night-card').hidden, true, 'карточки «Ночь по часам» в полярный день нет');
+  assert.equal(el('night-card').hidden, false, 'ночью карточка на месте');
 });
 
 test('Луна берётся в середине часа: утром 26 сентября зашла в 03:14 UTC — в часе 03:00–04:00 её уже нет', () => {

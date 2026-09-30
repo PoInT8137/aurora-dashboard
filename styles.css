@@ -1512,7 +1512,7 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 
 .card__warn[hidden] { display: none; }
 /* Предупреждение свёрнуто в одну жёлтую строку, полный текст — по нажатию */
-.card__warn summary { color: var(--mid); font-weight: 600; font-size: 13px; }
+details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 13px; }
 .card__warn-text { margin: 4px 0 6px; }
 
 .card__model {
@@ -2055,6 +2055,7 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 @media (max-width: 480px) {
   .nchart { --plot-h: 90px; --col-gap: 2px; }
   .ncol__time { font-size: 10px; }
+  .nchart__cols--dense .ncol:nth-child(even) .ncol__time { visibility: hidden; }
 }
 
 .nchart__detail {

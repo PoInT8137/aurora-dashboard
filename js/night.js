@@ -258,6 +258,8 @@ function renderNightChart(win) {
   var cols = document.createElement('div');
   cols.className = 'nchart__cols';
   cols.style.setProperty('--cols', String(night.length));
+  // Подписи каждого часа на телефоне слипаются уже с 7 часов — там CSS покажет через одну
+  if (step === 1 && night.length > 6) cols.className += ' nchart__cols--dense';
   var detail = '';
   var bestFrom = -1;
   var bestCount = 0;
