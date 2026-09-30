@@ -995,6 +995,16 @@ html[lang="zh-CN"] body {
   color: var(--text-faint);
 }
 
+/* Что такое Kp — в карточке Kp под временем измерения, отделено тонкой линией */
+.kp__about {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
 /* Шкала Kp 0..9 */
 /* Солнечный ветер */
 .sw {

@@ -31,6 +31,7 @@ i18nRegister('en', {
   'night.title': 'The night hour by hour',
   'window.error': 'The viewing window cannot be calculated — no hourly cloud data.',
   'kp.title': 'Kp index',
+  'kp.about': 'Kp is the geomagnetic activity index from 0 to 9 over the past three hours. The higher it is, the farther south the auroral oval reaches and the brighter the aurora over the Kola Peninsula. Kp 5 and above is a geomagnetic storm.',
   'kp.loading': 'Requesting NOAA SWPC…',
   'kp.error.default': 'No connection to NOAA SWPC.',
   'cloud.title': 'Cloud cover',

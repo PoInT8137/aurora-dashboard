@@ -31,6 +31,7 @@ i18nRegister('zh', {
   'night.title': '今夜逐小时',
   'window.error': '无法计算观测时段——没有逐小时云量数据。',
   'kp.title': 'Kp 指数',
+  'kp.about': 'Kp 是 0 到 9 的地磁活动指数，反映过去三小时的情况。数值越高，极光椭圆带越向南延伸，科拉半岛上空的极光越明亮。Kp 5 及以上为地磁暴。',
   'kp.loading': '正在请求 NOAA SWPC…',
   'kp.error.default': '无法连接 NOAA SWPC。',
   'cloud.title': '云量',
