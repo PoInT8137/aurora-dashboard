@@ -935,6 +935,11 @@ function renderForecast(rows, ageMs, refreshing) {
 
   var cols = document.createElement('ol');
   cols.className = 'kpchart__cols';
+  // Столбики вырастают только при первом показе, а не при каждом обновлении
+  if (list.getAttribute('data-shown') !== '1') {
+    cols.className += ' kpchart__cols--enter';
+    list.setAttribute('data-shown', '1');
+  }
 
   rows.forEach(function (row, i) {
     var dayKey = fmtDayKey(row.time);

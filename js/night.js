@@ -303,6 +303,12 @@ function renderNightChart(win) {
     cols.appendChild(col);
   });
 
+  // Столбики вырастают только при первом показе графика, а не на каждый выбор часа
+  if (box.getAttribute('data-shown') !== '1') {
+    cols.className += ' nchart__cols--enter';
+    box.setAttribute('data-shown', '1');
+  }
+
   // Рамка лучшего окна — одна на весь отрезок, а не по кусочку у каждого часа
   if (bestCount) {
     cols.style.setProperty('--best-from', String(bestFrom));

@@ -822,7 +822,7 @@ html[lang="zh-CN"] body {
 }
 
 @media (max-width: 720px) {
-  .grid { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------- Карточки ---------- */
@@ -1004,7 +1004,7 @@ html[lang="zh-CN"] body {
   gap: 8px 28px;
 }
 .sw__now { min-width: 9em; }
-.sw__text { flex: 1; min-width: 14em; }
+.sw__text { flex: 1; min-width: min(14em, 100%); }
 .sw__label { margin: 2px 0 0; color: var(--text-faint); font-size: 13px; }
 .bignum--sm { font-size: 44px; }
 
@@ -1618,7 +1618,7 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   stroke: rgba(var(--fill), 0.1);
   stroke-width: 10;
   stroke-linecap: round;
-  transition: stroke 0.4s ease;
+  transition: stroke 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 }
 #verdict-card[data-level="low"]  .ring__seg:nth-of-type(1),
 #verdict-card[data-level="mid"]  .ring__seg:nth-of-type(-n+2),
@@ -2003,7 +2003,9 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 }
 /* Сумерки — светлый фон за столбиком */
 .ncol--twilight .ncol__plot { background: rgba(var(--fill), 0.06); }
-.ncol:hover .ncol__plot { background: rgba(var(--fill), 0.08); }
+@media (hover: hover) and (pointer: fine) {
+  .ncol:hover .ncol__plot { background: rgba(var(--fill), 0.08); }
+}
 .ncol[aria-pressed="true"] .ncol__plot { background: rgba(var(--tint), 0.16); }
 .ncol:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
 
@@ -2266,4 +2268,58 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   outline: 1px solid rgba(var(--tint), 0.35);
   outline-offset: 4px;
   border-radius: 12px;
+}
+
+/* ---------- Движение на вкладке «Сейчас» ---------- */
+/* Только transform и opacity. Столбики и кольцо — при первом показе данных (JS ставит
+   класс --enter один раз), выбор часа и обновление раз в 5 минут ничего не двигают. */
+:root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+
+/* Новые данные в карточке: мягкое проявление с коротким подъёмом */
+.card[data-state="ok"] > .card__body { animation: body-in 0.24s var(--ease-out); }
+@keyframes body-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Столбики растут от основания */
+.nchart__cols--enter .ncol__bar,
+.kpchart__cols--enter .kpcol__bar {
+  transform-origin: bottom;
+  animation: bar-grow 0.42s var(--ease-out) both;
+}
+@keyframes bar-grow { from { transform: scaleY(0); } }
+
+/* Кольцо: деления проявляются по очереди */
+.card[data-state="ok"] .ring__seg { animation: ring-in 0.3s var(--ease-out) both; }
+.card[data-state="ok"] .ring__seg:nth-of-type(2) { animation-delay: 60ms; }
+.card[data-state="ok"] .ring__seg:nth-of-type(3) { animation-delay: 120ms; }
+@keyframes ring-in { from { opacity: 0; } }
+
+/* Раскрытое «Подробнее» и «Как это считается» */
+.verdict__more[open] > ul,
+.more[open] > p,
+.card__warn[open] > p { animation: body-in 0.2s var(--ease-out); }
+
+/* «Уменьшить движение»: без сдвигов и роста — только быстрое проявление */
+@media (prefers-reduced-motion: reduce) {
+  .card[data-state="ok"] > .card__body,
+  .verdict__more[open] > ul,
+  .more[open] > p,
+  .card__warn[open] > p { animation: fade-in 0.15s linear; }
+  .nchart__cols--enter .ncol__bar,
+  .kpchart__cols--enter .kpcol__bar,
+  .card[data-state="ok"] .ring__seg { animation: none; }
+  .ring__seg { transition: none; }
+}
+@keyframes fade-in { from { opacity: 0; } }
+
+/* ---------- Телефон: тач-цели не меньше 44px ---------- */
+/* Мелким ссылкам и кнопкам расширяем область нажатия отступом с отрицательным полем —
+   вёрстка не сдвигается, а палец попадает. */
+@media (max-width: 719px) {
+  .topbar .btn--icon { width: 44px; height: 44px; }
+  #window-card .notify .btn--mini { min-height: 44px; padding: 0 16px; }
+  .verdict__more summary,
+  .more summary,
+  .card__warn summary { min-height: 44px; }
+  .webcam__name { display: inline-block; padding: 10px 0; margin: -10px 0; }
+  .foot a { display: inline-block; padding: 14px 0; margin: -14px 0; }
 }
