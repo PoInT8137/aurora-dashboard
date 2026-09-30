@@ -117,7 +117,8 @@ try {
   <canvas class="splash__stars" id="splash-stars" aria-hidden="true"></canvas>
   <canvas class="splash__sky" id="splash-sky" aria-hidden="true"></canvas>
   <!-- Эмблема — то же кольцо из трёх делений, что у вердикта: в конце оно перелетает на его место -->
-  <div class="splash__emblem" aria-hidden="true">
+  <div class="splash__flight" aria-hidden="true">
+  <div class="splash__emblem">
     <svg class="splash__orbit" viewBox="0 0 132 132" focusable="false">
       <circle class="splash__track" cx="66" cy="66" r="62"/>
       <circle class="splash__sat" cx="66" cy="4" r="2.6"/>
@@ -128,6 +129,7 @@ try {
       <circle class="splash__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(326.5 48 48)"/>
       <path class="splash__wave" d="M34 55c4.7-6.3 9.3-6.3 14 0s9.3 6.3 14 0M34 45c4.7-6.3 9.3-6.3 14 0s9.3 6.3 14 0"/>
     </svg>
+  </div>
   </div>
   <div class="splash__title">
     <p class="splash__name"><span id="splash-title">Северное сияние</span><span class="splash__scan" aria-hidden="true"></span></p>
@@ -140,6 +142,7 @@ try {
 
 <div class="sky-stars" aria-hidden="true"></div>
 <div class="aurora-bg" aria-hidden="true"></div>
+
 <div class="intro-sky" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 
 <header class="topbar">
@@ -171,6 +174,7 @@ try {
 </header>
 
 <div class="tabs" id="tabs" role="tablist" aria-label="Разделы" data-i18n-attr="aria-label:tabs.aria">
+  <span class="tabs__pill" id="tabs-pill" aria-hidden="true"></span>
   <button class="tabs__btn" type="button" role="tab" id="tab-btn-now" data-tab="now"
           aria-controls="tab-now" aria-selected="true" tabindex="0">
     <svg class="tabs__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 16c3-4 6-4 9 0s6 4 9 0"/><path d="M3 10c3-4 6-4 9 0s6 4 9 0"/></svg>

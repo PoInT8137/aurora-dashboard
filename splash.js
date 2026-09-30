@@ -123,7 +123,8 @@ function splashFrame(ctx, w, h, t, sprites, glow, sink) {
   }
 
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  // Земля гаснет вместе с уходом сияния — иначе на светлой странице осталось бы тёмное пятно
+  ctx.fillStyle = 'rgba(0,0,0,' + (0.55 * down).toFixed(3) + ')';
   ctx.beginPath();
   ctx.arc(earth.cx, earth.cy, earth.r, 0, TAU);
   ctx.fill();
@@ -201,7 +202,8 @@ function startSplash(env) {
   skip.textContent = text.skip;
 
   var sky = document.getElementById('splash-sky');
-  var style = getComputedStyle(root);
+  // цвета — из слоя заставки: это ночная сцена в любой теме
+  var style = getComputedStyle(box);
   var color = function (name, fallback) { return splashRgb(style.getPropertyValue(name), fallback); };
   var teal = color('--aurora-teal', [53, 214, 232]);
   var sprites = [splashRay(color('--aurora-green', [77, 255, 184]), teal, color('--aurora-violet', [155, 123, 255]))];
@@ -246,7 +248,9 @@ function startSplash(env) {
         box.classList.add('splash--leave');
         root.classList.add('splash-rise');
         if (move) {
-          box.style.setProperty('--fly', 'translate(' + move.x + 'px, ' + move.y + 'px) scale(' + move.scale + ')');
+          // Дуга: по горизонтали и по вертикали — разные кривые (CSS), поэтому путь изогнут
+        box.style.setProperty('--fly-x', 'translateX(' + move.x + 'px)');
+        box.style.setProperty('--fly', 'translateY(' + move.y + 'px) scale(' + move.scale + ')');
           if (move.tone) box.style.setProperty('--fly-tone', move.tone);
           if (move.level) box.setAttribute('data-level', move.level);
           box.classList.add('splash--fly');
@@ -277,6 +281,12 @@ function startSplash(env) {
   var onHidden = function () { if (document.visibilityState === 'hidden') splash.finish(true); };
 
   box.addEventListener('click', function () { splash.finish(true); });
+  // Небо откликается на курсор: слои сдвигаются на разную глубину (только мышь, не касание)
+  box.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse') return;
+    box.style.setProperty('--px', (e.clientX / innerWidth * 2 - 1).toFixed(3));
+    box.style.setProperty('--py', (e.clientY / innerHeight * 2 - 1).toFixed(3));
+  });
   // страница под заставкой не должна уехать
   box.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
   box.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });

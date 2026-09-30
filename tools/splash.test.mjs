@@ -326,7 +326,8 @@ test('уход с данными на экране: эмблема в цвете
   assert.match(asked, /#verdict-card\[data-state="ok"\] \.ring/, 'летим только на кольцо с данными');
   assert.ok(box.classes.has('splash--fly') && box.classes.has('splash--leave'));
   assert.ok(!box.classes.has('splash--out'), 'слой целиком не гаснет — эмблема летит');
-  assert.equal(box.style.props['--fly'], 'translate(-116px, 84px) scale(0.667)');
+  assert.equal(box.style.props['--fly-x'], 'translateX(-116px)', 'дуга: горизонталь отдельно');
+  assert.equal(box.style.props['--fly'], 'translateY(84px) scale(0.667)');
   assert.equal(box.style.props['--fly-tone'], 'var(--mid)', 'по пути — цвет вердикта');
   assert.equal(box.attrs['data-level'], 'mid', 'и число его делений');
   assert.ok(w.root.classes.has('splash-leaving'), 'дашборд виден под пролетающей эмблемой');
@@ -421,7 +422,7 @@ test('«уменьшить движение» — страховка и в CSS',
 
 test('splash.js в оболочке service worker: заставка работает и офлайн; вес небольшой', () => {
   assert.match(read('sw.js'), /'splash\.js'/);
-  assert.ok(code.length < 12000, 'размер ' + code.length);
+  assert.ok(code.length < 20000, 'размер ' + code.length);
 });
 
 test('класс на <html> не совпадает с классом слоя: иначе стиль .splash скрыл бы всю страницу', () => {

@@ -33,6 +33,13 @@
   --qr-sky:   #07101d;
   --qr-star:  255, 255, 255;
   --qr-shade: 0, 0, 0;
+  /* Ночная сцена заставки: тёмная в любой теме, кроме ночного зрения (там — красная) */
+  --scene-bg:     #060b14;
+  --scene-text:   #e8f1f5;
+  --scene-dim:    #8ea3b5;
+  --scene-green:  #4dffb8;
+  --scene-teal:   #35d6e8;
+  --scene-violet: #9b7bff;
 
   --radius: 18px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
@@ -71,6 +78,13 @@ html[data-theme="light"] {
 
   /* рамка QR и на светлой теме остаётся ночным небом — так задумано */
   --qr-sky:   #0b1626;
+  /* Ночная сцена заставки: в светлой теме тоже тёмная — это ночное небо */
+  --scene-bg:     #060b14;
+  --scene-text:   #e8f1f5;
+  --scene-dim:    #8ea3b5;
+  --scene-green:  #4dffb8;
+  --scene-teal:   #35d6e8;
+  --scene-violet: #9b7bff;
   --qr-star:  255, 255, 255;
   --qr-shade: 20, 40, 60;
 
@@ -112,6 +126,12 @@ html[data-theme="night"] {
   --text-stale: #f04a36;
 
   --qr-sky:   #0a0202;
+  --scene-bg:     #070101;
+  --scene-text:   #ff6a52;
+  --scene-dim:    #f0442f;
+  --scene-green:  #ff7a55;
+  --scene-teal:   #ff5e44;
+  --scene-violet: #f2503e;
   --qr-star:  255, 120, 100;
   --qr-shade: 0, 0, 0;
 
@@ -234,6 +254,16 @@ html[data-theme="night"] .sky-stars { display: none; }
   transition: opacity var(--splash-fade, 600ms) ease, background-color var(--splash-fade, 600ms) ease;
 }
 html.has-splash .splash { display: block; }
+/* Заставка — ночная сцена в любой теме: свои цвета, а не цвета страницы */
+.splash {
+  --bg: var(--scene-bg);
+  --text: var(--scene-text);
+  --text-dim: var(--scene-dim);
+  --aurora-green: var(--scene-green);
+  --aurora-teal: var(--scene-teal);
+  --aurora-violet: var(--scene-violet);
+}
+html[data-theme="light"] .splash { --tint: 53, 214, 232; --fill: 255, 255, 255; --border: color-mix(in srgb, var(--scene-teal) 25%, transparent); }
 /* Страница под заставкой строится и заполняется данными, пока её не видно: скрытое не
    «прыгает» (сдвиги макета не считаются) и не ловит фокус. Показывается с началом исчезновения. */
 html.has-splash:not(.splash-leaving) body > :not(.splash) { visibility: hidden; }
@@ -246,11 +276,24 @@ html.has-splash:not(.splash-leaving) body > :not(.splash) { visibility: hidden; 
   width: 100%;
   height: 100%;
 }
-.splash__stars { animation: splash-stars 1.2s ease backwards; }
+.splash__stars { animation: splash-stars 1.2s ease backwards, splash-approach 2.6s cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+/* Подлёт: камера опускается к Земле — звёзды чуть надвигаются, горизонт поднимается снизу в кадр */
+.splash__sky { animation: splash-descend 1.6s cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+
+/* Отклик на курсор (--px, --py от −1 до 1 ставит splash.js): ближние слои сдвигаются сильнее */
+.splash__stars,
+.splash__sky,
+.splash__flight,
+.splash__title { translate: calc(var(--px, 0) * var(--depth) * 1px) calc(var(--py, 0) * var(--depth) * 1px); transition: translate 0.8s cubic-bezier(0.23, 1, 0.32, 1); }
+.splash__stars  { --depth: -6; }
+.splash__sky    { --depth: -14; }
+.splash__flight { --depth: 8; }
+.splash__title  { --depth: 4; }
 
 /* «Вид с орбиты»: эмблема — кольцо из трёх делений, как у вердикта; вокруг — орбита со спутником.
    Деления загораются по очереди, затем проявляется название за сканирующей линией, печатаются
    координаты. Все задержки — от начала заставки (она длится 2,8 с до ухода). */
+.splash__flight { position: absolute; inset: 0; pointer-events: none; }
 .splash__emblem {
   position: absolute;
   left: 50%;
@@ -258,7 +301,6 @@ html.has-splash:not(.splash-leaving) body > :not(.splash) { visibility: hidden; 
   width: 132px;
   height: 132px;
   margin: -66px 0 0 -66px;
-  transition: transform var(--splash-fade, 600ms) cubic-bezier(0.65, 0, 0.35, 1);
 }
 .splash__orbit,
 .splash__ring { position: absolute; fill: none; overflow: visible; }
@@ -366,6 +408,8 @@ html.has-splash:not(.splash-leaving) body > :not(.splash) { visibility: hidden; 
 }
 
 @keyframes splash-stars { from { opacity: 0; } }
+@keyframes splash-approach { from { transform: scale(1.08); } }
+@keyframes splash-descend { from { transform: translateY(14%); } }
 @keyframes splash-show { to { opacity: 0.9; } }
 @keyframes splash-spin { to { transform: rotate(360deg); } }
 @keyframes splash-draw { to { stroke-dashoffset: 0; } }
@@ -400,10 +444,16 @@ html.has-splash:not(.splash-leaving) body > :not(.splash) { visibility: hidden; 
 /* Без перелёта (данных ещё нет) эмблема просто растворяется вместе с текстами */
 .splash--leave:not(.splash--fly) .splash__emblem { opacity: 0; transition: opacity 0.4s ease; }
 
-/* Перелёт: быстрый старт и долгое мягкое торможение */
+/* Перелёт по дуге: вниз эмблема уходит сразу (ease-out), вбок — плавно (ease-in-out),
+   поэтому путь изогнут. Отклик на курсор на время перелёта снимается. */
+.splash--fly .splash__flight {
+  translate: 0 0;
+  transform: var(--fly-x);
+  transition: transform calc(var(--splash-fade, 1200ms) * 0.8) cubic-bezier(0.45, 0, 0.25, 1) 0.15s, translate 0.3s ease;
+}
 .splash--fly .splash__emblem {
   transform: var(--fly);
-  transition: transform calc(var(--splash-fade, 1200ms) * 0.8) cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+  transition: transform calc(var(--splash-fade, 1200ms) * 0.8) cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
 /* Орбита расходится волной и гаснет */
 .splash--fly .splash__orbit {
@@ -464,8 +514,8 @@ html.intro .intro-sky { display: block; }
   min-width: 140px;
   height: 115vh;
   border-radius: 50% 50% 0 0;
-  background: linear-gradient(to top, transparent 0%, var(--curtain, var(--aurora-green)) 35%, transparent 92%);
-  filter: blur(28px);
+  background: linear-gradient(to top, transparent 0%, var(--curtain, var(--aurora-green)) 30%, color-mix(in srgb, var(--curtain, var(--aurora-green)) 55%, transparent) 60%, transparent 92%);
+  filter: blur(24px) saturate(1.25);
   mix-blend-mode: screen;
   opacity: 0;
   transform-origin: 50% 100%;
@@ -479,14 +529,66 @@ html.intro .intro-sky { display: block; }
 
 @keyframes intro-curtain {
   0%   { opacity: 0;    transform: scaleY(0.15) skewX(var(--skew)); }
-  35%  { opacity: 0.85; }
+  35%  { opacity: 1; }
   60%  { transform: scaleY(1) skewX(calc(var(--skew) * -0.6)); }
   100% { opacity: 0;    transform: scaleY(1.05) skewX(var(--skew)) translateY(-6%); }
 }
 
-/* На светлом фоне «экранное» наложение не видно — рисуем обычным, но бледнее */
-html[data-theme="light"] .intro-sky span { mix-blend-mode: normal; filter: blur(34px); }
-html[data-theme="light"] .intro-sky { opacity: 0.45; }
+/* На светлом фоне «экранное» наложение не видно — рисуем обычным наложением, насыщенно:
+   цвета светлой темы тёмные, поэтому сияние читается цветной дымкой, а не пропадает */
+html[data-theme="light"] .intro-sky span { mix-blend-mode: multiply; filter: blur(26px) saturate(1.4); }
+html[data-theme="light"] .intro-sky { opacity: 0.7; }
+
+/* Футуристичные сцены поверх занавесов, как калибровка экрана станции:
+   ::before — тонкие уголки рамки по краям экрана, проступают и гаснут;
+   ::after — светящаяся линия сканирования проходит сверху вниз. */
+.intro-sky::before,
+.intro-sky::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+.intro-sky::before {
+  --c: var(--aurora-teal);
+  --len: 34px;
+  --gap: max(16px, env(safe-area-inset-left, 0px));
+  inset: var(--gap);
+  background:
+    /* уголки: по две линии в каждом */
+    linear-gradient(var(--c), var(--c)) top left / var(--len) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) top left / 1.5px var(--len) no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / var(--len) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / 1.5px var(--len) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / var(--len) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / 1.5px var(--len) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / var(--len) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / 1.5px var(--len) no-repeat;
+  animation: intro-hud 1.9s cubic-bezier(0.23, 1, 0.32, 1) 0.1s forwards;
+}
+.intro-sky::after {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--aurora-teal) 20%, var(--text) 50%, var(--aurora-teal) 80%, transparent);
+  box-shadow: 0 0 18px 2px color-mix(in srgb, var(--aurora-teal) 60%, transparent);
+  animation: intro-scan 1.1s cubic-bezier(0.45, 0, 0.25, 1) 0.15s forwards;
+}
+@keyframes intro-hud {
+  0%   { opacity: 0; transform: scale(1.03); }
+  25%  { opacity: 0.9; transform: none; }
+  70%  { opacity: 0.6; }
+  100% { opacity: 0; transform: none; }
+}
+@keyframes intro-scan {
+  0%   { opacity: 0; transform: translateY(0); }
+  10%  { opacity: 1; }
+  85%  { opacity: 0.8; }
+  100% { opacity: 0; transform: translateY(100vh); }
+}
+/* Ночное зрение — без свечения */
+html[data-theme="night"] .intro-sky::after { box-shadow: none; }
 
 /* Волна появления: шапка, вкладки, затем карточки открытой вкладки по очереди */
 html.intro .topbar,
@@ -866,10 +968,23 @@ html[lang="zh-CN"] body {
 
 .tabs__btn:hover { color: var(--text); background: rgba(var(--tint), 0.08); }
 
-.tabs__btn[aria-selected="true"] {
-  color: var(--text);
+.tabs__btn[aria-selected="true"] { color: var(--text); }
+.tabs__btn { position: relative; z-index: 1; }
+
+/* Подсветка выбранной вкладки — одна капсула под кнопками: переезжает, а не прыгает.
+   Позицию и размер ставит placeTabPill() (js/page.js); при смене вкладки её движение
+   ведёт View Transition (имя tab-pill), без него — обычный CSS-переход. */
+.tabs__pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: 999px;
   background: rgba(var(--tint), 0.18);
   box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.35);
+  pointer-events: none;
+  view-transition-name: tab-pill;
+  transition: transform 0.38s cubic-bezier(0.23, 1, 0.32, 1), width 0.38s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .tabs__title { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; }
@@ -917,7 +1032,8 @@ html[lang="zh-CN"] body {
     background: none;
     -webkit-tap-highlight-color: transparent;
   }
-  .tabs__btn[aria-selected="true"] { background: rgba(var(--tint), 0.16); box-shadow: none; }
+  .tabs__btn[aria-selected="true"] { background: none; }
+  .tabs__pill { border-radius: 12px; background: rgba(var(--tint), 0.16); box-shadow: none; }
   .tabs__icon {
     display: block;
     width: 22px;
@@ -2450,7 +2566,7 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
 .card[data-state="ok"] .ring__seg { animation: ring-in 0.3s var(--ease-out) both; }
 .card[data-state="ok"] .ring__seg:nth-of-type(2) { animation-delay: 60ms; }
 .card[data-state="ok"] .ring__seg:nth-of-type(3) { animation-delay: 120ms; }
-@keyframes ring-in { from { opacity: 0; } }
+@keyframes ring-in { from { opacity: 0; stroke-dashoffset: 46.8; } }
 
 /* Раскрытое «Подробнее» и «Как это считается» */
 .verdict__more[open] > ul,
@@ -2488,3 +2604,24 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
 @media (min-width: 720px) {
   html[data-size="xlarge"] .topbar .updated { max-width: 6.5em; line-height: 1.25; text-align: right; }
 }
+
+/* ---------- Смена вкладок: View Transitions ----------
+   Открытая панель — отдельный слой перехода (tab-panel). Новая въезжает со стороны своего
+   места в меню, старая уходит в обратную сторону; остальная страница не мигает. */
+[role="tabpanel"]:not([hidden]) { view-transition-name: tab-panel; }
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; }
+::view-transition-group(tab-panel) { animation: none; }
+/* Старая уходит быстро, новая въезжает, когда старой почти не видно: без наложения двух текстов */
+::view-transition-old(tab-panel) { animation: tab-out 0.16s cubic-bezier(0.4, 0, 1, 1) both; }
+::view-transition-new(tab-panel) { animation: tab-slide-in 0.44s cubic-bezier(0.23, 1, 0.32, 1) 0.12s both; }
+html[data-tab-dir="prev"]::view-transition-old(tab-panel) { animation-name: tab-out-prev; }
+html[data-tab-dir="prev"]::view-transition-new(tab-panel) { animation-name: tab-slide-in-prev; }
+::view-transition-group(tab-pill) { animation-duration: 0.38s; animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes tab-out           { to   { opacity: 0; transform: translateX(-16px); } }
+@keyframes tab-out-prev      { to   { opacity: 0; transform: translateX(16px); } }
+@keyframes tab-slide-in      { from { opacity: 0; transform: translateX(32px); } }
+@keyframes tab-slide-in-prev { from { opacity: 0; transform: translateX(-32px); } }
+/* С переходом собственное проявление панели не нужно: было бы двойное движение. Класс остаётся
+   после первого перехода — иначе после него проявление проигралось бы ещё раз */
+html.vt-tabs [role="tabpanel"]:not([hidden]) { animation: none; }

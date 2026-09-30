@@ -40,6 +40,38 @@ function revealTab(btn) {
   bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
 }
 
+/** Вкладки готовы: первая вкладка при загрузке открывается без перехода. */
+var tabsReady = false;
+
+/** Показ панели и выбор кнопки вкладки; подсветка-капсула переезжает под выбранную. */
+function switchPanel(id) {
+  var leaving = TAB_IDS.indexOf(state.tab) >= 0 && state.tab !== id;
+  TAB_IDS.forEach(function (tab) {
+    $('tab-' + tab).hidden = (tab !== id);
+  });
+  // Новая вкладка открывается сначала, а не там, где была прокрутка старой
+  if (leaving && window.scrollY > 0 && window.scrollTo) window.scrollTo(0, 0);
+
+  // Паттерн вкладок WAI-ARIA: в порядке Tab стоит только выбранная вкладка,
+  // между вкладками перемещаются стрелками.
+  var buttons = $('tabs').querySelectorAll('[role="tab"]');
+  Array.prototype.forEach.call(buttons, function (btn) {
+    var selected = btn.getAttribute('data-tab') === id;
+    btn.setAttribute('aria-selected', String(selected));
+    btn.tabIndex = selected ? 0 : -1;
+    if (selected) { revealTab(btn); placeTabPill(btn); }
+  });
+}
+
+/** Капсула под выбранной вкладкой: позиция и размер — по кнопке. */
+function placeTabPill(btn) {
+  var pill = $('tabs-pill');
+  if (!pill || !pill.style || !btn.offsetWidth) return;
+  pill.style.width = btn.offsetWidth + 'px';
+  pill.style.height = btn.offsetHeight + 'px';
+  pill.style.transform = 'translate(' + btn.offsetLeft + 'px, ' + btn.offsetTop + 'px)';
+}
+
 /**
  * historyMode: 'push' — обычное переключение, с записью в историю, чтобы
  * работали «назад/вперёд»; 'replace' — при старте и при исправлении
@@ -49,19 +81,19 @@ function showTab(id, historyMode) {
   id = tabFromName(id);
   if (TAB_IDS.indexOf(id) < 0) id = 'now';
 
-  TAB_IDS.forEach(function (tab) {
-    $('tab-' + tab).hidden = (tab !== id);
-  });
-
-  // Паттерн вкладок WAI-ARIA: в порядке Tab стоит только выбранная вкладка,
-  // между вкладками перемещаются стрелками.
-  var buttons = $('tabs').querySelectorAll('[role="tab"]');
-  Array.prototype.forEach.call(buttons, function (btn) {
-    var selected = btn.getAttribute('data-tab') === id;
-    btn.setAttribute('aria-selected', String(selected));
-    btn.tabIndex = selected ? 0 : -1;
-    if (selected) revealTab(btn);
-  });
+  // Смена вкладки с движением: новая въезжает со стороны своего места в меню, старая уходит
+  // в обратную сторону (View Transitions). Нет поддержки или «уменьшить движение» — как раньше.
+  var from = TAB_IDS.indexOf(state.tab);
+  var root = document.documentElement;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (tabsReady && from >= 0 && state.tab !== id && typeof document.startViewTransition === 'function' && !reduce) {
+    root.classList.add('vt-tabs');
+    root.setAttribute('data-tab-dir', TAB_IDS.indexOf(id) > from ? 'next' : 'prev');
+    var done = document.startViewTransition(function () { switchPanel(id); });
+    done.finished.then(function () { root.removeAttribute('data-tab-dir'); }, function () {});
+  } else {
+    switchPanel(id);
+  }
 
   state.tab = id;
   saveTab(id);
@@ -113,6 +145,14 @@ function initTabs() {
   });
 
   showTab(initial, 'replace');
+  tabsReady = true;
+  // Ширина кнопок меняется с языком, размером текста и окна — капсула следует за выбранной
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(function () {
+      var btn = $('tab-btn-' + state.tab);
+      if (btn) placeTabPill(btn);
+    }).observe($('tabs'));
+  }
 }
 
 /* ------------------------------------------------------------------ */
