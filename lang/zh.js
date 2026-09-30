@@ -461,6 +461,8 @@ i18nRegister('zh', {
   'layer.mid.alt': '2–7 公里',
   'layer.high.alt': '7–12 公里',
   'cloud.warn': '云量数据自相矛盾：按云层计算为 {layers}%，而同一模型的总云量为 {total}%。这种差异在物理上不可能，因此不会给云量打高分。',
+  'cloud.warn.short': '云量数据相互矛盾',
+  'more.how': '计算方法',
   'cloud.meta.soon': '到 {time}：{v}%',
   'cloud.meta.time': '数据时间 {time}',
   'cloud.note.no_layers': '云层分层数据不可用——显示的是总云量。',

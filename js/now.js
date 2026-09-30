@@ -783,7 +783,7 @@ function renderCloud(cloud) {
   var warn = $('cloud-warn');
   warn.hidden = !cloud.conflict;
   if (cloud.conflict) {
-    warn.textContent = t('cloud.warn', { layers: cloud.value, total: Math.round(cloud.total) });
+    $('cloud-warn-text').textContent = t('cloud.warn', { layers: cloud.value, total: Math.round(cloud.total) });
   }
 
   var parts = [];

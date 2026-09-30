@@ -813,6 +813,13 @@ html[lang="zh-CN"] body {
   gap: 18px;
   margin-top: 18px;
 }
+/* Детали: Kp, облачность, погода — тремя колонками; на планшете погода во всю ширину */
+.grid--details { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid--details > .card { min-height: 0; }
+@media (max-width: 959px) {
+  .grid--details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid--details > #wx-card { grid-column: 1 / -1; }
+}
 
 @media (max-width: 720px) {
   .grid { grid-template-columns: 1fr; }
@@ -1493,8 +1500,8 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 
 /* Предупреждение о противоречивых данных */
 .card__warn {
-  margin: 16px 0 0;
-  padding: 10px 13px;
+  margin: 14px 0 0;
+  padding: 6px 12px;
   font-size: 13px;
   line-height: 1.45;
   color: var(--mid);
@@ -1504,6 +1511,9 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 }
 
 .card__warn[hidden] { display: none; }
+/* Предупреждение свёрнуто в одну жёлтую строку, полный текст — по нажатию */
+.card__warn summary { color: var(--mid); font-weight: 600; font-size: 13px; }
+.card__warn-text { margin: 4px 0 6px; }
 
 .card__model {
   margin: 6px 0 0;
@@ -1687,9 +1697,14 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   max-width: 62ch;
 }
 
-/* Россыпь условий — свёрнута: главное уже сказано шкалами и пояснением */
+/* Россыпь условий — свёрнута: главное уже сказано шкалами и пояснением.
+   Тот же вид у «Как это считается» в карточках деталей и у предупреждения об облаках. */
 .verdict__more { margin-top: 14px; }
-.verdict__more summary {
+.more { margin-top: 10px; }
+.more > p { margin-top: 4px; }
+.verdict__more summary,
+.more summary,
+.card__warn summary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1700,8 +1715,12 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   list-style: none;
   border-radius: 8px;
 }
-.verdict__more summary::-webkit-details-marker { display: none; }
-.verdict__more summary::after {
+.verdict__more summary::-webkit-details-marker,
+.more summary::-webkit-details-marker,
+.card__warn summary::-webkit-details-marker { display: none; }
+.verdict__more summary::after,
+.more summary::after,
+.card__warn summary::after {
   content: "";
   width: 7px;
   height: 7px;
@@ -1710,11 +1729,18 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   transform: translateY(-2px) rotate(45deg);
   transition: transform 0.2s ease;
 }
-.verdict__more[open] summary::after { transform: translateY(1px) rotate(-135deg); }
-.verdict__more summary:hover { color: var(--text); }
-.verdict__more summary:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
+.verdict__more[open] summary::after,
+.more[open] summary::after,
+.card__warn[open] summary::after { transform: translateY(1px) rotate(-135deg); }
+.verdict__more summary:hover,
+.more summary:hover { color: var(--text); }
+.verdict__more summary:focus-visible,
+.more summary:focus-visible,
+.card__warn summary:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  .verdict__more summary::after { transition: none; }
+  .verdict__more summary::after,
+  .more summary::after,
+  .card__warn summary::after { transition: none; }
 }
 
 .verdict__factors {

@@ -461,6 +461,8 @@ i18nRegister('en', {
   'layer.mid.alt': '2–7 km',
   'layer.high.alt': '7–12 km',
   'cloud.warn': 'Cloud data are inconsistent: {layers}% by layer, but the same model’s total is {total}%. Such a mismatch is physically impossible, so cloud cover is not given a high score.',
+  'cloud.warn.short': 'Cloud data are contradictory',
+  'more.how': 'How this is calculated',
   'cloud.meta.soon': 'by {time} — {v}%',
   'cloud.meta.time': 'data as of {time}',
   'cloud.note.no_layers': 'Cloud layers are unavailable — the total cloud cover is shown.',
