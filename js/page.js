@@ -307,6 +307,7 @@ function selectPoint(id) {
   replaceWithLoading('wx-card');
   replaceWithLoading('verdict-card');
   replaceWithLoading('window-card');
+  replaceWithLoading('night-card');
 
   loadCloud().then(function (cloud) {
     if (cloud === null && state.cloudPending) return; // ответ устарел
@@ -409,6 +410,7 @@ function refreshAll() {
   setStatus('status.refreshing');
   markLoading('verdict-card');
   markLoading('window-card');
+  markLoading('night-card');
 
   var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false), loadReports(true)];
   if (state.tonight) tasks.push(loadTonight());

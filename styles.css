@@ -912,8 +912,9 @@ html[lang="zh-CN"] body {
    «загрузке» занимает примерно столько же, сколько с данными, и страница не
    прыгает, когда они приходят. Значения сняты с живой страницы и взяты чуть
    ниже типичных, чтобы пустая карточка не оказалась выше заполненной. */
-#verdict-card[data-state="loading"]  { min-height: 240px; }
-#window-card[data-state="loading"]   { min-height: 370px; }
+#verdict-card[data-state="loading"]  { min-height: 400px; }
+#window-card[data-state="loading"]   { min-height: 400px; }
+#night-card[data-state="loading"]    { min-height: 240px; }
 #kp-card[data-state="loading"],
 #cloud-card[data-state="loading"]    { min-height: 480px; }
 #forecast-card[data-state="loading"] { min-height: 500px; }
@@ -921,8 +922,9 @@ html[lang="zh-CN"] body {
 #places-card[data-state="loading"]   { min-height: 860px; }
 
 @media (max-width: 719px) {
-  #verdict-card[data-state="loading"]  { min-height: 340px; }
-  #window-card[data-state="loading"]   { min-height: 480px; }
+  #verdict-card[data-state="loading"]  { min-height: 460px; }
+  #window-card[data-state="loading"]   { min-height: 250px; }
+  #night-card[data-state="loading"]    { min-height: 260px; }
   #kp-card[data-state="loading"]       { min-height: 240px; }
   #cloud-card[data-state="loading"]    { min-height: 470px; }
   #forecast-card[data-state="loading"] { min-height: 1000px; }
@@ -1516,9 +1518,22 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   color: var(--text-faint);
 }
 
+/* ---------- Главный ответ: вердикт и окно рядом ---------- */
+/* Вердикт шире — в нём объяснение и шкалы; окно — время и что делать дальше.
+   Уже 900px карточки встают друг под другом: вердикту на половине ширины тесно. */
+.hero-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 22px;
+  align-items: stretch;
+}
+@media (max-width: 899px) {
+  .hero-row { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ---------- Вердикт ---------- */
 .card--verdict {
-  margin-top: 22px;
   min-height: 0;
   border-color: color-mix(in srgb, var(--tone, var(--border)) 35%, transparent);
 }
@@ -1574,35 +1589,64 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   #verdict-card[data-level="high"]::before { animation: none; }
 }
 
-/* Уровень и три шкалы рядом; на узком экране шкалы под словом */
+/* Кольцо и уровень словом в одной строке */
 .verdict__hero {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px 24px;
+  gap: 20px;
 }
 
+/* Кольцо шанса: три деления на дуге 270°. Горит столько делений, каков уровень, цвет — тон
+   вердикта. Число не показываем: у оценки три уровня, а не проценты, и слово стоит рядом. */
+.ring {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  fill: none;
+}
+.ring__seg {
+  stroke: rgba(var(--fill), 0.1);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke 0.4s ease;
+}
+#verdict-card[data-level="low"]  .ring__seg:nth-of-type(1),
+#verdict-card[data-level="mid"]  .ring__seg:nth-of-type(-n+2),
+#verdict-card[data-level="high"] .ring__seg { stroke: var(--tone, var(--text-dim)); }
+.ring__icon {
+  stroke: var(--tone, var(--text-dim));
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+/* Три главных фактора — плитками под пояснением: название и деления */
 .meters {
-  margin: 0;
+  margin: 18px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 7px;
-  min-width: 210px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 .meter {
-  display: grid;
-  grid-template-columns: minmax(84px, auto) auto;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--text-dim);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 11px 13px 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(var(--fill), 0.03);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
-.meter__pips { display: inline-flex; gap: 5px; }
+.meter__pips { display: flex; gap: 5px; }
 .meter__pip {
-  width: 26px;
-  height: 8px;
+  flex: 1;
+  height: 7px;
   border-radius: 999px;
   background: rgba(var(--fill), 0.1);
   box-shadow: inset 0 0 0 1px rgba(var(--fill), 0.08);
@@ -1624,22 +1668,57 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   white-space: nowrap;
 }
 
+/* Телефон: три плитки в ряд не вмещают «Активность» и перевод — шкалы строками,
+   название слева, деления справа */
 @media (max-width: 480px) {
-  .verdict__value { font-size: 46px; }
-  .meters { width: 100%; }
-  .meter { grid-template-columns: 1fr auto; }
-  .meter__pip { width: 32px; }
+  .verdict__value { font-size: clamp(32px, 10.5vw, 42px); min-width: 0; overflow-wrap: break-word; }
+  .ring { width: 64px; height: 64px; }
+  /* Не хватает места рядом с кольцом (крупный текст) — слово целиком уходит под него */
+  .verdict__hero { gap: 8px 14px; flex-wrap: wrap; }
+  .meters { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .meter { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; }
+  .meter__pips { flex: none; width: 45%; }
 }
 
 .verdict__hint {
-  margin: 10px 0 0;
-  font-size: 17px;
+  margin: 14px 0 0;
+  font-size: 16px;
   color: var(--text);
   max-width: 62ch;
 }
 
+/* Россыпь условий — свёрнута: главное уже сказано шкалами и пояснением */
+.verdict__more { margin-top: 14px; }
+.verdict__more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: 14px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+  border-radius: 8px;
+}
+.verdict__more summary::-webkit-details-marker { display: none; }
+.verdict__more summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.2s ease;
+}
+.verdict__more[open] summary::after { transform: translateY(1px) rotate(-135deg); }
+.verdict__more summary:hover { color: var(--text); }
+.verdict__more summary:focus-visible { outline: 2px solid var(--aurora-teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .verdict__more summary::after { transition: none; }
+}
+
 .verdict__factors {
-  margin: 16px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
   display: flex;
@@ -1788,11 +1867,26 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
 }
 
 /* ---------- Окно наблюдения ---------- */
-#window-card { margin-top: 18px; min-height: 0; }
+/* Колонкой: время и пояснение сверху, уведомление прижато к низу карточки */
+#window-card { min-height: 0; display: flex; flex-direction: column; }
+#window-card .notify { margin-top: auto; }
+#window-card .card__body,
+#window-card .card__error,
+#window-card .card__stale { margin-bottom: 18px; }
+
+.window__where {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  min-height: 40px;
+  text-decoration: none;
+  font-weight: 600;
+}
 
 .window__value {
   margin: 0;
-  font-size: 44px;
+  font-size: clamp(34px, 9.4vw, 44px);
   line-height: 1.05;
   font-weight: 700;
   letter-spacing: -0.02em;

@@ -24,8 +24,11 @@ i18nRegister('en', {
 
   /* --- first tab cards --- */
   'verdict.title': 'Chance to see the aurora',
+  'verdict.more': 'Details',
   'verdict.error': 'Could not calculate the estimate — no data.',
   'window.title': 'Best time tonight',
+  'window.where': 'Where to go',
+  'night.title': 'The night hour by hour',
   'window.error': 'The viewing window cannot be calculated — no hourly cloud data.',
   'kp.title': 'Kp index',
   'kp.loading': 'Requesting NOAA SWPC…',

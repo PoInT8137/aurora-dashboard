@@ -125,13 +125,23 @@ function cloudRangeText(win) {
     : t('win.cloud_range', { min: win.cloudMin, max: win.cloudMax });
 }
 
+/** График ночи — в своей карточке под окном, её состояние повторяет состояние окна. */
+function windowFreshness() {
+  applyFreshness('window-card', 'window-stale', state.cloud.stale, 'lead.calc_saved');
+  setState('night-card', 'ok');
+}
+
 function renderWindow() {
   var win = computeNightWindow(state.cloud, state.forecast, state.kp ? state.kp.value : null);
+  var nightCard = $('night-card');
 
   if (!win) {
     setState('window-card', 'error');
+    setState('night-card', 'error');
     return;
   }
+  // В полярный день графика нет — и карточки для него тоже.
+  if (nightCard) nightCard.hidden = !!win.polarDay;
 
   var valueEl = $('window-value');
   var hintEl = $('window-hint');
@@ -146,7 +156,7 @@ function renderWindow() {
     valueEl.textContent = t('win.no_dark');
     hintEl.textContent = t('win.polar');
     metaEl.textContent = '';
-    applyFreshness('window-card', 'window-stale', state.cloud.stale, 'lead.calc_saved');
+    windowFreshness();
     return;
   }
 
@@ -175,7 +185,7 @@ function renderWindow() {
   if (win.noKp) meta += t('sep.sentence') + t('win.no_kp');
   metaEl.textContent = meta;
 
-  applyFreshness('window-card', 'window-stale', state.cloud.stale, 'lead.calc_saved');
+  windowFreshness();
 }
 
 /* ------------------------------------------------------------------ */

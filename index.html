@@ -263,6 +263,8 @@ try {
 
 <section class="wrap" id="tab-now" role="tabpanel" aria-labelledby="tab-btn-now" tabindex="0">
 
+  <!-- Главный ответ: шанс сейчас и лучшее время ночью — одной строкой на широком экране -->
+  <div class="hero-row">
   <!-- Итоговый вердикт -->
   <section class="card card--verdict" id="verdict-card" data-state="loading">
     <h2 class="card__label" data-i18n="verdict.title">Шанс увидеть сияние</h2>
@@ -271,20 +273,24 @@ try {
 
     <div class="card__body">
       <div class="verdict__hero">
+        <!-- Кольцо: три деления — низкий, средний, высокий (по data-level карточки). Уровень словом — рядом. -->
+        <svg class="ring" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+          <circle class="ring__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(146.5 48 48)"/>
+          <circle class="ring__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(236.5 48 48)"/>
+          <circle class="ring__seg" cx="48" cy="48" r="40" stroke-dasharray="46.8 300" transform="rotate(326.5 48 48)"/>
+          <path class="ring__icon" d="M34 55c4.7-6.3 9.3-6.3 14 0s9.3 6.3 14 0M34 45c4.7-6.3 9.3-6.3 14 0s9.3 6.3 14 0"/>
+        </svg>
         <p class="verdict__value" id="verdict-value">—</p>
-        <ul class="meters" id="verdict-meters"></ul>
       </div>
       <p class="verdict__hint" id="verdict-hint"></p>
-      <ul class="verdict__factors" id="verdict-factors"></ul>
+      <ul class="meters" id="verdict-meters"></ul>
+      <details class="verdict__more">
+        <summary data-i18n="verdict.more">Подробнее</summary>
+        <ul class="verdict__factors" id="verdict-factors"></ul>
+      </details>
     </div>
 
     <p class="card__stale" id="verdict-stale"><span class="stale__text"></span></p>
-
-    <div class="notify">
-      <button class="btn btn--ghost btn--mini" type="button" id="notify-btn" aria-pressed="false"
-              aria-describedby="notify-hint" data-i18n="notify.btn.off">Сообщить о высоком шансе</button>
-      <span class="notify__hint" id="notify-hint"></span>
-    </div>
 
     <div class="card__error">
       <p data-i18n="verdict.error">Не удалось рассчитать оценку — нет данных.</p>
@@ -292,7 +298,7 @@ try {
   </section>
 
   <!-- Окно наблюдения -->
-  <section class="card card--wide" id="window-card" data-state="loading">
+  <section class="card" id="window-card" data-state="loading">
     <h2 class="card__label" data-i18n="window.title">Лучшее время этой ночью</h2>
 
     <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
@@ -300,12 +306,34 @@ try {
     <div class="card__body">
       <p class="window__value" id="window-value">—</p>
       <p class="window__hint" id="window-hint"></p>
+      <a class="btn window__where" href="#tonight"><span data-i18n="window.where">Куда ехать</span> <span aria-hidden="true">→</span></a>
+    </div>
+
+    <p class="card__stale" id="window-stale"><span class="stale__text"></span></p>
+
+    <div class="card__error">
+      <p data-i18n="window.error">Окно наблюдения не рассчитать — нет почасовых данных об облачности.</p>
+    </div>
+
+    <div class="notify">
+      <button class="btn btn--ghost btn--mini" type="button" id="notify-btn" aria-pressed="false"
+              aria-describedby="notify-hint" data-i18n="notify.btn.off">Сообщить о высоком шансе</button>
+      <span class="notify__hint" id="notify-hint"></span>
+    </div>
+  </section>
+  </div>
+
+  <!-- Ночь по часам: шанс, облака, Kp и Луна; рамка — лучшее окно (js/night.js) -->
+  <section class="card card--wide" id="night-card" data-state="loading">
+    <h2 class="card__label" data-i18n="night.title">Ночь по часам</h2>
+
+    <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
+
+    <div class="card__body">
       <div class="nchart" id="window-hours"></div>
       <p class="nchart__detail" id="window-detail" aria-live="polite"></p>
       <p class="card__meta" id="window-meta"></p>
     </div>
-
-    <p class="card__stale" id="window-stale"><span class="stale__text"></span></p>
 
     <div class="card__error">
       <p data-i18n="window.error">Окно наблюдения не рассчитать — нет почасовых данных об облачности.</p>

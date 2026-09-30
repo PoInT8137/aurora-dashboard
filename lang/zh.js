@@ -24,8 +24,11 @@ i18nRegister('zh', {
 
   /* --- 第一个标签页 --- */
   'verdict.title': '看到极光的机会',
+  'verdict.more': '详情',
   'verdict.error': '无法计算评估——没有数据。',
   'window.title': '今晚最佳时间',
+  'window.where': '去哪里看',
+  'night.title': '今夜逐小时',
   'window.error': '无法计算观测时段——没有逐小时云量数据。',
   'kp.title': 'Kp 指数',
   'kp.loading': '正在请求 NOAA SWPC…',
