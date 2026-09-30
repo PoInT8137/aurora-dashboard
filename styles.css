@@ -144,6 +144,8 @@ body {
   font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
+  /* Цифры одной ширины везде: время, проценты и Kp не «прыгают» при обновлении */
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   /* viewport-fit=cover: страница на весь экран iPhone — отступы под вырез и часы сверху и по бокам */
@@ -396,14 +398,12 @@ html.intro .topbar h1 {
   color: transparent;
 }
 
-/* Регион — второй строкой заголовка, без градиента */
+/* Регион — второй строкой заголовка, без градиента и без капса */
 .topbar__region {
   display: block;
-  margin-top: 3px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text-dim);
 }
 
@@ -423,9 +423,7 @@ html.intro .topbar h1 {
 }
 
 .point__label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 14px;
   color: var(--text-faint);
 }
 
@@ -495,7 +493,7 @@ html.intro .topbar h1 {
   .topbar__title,
   .topbar__actions { display: contents; }
   .topbar h1 { grid-area: title; font-size: 22px; line-height: 1.15; }
-  .topbar__region { font-size: 11px; margin-top: 2px; }
+  .topbar__region { font-size: 13px; margin-top: 1px; }
 
   .point { grid-area: point; margin-top: 10px; }
   .point__label {
@@ -636,15 +634,9 @@ html.intro .topbar h1 {
   font-size: 13px;
 }
 
-/* Китайский: свой набор шрифтов; разрядка и верхний регистр иероглифам не нужны */
+/* Китайский: свой набор шрифтов */
 html[lang="zh-CN"] body {
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", system-ui, sans-serif;
-}
-html[lang="zh-CN"] .topbar__region,
-html[lang="zh-CN"] .point__label,
-html[lang="zh-CN"] .card__label {
-  letter-spacing: 0.04em;
-  text-transform: none;
 }
 
 .updated {
@@ -683,41 +675,47 @@ html[lang="zh-CN"] .card__label {
 .btn--icon[aria-pressed="true"] { background: rgba(var(--tint), 0.3); border-color: rgba(var(--tint), 0.6); }
 
 /* ---------- Вкладки ---------- */
+/* На широком экране — сегментированный переключатель: одна капсула, выбранный
+   сегмент подсвечен. Подзаголовки вкладок не показываем — названия и так понятны,
+   а пять строк мелкого текста спорили с заголовком страницы. */
 .tabs {
   position: relative;
   z-index: 2;
-  max-width: 1040px;
-  margin: 18px auto 0;
-  padding: 0 20px;
   display: flex;
-  gap: 10px;
+  gap: 2px;
+  width: fit-content;
+  max-width: calc(100% - 40px);
+  /* левый край — вровень с карточками (.wrap: 1040px с полями по 20px) */
+  margin: 18px 0 0 max(20px, calc((100% - 1000px) / 2));
+  padding: 4px;
+  background: var(--tab-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .tabs__btn {
-  flex: 1;
   font: inherit;
-  text-align: left;
+  text-align: center;
   color: var(--text-dim);
-  background: var(--tab-bg);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 11px 16px;
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 18px;
+  min-height: 40px;
   cursor: pointer;
-  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  transition: color 0.18s ease, background-color 0.18s ease;
 }
 
-.tabs__btn:hover { background: rgba(var(--tint), 0.12); }
+.tabs__btn:hover { color: var(--text); background: rgba(var(--tint), 0.08); }
 
 .tabs__btn[aria-selected="true"] {
   color: var(--text);
-  background: rgba(var(--tint), 0.16);
-  border-color: rgba(var(--tint), 0.5);
+  background: rgba(var(--tint), 0.18);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.35);
 }
 
-.tabs__title { display: block; font-size: 15px; font-weight: 650; }
-.tabs__sub   { display: block; font-size: 12px; color: var(--text-faint); margin-top: 1px; }
-
-.tabs__btn[aria-selected="true"] .tabs__sub { color: var(--text-dim); }
+.tabs__title { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.tabs__sub   { display: none; }
 
 .tabs__short { display: none; }
 .tabs__icon { display: none; }
@@ -737,8 +735,12 @@ html[lang="zh-CN"] .card__label {
     gap: 2px;
     overflow: hidden;
     touch-action: manipulation;
+    width: auto;
+    max-width: none;
     background: var(--nav-bg);
+    border: 0;
     border-top: 1px solid var(--border);
+    border-radius: 0;
     backdrop-filter: blur(12px);
   }
 
@@ -757,7 +759,7 @@ html[lang="zh-CN"] .card__label {
     background: none;
     -webkit-tap-highlight-color: transparent;
   }
-  .tabs__btn[aria-selected="true"] { background: rgba(var(--tint), 0.16); border: 0; }
+  .tabs__btn[aria-selected="true"] { background: rgba(var(--tint), 0.16); box-shadow: none; }
   .tabs__icon {
     display: block;
     width: 22px;
@@ -822,12 +824,14 @@ html[lang="zh-CN"] .card__label {
 
 .card--wide { margin-top: 18px; }
 
+/* Шкала текста: заголовок страницы 30 → крупное число 76 → заголовок карточки 15 →
+   основной 16–17 → пояснение 13. Заголовок карточки — обычным регистром, без разрядки:
+   капс читается медленнее и спорит с числом под ним. */
 .card__label {
-  margin: 0 0 14px;
-  font-size: 13px;
+  margin: 0 0 12px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  line-height: 1.3;
   color: var(--text-dim);
 }
 
