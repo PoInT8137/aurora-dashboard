@@ -374,18 +374,29 @@ html.intro .topbar h1 {
 }
 
 /* ---------- Шапка ---------- */
+/* Сверху слева название, справа кнопки; ниже — точка наблюдения и строка с её координатами.
+   Раньше кнопки переносились третьим рядом и шапка занимала пол-экрана. */
 .topbar {
   position: relative;
   z-index: 1;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 34px 20px 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-end;
-  justify-content: space-between;
+  padding: 30px 20px 6px;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-areas:
+    "title actions"
+    "point point"
+    "place place";
+  gap: 6px 24px;
+  align-items: center;
 }
+.topbar .point { margin-top: 10px; }
+.topbar__title { display: contents; }
+.topbar h1 { grid-area: title; }
+.point { grid-area: point; }
+.topbar__place { grid-area: place; }
+.topbar__actions { grid-area: actions; }
 
 .topbar h1 {
   margin: 0;
@@ -408,17 +419,16 @@ html.intro .topbar h1 {
 }
 
 .topbar__place {
-  margin: 6px 0 0;
-  color: var(--text-dim);
+  margin: 0;
+  color: var(--text-faint);
   font-size: 14px;
 }
 
 /* Выбор точки наблюдения */
 .point {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
-  margin-top: 10px;
   flex-wrap: wrap;
 }
 
@@ -434,8 +444,8 @@ html.intro .topbar h1 {
   color: var(--text);
   background: rgba(var(--tint), 0.1);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 6px 12px;
+  border-radius: 999px;
+  padding: 7px 14px;
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
 }
@@ -451,7 +461,7 @@ html.intro .topbar h1 {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* Меню шапки: на широком экране его нет — содержимое стоит в строке, язык первым, как раньше */
@@ -504,7 +514,7 @@ html.intro .topbar h1 {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-  .point__select { width: 100%; min-height: 44px; }
+  .point__select { width: 100%; min-height: 44px; border-radius: 12px; }
 
   .topbar__place { grid-area: place; margin-top: 6px; font-size: 12px; line-height: 1.35; color: var(--text-faint); }
   .updated { grid-area: updated; margin-top: 2px; font-size: 12px; }
