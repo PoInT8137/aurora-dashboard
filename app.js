@@ -25,6 +25,7 @@ function init() {
   initNotifyTab();
   initPushCard();
   initTabs();
+  initSkyDepth();
   initTopMenu();
   $('refresh').addEventListener('click', refreshAll);
 

@@ -229,6 +229,27 @@ html[data-sky="storm"] .aurora-bg {
   -webkit-mask-image: linear-gradient(to bottom, black 0, black 45%, transparent 90%);
   mask-image: linear-gradient(to bottom, black 0, black 45%, transparent 90%);
 }
+/* Глубина: дальний слой — мельче и тусклее, ближний — крупнее и ярче; сдвиги ставит
+   initSkyDepth() (js/page.js), отклик на курсор догоняет плавно */
+.sky-stars { transition: translate 1.2s var(--ease-out); will-change: transform; }
+.sky-stars--far {
+  opacity: 0.4;
+  background-image:
+    radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.8) 0 0.5px, transparent 0.9px),
+    radial-gradient(circle at 80% 15%, rgba(200, 230, 255, 0.7) 0 0.5px, transparent 0.9px),
+    radial-gradient(circle at 55% 75%, rgba(255, 255, 255, 0.7) 0 0.4px, transparent 0.8px),
+    radial-gradient(circle at 10% 90%, rgba(255, 255, 255, 0.6) 0 0.4px, transparent 0.8px);
+  background-size: 170px 170px;
+}
+.sky-stars--near {
+  opacity: 0.7;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 1) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 75% 60%, rgba(200, 230, 255, 0.9) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 45% 85%, rgba(255, 255, 255, 0.8) 0 0.9px, transparent 1.6px);
+  background-size: 430px 430px;
+}
+.aurora-bg { transition: opacity 2s ease, translate 1.6s var(--ease-out); }
 html[data-theme="light"] .sky-stars,
 html[data-theme="night"] .sky-stars { display: none; }
 

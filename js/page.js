@@ -260,6 +260,47 @@ function skyMood(score) {
   return score >= 3 ? 'storm' : (score >= 1 ? 'active' : 'calm');
 }
 
+/* Глубина неба за страницей. При прокрутке три слоя звёзд сдвигаются с разной скоростью:
+   дальний почти стоит, ближний уходит заметнее — параллакс. На компьютере небо чуть следует
+   за курсором, ближние слои сильнее. Только transform и translate (без перерисовки); при
+   «уменьшить движение» и на касаниях — ничего. */
+var SKY_LAYERS = [
+  { sel: '.sky-stars--far', scroll: 0.02, cursor: 4 },
+  { sel: '.sky-stars:not(.sky-stars--far):not(.sky-stars--near)', scroll: 0.05, cursor: 8 },
+  { sel: '.sky-stars--near', scroll: 0.1, cursor: 16 },
+  { sel: '.aurora-bg', scroll: 0, cursor: 40 }
+];
+
+function initSkyDepth() {
+  if (!document.querySelector || !window.requestAnimationFrame) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var layers = SKY_LAYERS.map(function (l) { return { el: document.querySelector(l.sel), scroll: l.scroll, cursor: l.cursor }; })
+    .filter(function (l) { return l.el; });
+  if (!layers.length) return;
+
+  var pending = false;
+  window.addEventListener('scroll', function () {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () {
+      pending = false;
+      var y = Math.min(window.scrollY || 0, 4000);
+      layers.forEach(function (l) {
+        if (l.scroll) l.el.style.transform = 'translate3d(0, ' + (-y * l.scroll).toFixed(1) + 'px, 0)';
+      });
+    });
+  }, { passive: true });
+
+  document.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse') return;
+    var mx = e.clientX / innerWidth * 2 - 1;
+    var my = e.clientY / innerHeight * 2 - 1;
+    layers.forEach(function (l) {
+      l.el.style.translate = (mx * l.cursor).toFixed(1) + 'px ' + (my * l.cursor * 0.6).toFixed(1) + 'px';
+    });
+  }, { passive: true });
+}
+
 function setSky(score) {
   var mood = skyMood(score);
   if (mood) document.documentElement.setAttribute('data-sky', mood);
