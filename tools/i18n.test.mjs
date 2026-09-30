@@ -148,7 +148,6 @@ test('ключи-семейства: всё, что собирается из к
   for (const level of ['high', 'mid', 'low', 'none']) need.push('ov.level.' + level);
   for (const c of ['clear', 'windy', 'snow', 'rain', 'fog']) need.push('wx.' + c);
   for (let d = 0; d < 8; d++) need.push('wind.dir.' + d);
-  for (const row of ctx.NCHART_ROWS) need.push('nchart.row.' + row);
   for (const key of ctx.VERDICT_METERS) need.push('meter.' + key);
   for (const side of ['n', 's', 'e', 'w']) need.push('coord.' + side);
   for (const id of ['best_match', 'icon_eu', 'icon_seamless', 'icon_global', 'metno_seamless', 'ecmwf_ifs025', 'gfs_seamless', 'ukmo_seamless', 'meteofrance_seamless']) need.push('model.' + id);

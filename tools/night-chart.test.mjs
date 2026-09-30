@@ -1,4 +1,4 @@
-// График ночи в карточке «Лучшее время этой ночью»: столбец на час — шанс, облака, Kp, Луна, время.
+// График ночи в карточке «Ночь по часам»: столбик на час — высота по чистому небу, цвет по шансу; Луна, время.
 // Запуск: node --test tools/night-chart.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,42 +50,50 @@ function page({ now = NOW, cloud = () => 10, kp = 4.3 } = {}) {
 const columns = el => el('window-hours').children[1].children;
 const win = ctx => ctx.computeNightWindow(ctx.state.cloud, ctx.state.forecast, ctx.state.kp ? ctx.state.kp.value : null);
 
-test('по столбцу на каждый час ночи, слева подписи четырёх рядов', () => {
+test('по столбику на каждый час ночи и легенда: высота, три уровня шанса, лучшее окно', () => {
   const { ctx, el } = page();
   ctx.renderWindow();
   const w = win(ctx);
   assert.equal(columns(el).length, w.night.length);
-  const labels = el('window-hours').children[0].children.map(c => c.textContent);
-  assert.deepEqual(labels, ['Шанс', 'Облака', 'Kp', 'Луна']);
+  const legend = el('window-hours').children[0].children.map(c => c.textContent);
+  assert.deepEqual(legend, ['Высота — чистое небо', 'Высокий шанс', 'Средний шанс', 'Низкий шанс', 'Лучшее окно']);
   assert.equal(el('window-hours').children[1].style['--cols'], String(w.night.length));
 });
 
-test('лучшее окно в рамке, сумерки светлее, цвет шанса — по уровню часа', () => {
+test('лучшее окно — одна рамка на весь отрезок, сумерки светлее, цвет столбика — по уровню часа', () => {
   const { ctx, el } = page({ cloud: h => (h < 3 ? 90 : 10) });
   ctx.renderWindow();
   const w = win(ctx);
+  const best = [];
   columns(el).forEach((col, i) => {
     const h = w.night[i];
     const inWindow = h.time >= w.from && h.time < w.to;
+    if (inWindow) best.push(i);
     assert.equal(/ncol--best/.test(col.className), inWindow, 'окно ' + i);
     assert.equal(/ncol--twilight/.test(col.className), h.alt > ctx.DARK_FULL, 'сумерки ' + i);
-    assert.equal(col.children[0].style['--tone'], ctx.levelTone(h.level));
+    assert.equal(col.children[0].children[0].style['--tone'], ctx.levelTone(h.level));
   });
   assert.ok(columns(el).some(c => !/ncol--best/.test(c.className)), 'облачные часы — вне окна');
+
+  const cols = el('window-hours').children[1];
+  assert.match(cols.className, /nchart__cols--best/);
+  assert.equal(cols.style['--best-from'], String(best[0]));
+  assert.equal(cols.style['--best-count'], String(best.length));
+  assert.equal(best[best.length - 1] - best[0] + 1, best.length, 'окно — без разрывов');
 });
 
-test('столбики: облачность в процентах высоты, Kp — доля шкалы 0–9 (не ниже 4%); без прогноза Kp — пусто', () => {
+test('высота столбика — чистое небо: 100% минус облачность; значения облаков и Kp — в подписи часа', () => {
   const { ctx, el } = page({ cloud: h => [5, 40, 100, 0][h % 4] });
   ctx.renderWindow();
   const w = win(ctx);
   columns(el).forEach((col, i) => {
-    assert.equal(col.children[1].children[0].style.height, w.night[i].cloud + '%');
-    assert.equal(col.children[2].children[0].style.height, (4.3 / 9 * 100) + '%');
+    assert.equal(col.children[0].children[0].style.height, (100 - w.night[i].cloud) + '%');
+    assert.match(col.attrs['aria-label'], new RegExp('облачность ' + w.night[i].cloud + '% · Kp 4,3'));
   });
 
   const noKp = page({ kp: null });
   noKp.ctx.renderWindow();
-  assert.ok(columns(noKp.el).every(col => col.children[2].children[0].style.height === '0%'));
+  assert.ok(columns(noKp.el).every(col => !/Kp/.test(col.attrs['aria-label'])), 'без прогноза Kp в подписи его нет');
 });
 
 test('Луна: отмечена в часы, когда она над горизонтом, яркость — по освещённости', () => {
@@ -95,15 +103,15 @@ test('Луна: отмечена в часы, когда она над гори�
   columns(el).forEach((col, i) => {
     const mid = new Date(w.night[i].time.getTime() + 30 * 60000);
     const up = ctx.moonAltitude(mid, 68.9678, 33.0992) > ctx.MOON_HORIZON;
-    assert.equal(/ncol__moon--up/.test(col.children[3].className), up, 'час ' + i);
-    if (up) assert.ok(Number(col.children[3].style['--moon']) > 0.95, 'почти полнолуние — яркая отметка');
+    assert.equal(/ncol__moon--up/.test(col.children[1].className), up, 'час ' + i);
+    if (up) assert.ok(Number(col.children[1].style['--moon']) > 0.95, 'почти полнолуние — яркая отметка');
   });
-  assert.ok(columns(el).every(c => /ncol__moon--up/.test(c.children[3].className)), 'в ночь на 27 сентября Луна стоит всю ночь');
+  assert.ok(columns(el).every(c => /ncol__moon--up/.test(c.children[1].className)), 'в ночь на 27 сентября Луна стоит всю ночь');
 
   // 22 сентября по эталону USNO Луна над горизонтом 16:51–20:57 UTC — в первой половине ночи
   const early = page({ now: '2026-09-22T17:30:00Z' });
   early.ctx.renderWindow();
-  const marks = columns(early.el).map(c => /ncol__moon--up/.test(c.children[3].className));
+  const marks = columns(early.el).map(c => /ncol__moon--up/.test(c.children[1].className));
   assert.ok(marks[0], 'вечером Луна видна');
   assert.ok(!marks[marks.length - 1], 'к утру зашла');
   assert.equal(marks.lastIndexOf(true) + 1, marks.indexOf(false), 'зашла один раз и больше не всходила');
@@ -161,14 +169,14 @@ test('подписи времени — через шаг, чтобы не на�
   const cols = columns(long.el);
   const step = long.ctx.timeLabelStep(cols.length);
   assert.ok(cols.length > 12, 'ночь ' + cols.length + ' ч');
-  cols.forEach((col, i) => assert.equal(/ncol__time--hidden/.test(col.children[4].className), i % step !== 0));
+  cols.forEach((col, i) => assert.equal(/ncol__time--hidden/.test(col.children[2].className), i % step !== 0));
 });
 
-test('на английском — свои подписи рядов и подробностей', () => {
+test('на английском — своя легенда и подробности', () => {
   const { ctx, el } = page();
   ctx.setLang('en');
   ctx.renderWindow();
-  assert.deepEqual(el('window-hours').children[0].children.map(c => c.textContent), ['Chance', 'Clouds', 'Kp', 'Moon']);
+  assert.deepEqual(el('window-hours').children[0].children.map(c => c.textContent), ['Height is clear sky', 'High chance', 'Medium chance', 'Low chance', 'Best window']);
   assert.match(el('window-detail').textContent, / · cloud cover 10% · Kp 4\.3 · /);
 });
 

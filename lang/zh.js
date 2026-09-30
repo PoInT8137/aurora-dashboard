@@ -536,11 +536,9 @@ i18nRegister('zh', {
   'win.dark_full': '完全黑暗',
   'win.dark_part': '未完全黑暗',
   'hour.kp': 'Kp {v}',
-  'win.meta': '夜间 {from} 至 {to}。点按某个小时可查看详情。颜色较浅的列为暮光时段，边框标出最佳时段。',
-  'nchart.row.level': '机会',
-  'nchart.row.cloud': '云量',
-  'nchart.row.kp': 'Kp',
-  'nchart.row.moon': '月亮',
+  'win.meta': '夜间 {from} 至 {to}。点按某个小时可查看云量、Kp 和月亮。背景较浅为暮光时段，柱下圆点表示月亮在地平线上。',
+  'nchart.legend.sky': '高度表示晴空',
+  'nchart.legend.best': '最佳时段',
   'win.no_kp': 'Kp 预报不可用，仅考虑了云量和黑暗程度。',
 
   /* --- 去哪里 --- */

@@ -189,13 +189,31 @@ function renderWindow() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  График ночи: по столбцу на час. Сверху вниз — шанс (цвет),         */
-/*  облачность и прогнозное Kp (столбики), Луна над горизонтом, время. */
-/*  Светлый столбец — сумерки, рамка — лучшее окно. Нажатие на час     */
-/*  показывает его подробности под графиком.                          */
+/*  График ночи: по столбику на час. Высота — доля чистого неба,      */
+/*  цвет — шанс в этот час, точка под столбиком — Луна над горизонтом. */
+/*  Светлый фон — сумерки, пунктир — лучшее окно. Нажатие на час       */
+/*  показывает его подробности (облачность, Kp, Луна) под графиком.   */
 /* ------------------------------------------------------------------ */
 
-var NCHART_ROWS = ['level', 'cloud', 'kp', 'moon'];
+/** Легенда: цвет — шанс, высота — чистое небо, пунктир — лучшее окно. Для глаза: скринридер читает часы целиком. */
+function nightLegend() {
+  var legend = document.createElement('div');
+  legend.className = 'nchart__legend';
+  legend.setAttribute('aria-hidden', 'true');
+  var item = function (mod, text, level) {
+    var span = document.createElement('span');
+    span.className = 'nchart__key nchart__key--' + mod;
+    if (level !== undefined) setTone(span, levelTone(level));
+    span.textContent = text;
+    legend.appendChild(span);
+  };
+  item('sky', t('nchart.legend.sky'));
+  item('level', levelWord(2), 2);
+  item('level', levelWord(1), 1);
+  item('level', levelWord(0), 0);
+  item('best', t('nchart.legend.best'));
+  return legend;
+}
 
 /** Луна в середине часа: над горизонтом ли и насколько освещена. */
 function hourMoon(time, point) {
@@ -237,24 +255,17 @@ function renderNightChart(win) {
   var inNight = night.some(function (h) { return h.time.getTime() === selected; });
   if (!inNight) selected = win.from.getTime();
 
-  var labels = document.createElement('div');
-  labels.className = 'nchart__labels';
-  labels.setAttribute('aria-hidden', 'true');
-  NCHART_ROWS.forEach(function (row) {
-    var label = document.createElement('span');
-    label.className = 'nchart__label nchart__label--' + row;
-    label.textContent = t('nchart.row.' + row);
-    labels.appendChild(label);
-  });
-
   var cols = document.createElement('div');
   cols.className = 'nchart__cols';
   cols.style.setProperty('--cols', String(night.length));
   var detail = '';
+  var bestFrom = -1;
+  var bestCount = 0;
 
   night.forEach(function (h, i) {
     var moon = hourMoon(h.time, win.point);
     var inWindow = h.time >= win.from && h.time < win.to;
+    if (inWindow) { if (bestFrom < 0) bestFrom = i; bestCount++; }
     var text = nightHourText(h, moon);
     var isSelected = h.time.getTime() === selected;
     if (isSelected) detail = text;
@@ -269,25 +280,14 @@ function renderNightChart(win) {
     col.setAttribute('aria-label', text);
     col.tabIndex = isSelected ? 0 : -1;
 
-    var level = document.createElement('span');
-    level.className = 'ncol__level';
-    setTone(level, levelTone(h.level));
-
-    var cloud = document.createElement('span');
-    cloud.className = 'ncol__cloud';
-    var cloudBar = document.createElement('span');
-    cloudBar.className = 'ncol__bar';
-    cloudBar.style.height = Math.max(0, Math.min(100, h.cloud)) + '%';
-    cloud.appendChild(cloudBar);
-
-    var kp = document.createElement('span');
-    kp.className = 'ncol__kp';
-    var kpBar = document.createElement('span');
-    kpBar.className = 'ncol__bar';
-    var known = h.kp !== null && h.kp !== undefined;
-    kpBar.style.height = (known ? Math.max(4, Math.min(9, h.kp) / 9 * 100) : 0) + '%';
-    if (known) setTone(kpBar, kpTone(h.kp, win.point));
-    kp.appendChild(kpBar);
+    // Столбик: высота — чистое небо (100% − облачность), цвет — шанс часа
+    var plot = document.createElement('span');
+    plot.className = 'ncol__plot';
+    var bar = document.createElement('span');
+    bar.className = 'ncol__bar';
+    bar.style.height = (100 - Math.max(0, Math.min(100, h.cloud))) + '%';
+    setTone(bar, levelTone(h.level));
+    plot.appendChild(bar);
 
     var moonCell = document.createElement('span');
     moonCell.className = 'ncol__moon' + (moon.up ? ' ncol__moon--up' : '');
@@ -297,15 +297,20 @@ function renderNightChart(win) {
     time.className = 'ncol__time' + (i % step === 0 ? '' : ' ncol__time--hidden');
     time.textContent = fmtTime(h.time);
 
-    col.appendChild(level);
-    col.appendChild(cloud);
-    col.appendChild(kp);
+    col.appendChild(plot);
     col.appendChild(moonCell);
     col.appendChild(time);
     cols.appendChild(col);
   });
 
-  box.appendChild(labels);
+  // Рамка лучшего окна — одна на весь отрезок, а не по кусочку у каждого часа
+  if (bestCount) {
+    cols.style.setProperty('--best-from', String(bestFrom));
+    cols.style.setProperty('--best-count', String(bestCount));
+    cols.className += ' nchart__cols--best';
+  }
+
+  box.appendChild(nightLegend());
   box.appendChild(cols);
   $('window-detail').textContent = detail;
 }
