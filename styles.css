@@ -2324,3 +2324,9 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
   .webcam__name { display: inline-block; padding: 10px 0; margin: -10px 0; }
   .foot a { display: inline-block; padding: 14px 0; margin: -14px 0; }
 }
+
+/* Крупный текст на компьютере: «Обновлено в 23:10» — в две строки, чтобы кнопки шапки
+   уместились в один ряд и ночное зрение не уезжало вниз */
+@media (min-width: 720px) {
+  html[data-size="xlarge"] .topbar .updated { max-width: 6.5em; line-height: 1.25; text-align: right; }
+}
