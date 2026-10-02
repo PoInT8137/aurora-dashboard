@@ -43,6 +43,11 @@
 
   --radius: 18px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+
+  /* Шкала заголовков: главный ответ — крупнее, остальные карточки — спокойнее. Текст 16 px. */
+  --fs-title-1: 18px;   /* «Шанс увидеть сияние», «Лучшее время этой ночью» */
+  --fs-title-2: 15px;   /* заголовки остальных карточек */
+  --fs-caption: 13px;   /* подписи и мета-строки */
   color-scheme: dark;
 }
 
@@ -704,7 +709,7 @@ html.intro .topbar h1 {
 }
 
 .point__label {
-  font-size: 14px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 
@@ -1014,6 +1019,12 @@ html[lang="zh-CN"] body {
 .tabs__short { display: none; }
 .tabs__icon { display: none; }
 
+/* Планшет: сегменты уже — короткое название «Куда ехать», чтобы не резать многоточием */
+@media (min-width: 720px) and (max-width: 959px) {
+  .tabs__long { display: none; }
+  .tabs__short { display: inline; }
+}
+
 /* На узком экране навигация уезжает вниз, как панель вкладок в приложениях iPhone:
    пять равных ячеек со значком и короткой подписью, без прокрутки. Прокручиваемая вбок
    панель у нижнего края конфликтовала с жестом iPhone «свайп между приложениями». Панель
@@ -1022,7 +1033,10 @@ html[lang="zh-CN"] body {
   .tabs {
     position: fixed;
     inset: auto 0 0 0;
+    width: auto;
     margin: 0;
+    border: 0;
+    border-radius: 0;
     padding: 6px max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px));
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1126,16 +1140,24 @@ html[lang="zh-CN"] body {
 
 .card--wide { margin-top: 18px; }
 
-/* Шкала текста: заголовок страницы 30 → крупное число 76 → заголовок карточки 15 →
-   основной 16–17 → пояснение 13. Заголовок карточки — обычным регистром, без разрядки:
-   капс читается медленнее и спорит с числом под ним. */
+/* Заголовок карточки — обычным регистром, без разрядки. Главный ответ (вердикт и окно) — на
+   ступень крупнее остальных, чтобы иерархия читалась с первого взгляда. */
 .card__label {
   margin: 0 0 12px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-title-2);
+  font-weight: 650;
   line-height: 1.3;
-  color: var(--text-dim);
+  letter-spacing: -0.005em;
+  color: var(--text);
+  text-wrap: balance;
 }
+#verdict-card > .card__label,
+#window-card > .card__label,
+#best-card > .card__label { font-size: var(--fs-title-1); }
+
+/* Цифры одной ширины: время, проценты и Kp не «прыгают» при обновлении и стоят столбиком */
+.topbar,
+.wrap { font-variant-numeric: tabular-nums; }
 
 /* Переключение состояний: loading / ok / stale / error */
 .card__loading,
