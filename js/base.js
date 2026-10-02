@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v59';
+var APP_VERSION = 'v60';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -268,39 +268,88 @@ function noaaServerUrl(url) {
   return key ? AURORA_CONFIG.pushApi + '/noaa/' + key : null;
 }
 
+/* Через сколько, не дождавшись основного пути, параллельно запускать запасной. Подвисшее
+   соединение (мобильная сеть, провайдер притормаживает хостинг) раньше стоило 6–8 секунд
+   ожидания до запасного пути — при первом заходе, когда показать ещё нечего, это и было
+   «долго грузится». Обычный ответ приходит за доли секунды, и запасной путь не трогается. */
+var HEDGE_MS = 2500;
+
+/**
+ * Страхующий запрос: first(signal) сразу, second(signal) — если first за delayMs не ответил или
+ * уже упал. Побеждает первый удачный, проигравший отменяется (не тратить трафик). Оба упали —
+ * ошибка first. onSecond — вызывается, если победил запасной.
+ */
+function hedgeFetch(first, second, delayMs, onSecond) {
+  return new Promise(function (resolve, reject) {
+    var a = new AbortController();
+    var b = new AbortController();
+    var done = false, failures = 0, firstError = null, started = false;
+    var timer = setTimeout(startSecond, delayMs);
+
+    function win(data, loser, isSecond) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      loser.abort();
+      if (isSecond && onSecond) onSecond();
+      resolve(data);
+    }
+    function fail() {
+      if (done) return;
+      failures++;
+      if (failures === 2) { done = true; reject(firstError); return; }
+      startSecond();
+    }
+    function startSecond() {
+      if (started || done) return;
+      started = true;
+      clearTimeout(timer);
+      second(b.signal).then(function (data) { win(data, a, true); }, function (err) {
+        if (!firstError) firstError = err;
+        fail();
+      });
+    }
+    first(a.signal).then(function (data) { win(data, b, false); }, function (err) {
+      firstError = err;
+      fail();
+    });
+  });
+}
+
 function fetchJson(url, attempt, as) {
   var noaa = attempt ? null : noaaServerUrl(String(url));
   if (noaa) {
-    return fetchJsonDirect(noaa, CONFIG.retries, as, NOAA_SERVER_TIMEOUT_MS).catch(function () {
-      return fetchJsonDirect(url, 0, as);   // сервер не ответил — напрямую к NOAA, как раньше
-    });
+    // Сервер отдаёт NOAA в сжатом компактном виде; не ответил быстро — параллельно напрямую.
+    return hedgeFetch(
+      function (signal) { return fetchJsonDirect(noaa, CONFIG.retries, as, NOAA_SERVER_TIMEOUT_MS, signal); },
+      function (signal) { return fetchJsonDirect(url, 0, as, undefined, signal); },
+      HEDGE_MS);
   }
 
   var viaServer = attempt ? null : meteoFallbackUrl(url);
   if (!viaServer) return fetchJsonDirect(url, attempt, as);
 
-  var direct = function () { return fetchJsonDirect(url, CONFIG.retries, as, METEO_DIRECT_TIMEOUT_MS); };
-  var server = function () { return fetchJsonDirect(viaServer, 0, as); };
+  var direct = function (signal) { return fetchJsonDirect(url, CONFIG.retries, as, METEO_DIRECT_TIMEOUT_MS, signal); };
+  var server = function (signal) { return fetchJsonDirect(viaServer, CONFIG.retries, as, undefined, signal); };
 
-  if (meteoViaServer()) {
-    return server().catch(function (err) {
-      return direct().catch(function () { throw err; });
-    });
-  }
-  return direct().catch(function (err) {
-    return server().then(function (data) {
-      rememberMeteoViaServer();
-      return data;
-    }, function () { throw err; });   // не помог и сервер — показываем исходную причину
-  });
+  if (meteoViaServer()) return hedgeFetch(server, direct, HEDGE_MS);
+  // Напрямую не прошло, а через сервер — да: сутки начинаем с сервера.
+  return hedgeFetch(direct, server, HEDGE_MS, rememberMeteoViaServer);
 }
 
-/** timeoutMs — своё ожидание вместо CONFIG.timeoutMs; attempt = CONFIG.retries — без повтора. */
-function fetchJsonDirect(url, attempt, as, timeoutMs) {
+/**
+ * timeoutMs — своё ожидание вместо CONFIG.timeoutMs; attempt = CONFIG.retries — без повтора.
+ * outer — сигнал отмены снаружи (страхующий запрос отменяет проигравшего).
+ */
+function fetchJsonDirect(url, attempt, as, timeoutMs, outer) {
   attempt = attempt || 0;
 
   var ctrl = new AbortController();
   var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || CONFIG.timeoutMs);
+  if (outer) {
+    if (outer.aborted) ctrl.abort();
+    else outer.addEventListener('abort', function () { ctrl.abort(); });
+  }
 
   // cache: 'no-store' — чтобы браузер не отдал вчерашний Kp из кэша
   return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
@@ -312,9 +361,10 @@ function fetchJsonDirect(url, attempt, as, timeoutMs) {
     })
     .catch(function (err) {
       if (err && err.code === 'rate_limit') throw err;
+      if (outer && outer.aborted) throw appError('timeout');   // отменили снаружи — не повторяем
       if (attempt < CONFIG.retries) {
         return new Promise(function (resolve) { setTimeout(resolve, 900); })
-          .then(function () { return fetchJsonDirect(url, attempt + 1, as); });
+          .then(function () { return fetchJsonDirect(url, attempt + 1, as, timeoutMs, outer); });
       }
       if (err.name === 'AbortError') throw appError('timeout');
       // По имени, а не instanceof: тот же довод, что в pushErrorText — ошибка может прийти из другого окружения.

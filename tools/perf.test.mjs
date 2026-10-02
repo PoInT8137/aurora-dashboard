@@ -63,6 +63,63 @@ test('смена вкладки — появление только прозра
   assert.doesNotMatch(/@keyframes tab-in \{[^}]*\}/.exec(css)[0], /transform/);
 });
 
+function hedgeCtx() {
+  const src = read('js/base.js');
+  const code = /function hedgeFetch\([^)]*\) \{[\s\S]*?\n\}/.exec(src)[0];
+  const ctx = { setTimeout, clearTimeout, AbortController, Promise };
+  vm.runInNewContext(code, ctx);
+  return ctx;
+}
+const later = (ms, value, fail) => signal => new Promise((resolve, reject) => {
+  const t = setTimeout(() => (fail ? reject(new Error(value)) : resolve(value)), ms);
+  signal.addEventListener('abort', () => { clearTimeout(t); reject(new Error('aborted')); });
+});
+
+test('страхующий запрос: быстрый основной — запасной не запускается', async () => {
+  const { hedgeFetch } = hedgeCtx();
+  let second = 0;
+  const data = await hedgeFetch(later(10, 'main'), s => { second++; return later(10, 'backup')(s); }, 200);
+  assert.equal(data, 'main');
+  await new Promise(r => setTimeout(r, 250));
+  assert.equal(second, 0);
+});
+
+test('страхующий запрос: основной висит — через паузу запасной, побеждает первый ответ, висящий отменяется', async () => {
+  const { hedgeFetch } = hedgeCtx();
+  let aborted = false, won = false;
+  const hang = signal => new Promise((_, reject) => signal.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); }));
+  const t0 = Date.now();
+  const data = await hedgeFetch(hang, later(10, 'backup'), 50, () => { won = true; });
+  assert.equal(data, 'backup');
+  assert.ok(Date.now() - t0 < 1000, 'не ждём таймаут основного');
+  assert.equal(aborted, true);
+  assert.equal(won, true);
+});
+
+test('страхующий запрос: основной упал сразу — запасной без паузы; упали оба — ошибка основного', async () => {
+  const { hedgeFetch } = hedgeCtx();
+  const t0 = Date.now();
+  assert.equal(await hedgeFetch(later(5, 'down', true), later(5, 'backup'), 5000), 'backup');
+  assert.ok(Date.now() - t0 < 1000);
+  await assert.rejects(hedgeFetch(later(5, 'main down', true), later(5, 'backup down', true), 5000), /main down/);
+});
+
+test('обновление: вердикт не ждёт второстепенного (отметки очевидцев, OVATION); сводка отметок — короткое ожидание без повтора', () => {
+  const page = read('js/page.js');
+  const refresh = /function refreshAll\(\) \{[\s\S]*?\n\}/.exec(page)[0];
+  assert.match(refresh, /var core = \[loadKp\(\), loadCloud\(\), loadForecast\(\), loadSolarWind\(\)\]\.map\(function \(task\) \{\s*return task\.then\(renderDerived, renderDerived\);/);
+  assert.doesNotMatch(/var core = \[[^\]]*\]/.exec(refresh)[0], /loadReports|loadOvation/);
+  const reports = read('js/reports.js');
+  assert.match(reports, /fetchJsonDirect\(AURORA_CONFIG\.pushApi \+ '\/reports', CONFIG\.retries, 'json', REPORTS\.timeoutMs\)/);
+  assert.match(reports, /timeoutMs: 6000/);
+});
+
+test('service worker регистрируется после первого обновления данных, а не одновременно с ним', () => {
+  const app = read('app.js');
+  assert.doesNotMatch(app, /addEventListener\('load', registerServiceWorker\)/);
+  assert.match(app, /state\.refreshing/);
+});
+
 test('автообновление пропускает скрытую вкладку и идёт снова, когда её открыли', () => {
   const src = read('js/settings.js');
   const armRefresh = /function armRefresh\(\) \{[\s\S]*?\n\}/.exec(src)[0];

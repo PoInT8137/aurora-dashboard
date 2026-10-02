@@ -239,7 +239,8 @@ test('вердикт: подсказки о ветре нет, когда она
 
 test('обновление запрашивает и солнечный ветер; кнопка «Повторить» в карточке перезапрашивает его', () => {
   const app = appSource();
-  assert.match(app, /var tasks = \[[^\]]*loadSolarWind\(\)[^\]]*\];/);
+  // среди главных запросов: вердикт пересчитывается, как только он пришёл
+  assert.match(app, /var core = \[[^\]]*loadSolarWind\(\)[^\]]*\]/);
   assert.match(app, /if \(what === 'sw'\)\s+loadSolarWind\(\)\.then\(renderDerived\);/);
   const html = read('index.html');
   assert.equal((html.match(/data-retry="sw"/g) || []).length, 2);

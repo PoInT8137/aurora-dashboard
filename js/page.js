@@ -526,7 +526,18 @@ function refreshAll() {
   markLoading('window-card');
   markLoading('night-card');
 
-  var tasks = [loadKp(), loadCloud(), loadForecast(), loadSolarWind(), loadOvation(false), loadReports(true)];
+  // Главное — Kp, облачность, прогноз и солнечный ветер: вердикт и окно пересчитываются, как
+  // только пришло любое из них. Раньше они ждали всех запросов, включая второстепенные
+  // (отметки очевидцев, OVATION), и при первом заходе карточка «Шанс» висела в загрузке,
+  // пока не ответит самый медленный.
+  var core = [loadKp(), loadCloud(), loadForecast(), loadSolarWind()].map(function (task) {
+    return task.then(renderDerived, renderDerived);
+  });
+  var coreDone = Promise.all(core).then(function () {
+    renderDerived();
+    updateStatus();
+  });
+  var tasks = [coreDone, loadOvation(false), loadReports(true)];
   if (state.tonight) tasks.push(loadTonight());
   // Сетка облаков — 90 точек, для Open-Meteo это 90 обращений: не чаще раза в час (loadCloudGrid
   // сама решает, пора ли) и только на открытой карте. Раньше она перезапрашивалась при каждом
