@@ -3,16 +3,27 @@
 // в api.js и check.js, а здесь только связка с расписанием и HTTP.
 import { handleRequest } from './api.js';
 import { runCheck } from './check.js';
+import { recordWorkerError } from './bugs.js';
 
 export default {
-  fetch(request, env, ctx) {
-    return handleRequest(request, env, ctx);
+  async fetch(request, env, ctx) {
+    try {
+      return await handleRequest(request, env, ctx);
+    } catch (error) {
+      // Непойманный сбой запроса — в журнал ошибок (владелец узнает в Telegram).
+      console.error('запрос не обработан: ' + (error && error.message));
+      ctx.waitUntil(recordWorkerError(env, 'запрос ' + new URL(request.url).pathname, error));
+      return new Response(JSON.stringify({ error: 'internal' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
   },
 
   scheduled(_event, env, ctx) {
     ctx.waitUntil(runCheck(env).then(
       summary => console.log('проверка: ' + JSON.stringify(summary)),
-      error => console.error('проверка не удалась: ' + (error && error.message))
+      error => {
+        console.error('проверка не удалась: ' + (error && error.message));
+        return recordWorkerError(env, 'проверка по расписанию', error);
+      }
     ));
   }
 };

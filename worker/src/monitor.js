@@ -64,14 +64,14 @@ export const PROBES = {
   }
 };
 
-/** Сообщение в Telegram владельцу; без секретов — ничего не делает. Возвращает, отправлено ли. */
-export async function notifyOwner(env, text, fetchFn) {
+/** Сообщение в Telegram владельцу; без секретов — ничего не делает. Возвращает, отправлено ли. extra — кнопки и т. п. */
+export async function notifyOwner(env, text, fetchFn, extra = {}) {
   if (!env.TELEGRAM_TOKEN || !env.TELEGRAM_OWNER_CHAT) return false;
   try {
     const res = await fetchFn('https://api.telegram.org/bot' + env.TELEGRAM_TOKEN + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: env.TELEGRAM_OWNER_CHAT, text, disable_web_page_preview: true }),
+      body: JSON.stringify({ chat_id: env.TELEGRAM_OWNER_CHAT, text, disable_web_page_preview: true, ...extra }),
       signal: AbortSignal.timeout(10000)
     });
     if (!res.ok) {

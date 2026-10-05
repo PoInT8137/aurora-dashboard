@@ -105,3 +105,43 @@ CREATE TABLE IF NOT EXISTS point_state (
   updated    INTEGER NOT NULL,
   mid_since  INTEGER NOT NULL DEFAULT 0 -- мс начала текущего «среднего или выше» (для min_level = mid)
 );
+
+-- Посещения сайта (src/stats.js): один посетитель за сутки — одна строка. Посетитель — HMAC от
+-- адреса, браузера и даты: адрес по нему не восстановить, на следующие сутки он другой. 120 дней.
+CREATE TABLE IF NOT EXISTS visits (
+  day      TEXT NOT NULL,              -- дата по Москве, 2026-10-05
+  who      TEXT NOT NULL,              -- 16 hex HMAC(адрес|браузер|сутки)
+  views    INTEGER NOT NULL DEFAULT 1, -- загрузок страницы за сутки
+  lang     TEXT,                       -- ru | en | zh
+  mobile   INTEGER NOT NULL DEFAULT 0, -- 1 — телефон или планшет
+  pwa      INTEGER NOT NULL DEFAULT 0, -- 1 — открыто как приложение с экрана «Домой»
+  fresh    INTEGER NOT NULL DEFAULT 0, -- 1 — первый визит с этого устройства
+  ref      TEXT,                       -- с какого сайта пришли (только хост)
+  ver      TEXT,                       -- версия сайта, v61
+  first_at INTEGER NOT NULL,
+  last_at  INTEGER NOT NULL,
+  PRIMARY KEY (day, who)
+);
+
+-- Журнал ошибок (src/bugs.js): ошибки страницы, сервера и сообщения посетителей боту /bug.
+-- Одинаковые склеиваются по отпечатку; владелец видит их в боте (/bugs) и закрывает кнопками.
+CREATE TABLE IF NOT EXISTS bugs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  fp          TEXT NOT NULL UNIQUE,     -- отпечаток: вид, текст без чисел, файл, строка
+  kind        TEXT NOT NULL,            -- page | worker | user
+  msg         TEXT NOT NULL,
+  src         TEXT,                     -- файл (js/now.js), место на сервере или tg:<чат> для user
+  line        INTEGER,
+  col         INTEGER,
+  stack       TEXT,
+  ver         TEXT,                     -- версия сайта при последнем появлении (у исправленной — при исправлении)
+  ua          TEXT,                     -- «iOS 17 · Safari 17»
+  page        TEXT,                     -- вкладка (#now)
+  count       INTEGER NOT NULL DEFAULT 1,
+  first_at    INTEGER NOT NULL,
+  last_at     INTEGER NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'open', -- open | fixed | ignored
+  notified_at INTEGER NOT NULL DEFAULT 0    -- мс сообщения владельцу; 0 — ещё не сообщали
+);
+
+CREATE INDEX IF NOT EXISTS bugs_status ON bugs(status, last_at);

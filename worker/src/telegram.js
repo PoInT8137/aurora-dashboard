@@ -11,16 +11,22 @@
 // который выводится из токена бота (отдельный секрет не нужен, подделать без токена нельзя).
 //
 // Хранится только номер чата, точка, язык и настройки — таблица tg_subs.
+//
+// Любой посетитель может написать /bug <что не так> — сообщение попадает в журнал ошибок
+// (src/bugs.js) и владельцу. Владельцу (чат TELEGRAM_OWNER_CHAT) доступны ещё /stats — посещения
+// сайта (src/stats.js) и /bugs — открытые ошибки с кнопками «исправлено» и «не важно».
 
 import '../../core.js';
 import { alertMessage, bzMessage, pointName, normalizeLang, DEFAULT_LANG } from './messages.js';
 import { bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
+import { statsText } from './stats.js';
+import { bugsList, bugDetail, setBugStatus, userBug, recordWorkerError } from './bugs.js';
 
 const Core = globalThis.AuroraCore;
 
 export const SITE = 'https://auroramurmansk.ru/';
 /** Сменить при изменении адреса или набора событий — сервер перерегистрирует webhook. */
-export const WEBHOOK_VERSION = '1';
+export const WEBHOOK_VERSION = '2';
 const COOLDOWN_MS = 3 * 60 * 60 * 1000;
 const MAX_FAILS = 5;
 const RANK = { low: 0, mid: 1, high: 2 };
@@ -37,10 +43,13 @@ const T = {
     stopped: 'Уведомления выключены. Чтобы включить снова — /start.',
     notSubscribed: 'Вы пока не подписаны. Нажмите /start.',
     now: (p, level, ago) => p + ': ' + (level ? LEVEL.ru[level] + ' (проверено ' + ago + ' мин назад)' : 'данных пока нет — проверка раз в 10 минут'),
-    help: 'Команды:\n/now — шанс сейчас\n/settings — точка и настройки\n/stop — выключить уведомления',
+    help: 'Команды:\n/now — шанс сейчас\n/settings — точка и настройки\n/stop — выключить уведомления\n/bug — сообщить об ошибке на сайте',
+    bugAsk: 'Опишите, что не так, одним сообщением после /bug — например:\n/bug на iPhone не открывается карта',
+    bugThanks: 'Спасибо! Передал разработчику.',
+    bugLimit: 'Сообщений сегодня уже много — спасибо! Попробуйте завтра.',
     bPoint: '📍 Точка', bLevelMid: 'Сообщать и о среднем', bLevelHigh: 'Только о высоком', bBzOn: 'Ранний сигнал: вкл', bBzOff: 'Ранний сигнал: выкл',
     bStop: '🔕 Отписаться', bNow: '🌌 Шанс сейчас', bSite: 'Открыть сайт',
-    commands: [['now', 'Шанс увидеть сияние сейчас'], ['settings', 'Точка и настройки'], ['stop', 'Выключить уведомления']]
+    commands: [['now', 'Шанс увидеть сияние сейчас'], ['settings', 'Точка и настройки'], ['stop', 'Выключить уведомления'], ['bug', 'Сообщить об ошибке на сайте']]
   },
   en: {
     hello: 'Hi! I will let you know when there is a good chance to see the northern lights at your chosen location in the Murmansk Region.\n\nChoose a location:',
@@ -50,10 +59,13 @@ const T = {
     stopped: 'Notifications are off. To turn them back on — /start.',
     notSubscribed: 'You are not subscribed yet. Tap /start.',
     now: (p, level, ago) => p + ': ' + (level ? LEVEL.en[level] + ' (checked ' + ago + ' min ago)' : 'no data yet — checked every 10 minutes'),
-    help: 'Commands:\n/now — chance right now\n/settings — location and settings\n/stop — turn notifications off',
+    help: 'Commands:\n/now — chance right now\n/settings — location and settings\n/stop — turn notifications off\n/bug — report a problem with the site',
+    bugAsk: 'Describe the problem in one message after /bug, for example:\n/bug the map does not open on my iPhone',
+    bugThanks: 'Thank you! I have passed it on to the developer.',
+    bugLimit: 'That is a lot of reports for today — thank you! Please try again tomorrow.',
     bPoint: '📍 Location', bLevelMid: 'Also moderate', bLevelHigh: 'High only', bBzOn: 'Early signal: on', bBzOff: 'Early signal: off',
     bStop: '🔕 Unsubscribe', bNow: '🌌 Chance now', bSite: 'Open the site',
-    commands: [['now', 'Chance to see the aurora now'], ['settings', 'Location and settings'], ['stop', 'Turn notifications off']]
+    commands: [['now', 'Chance to see the aurora now'], ['settings', 'Location and settings'], ['stop', 'Turn notifications off'], ['bug', 'Report a problem with the site']]
   },
   zh: {
     hello: '您好！当您选择的摩尔曼斯克州地点很有机会看到北极光时，我会通知您。\n\n请选择地点：',
@@ -63,10 +75,13 @@ const T = {
     stopped: '通知已关闭。要重新开启——/start。',
     notSubscribed: '您尚未订阅。请点按 /start。',
     now: (p, level, ago) => p + '：' + (level ? LEVEL.zh[level] + '（' + ago + ' 分钟前检查）' : '暂无数据——每 10 分钟检查一次'),
-    help: '命令：\n/now — 当前机会\n/settings — 地点和设置\n/stop — 关闭通知',
+    help: '命令：\n/now — 当前机会\n/settings — 地点和设置\n/stop — 关闭通知\n/bug — 报告网站问题',
+    bugAsk: '请在 /bug 后用一条消息描述问题，例如：\n/bug 在 iPhone 上地图打不开',
+    bugThanks: '谢谢！已转告开发者。',
+    bugLimit: '今天的报告已经很多了——谢谢！请明天再试。',
     bPoint: '📍 地点', bLevelMid: '中等也通知', bLevelHigh: '仅机会大', bBzOn: '提前提醒：开', bBzOff: '提前提醒：关',
     bStop: '🔕 取消订阅', bNow: '🌌 当前机会', bSite: '打开网站',
-    commands: [['now', '当前看到极光的机会'], ['settings', '地点和设置'], ['stop', '关闭通知']]
+    commands: [['now', '当前看到极光的机会'], ['settings', '地点和设置'], ['stop', '关闭通知'], ['bug', '报告网站问题']]
   }
 };
 const LEVEL = {
@@ -102,6 +117,9 @@ export async function webhookSecret(token) {
   return [...new Uint8Array(mac)].slice(0, 24).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Команды, которые видит в меню только владелец. */
+const OWNER_COMMANDS = [['stats', 'Посещения сайта'], ['bugs', 'Открытые ошибки']];
+
 async function metaGet(env, key) {
   const row = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind(key).first();
   return row ? row.value : null;
@@ -134,6 +152,12 @@ export async function ensureTelegram(env, fetchFn) {
     await tgCall(env, 'setMyCommands', {
       commands: T[lang].commands.map(([command, description]) => ({ command, description })),
       ...(lang === 'en' ? {} : { language_code: lang })
+    }, fetchFn);
+  }
+  if (env.TELEGRAM_OWNER_CHAT) {
+    await tgCall(env, 'setMyCommands', {
+      commands: [...T.ru.commands, ...OWNER_COMMANDS].map(([command, description]) => ({ command, description })),
+      scope: { type: 'chat', chat_id: Number(env.TELEGRAM_OWNER_CHAT) || env.TELEGRAM_OWNER_CHAT }
     }, fetchFn);
   }
   await metaSet(env, 'tg_webhook', WEBHOOK_VERSION);
@@ -196,6 +220,17 @@ export async function telegramReply(env, update, nowMs) {
   const lang = sub ? sub.lang : tgLang(from.language_code);
   const t = T[lang];
   const send = (text, extra = {}) => ({ method: 'sendMessage', body: { chat_id: chat.id, text, disable_web_page_preview: true, ...extra } });
+  const owner = Boolean(env.TELEGRAM_OWNER_CHAT) && chatId === String(env.TELEGRAM_OWNER_CHAT);
+
+  if (cb && owner && /^bug:[dfio]:\d+$/.test(String(cb.data))) {
+    const [, action, id] = cb.data.split(':');
+    if (action === 'd') {
+      const d = await bugDetail(env, Number(id), nowMs);
+      return [{ method: 'answerCallbackQuery', body: { callback_query_id: cb.id } }, send(d.text, d.reply_markup ? { reply_markup: d.reply_markup } : {})];
+    }
+    const done = await setBugStatus(env, Number(id), action);
+    return [{ method: 'answerCallbackQuery', body: { callback_query_id: cb.id, text: done } }, send(done)];
+  }
 
   if (cb) {
     const out = [{ method: 'answerCallbackQuery', body: { callback_query_id: cb.id } }];
@@ -227,6 +262,18 @@ export async function telegramReply(env, update, nowMs) {
   const text = String((msg && msg.text) || '').trim();
   const [command, arg] = text.split(/\s+/);
   const cmd = command ? command.replace(/@.*$/, '').toLowerCase() : '';
+
+  if (owner && cmd === '/stats') return [send(await statsText(env, nowMs))];
+  if (owner && cmd === '/bugs') {
+    const list = await bugsList(env, nowMs);
+    return [send(list.text, list.reply_markup ? { reply_markup: list.reply_markup } : {})];
+  }
+  if (cmd === '/bug') {
+    // Отдельно от подписки: сообщить об ошибке может любой, кто написал боту.
+    const about = text.slice(command.length).trim();
+    const r = await userBug(env, chatId, about, lang, nowMs);
+    return [send(r === 'ok' ? t.bugThanks : r === 'limit' ? t.bugLimit : t.bugAsk)];
+  }
 
   if (cmd === '/start') {
     // Ссылка с сайта: t.me/<бот>?start=<точка> — сразу подписка на эту точку.
@@ -262,6 +309,7 @@ export async function handleTelegram(request, env, nowMs, fetchFn) {
   } catch (e) {
     // Telegram повторяет запрос при ошибке — отвечаем 200, чтобы не зациклиться; причина — в журнал.
     console.error('telegram: ' + (e && e.message));
+    await recordWorkerError(env, 'бот', e, nowMs);
   }
   return new Response('ok', { status: 200 });
 }

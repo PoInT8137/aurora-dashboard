@@ -11,7 +11,9 @@ import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_C
 import { purgeReports } from './reports.js';
 import { optionAlerts } from './options.js';
 import { verifyStep } from './verify.js';
-import { monitorStep } from './monitor.js';
+import { monitorStep, notifyOwner } from './monitor.js';
+import { bugNotifyStep } from './bugs.js';
+import { dailyDigest } from './stats.js';
 import { ensureTelegram, telegramAlerts } from './telegram.js';
 
 export { alertMessage };
@@ -138,6 +140,12 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
     const watch = await monitorStep(env, nowMs, fetchFn);
     if (watch.problems.length) console.log('мониторинг: ' + watch.problems.join(', '));
   } catch (e) { console.error('мониторинг не выполнен: ' + (e && e.message)); }
+  // Журнал ошибок: о новых — владельцу одним сообщением; утром — сводка посещений за вчера.
+  try {
+    const bugs = await bugNotifyStep(env, nowMs, (text, markup) => notifyOwner(env, text, fetchFn, markup ? { reply_markup: markup } : {}));
+    if (bugs) console.log('ошибки: владельцу сообщено о ' + bugs);
+    if (await dailyDigest(env, nowMs, text => notifyOwner(env, text, fetchFn))) console.log('утренняя сводка отправлена');
+  } catch (e) { console.error('журнал ошибок и сводка: ' + (e && e.message)); }
 
   let summary;
   try {
