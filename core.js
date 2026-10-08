@@ -152,7 +152,7 @@ function meanBz(series, minutes) {
  * Поминутный ряд магнитного поля NOAA RTSW (json/rtsw/rtsw_mag_1m.json) в сводку.
  * В файле сутки данных от нескольких спутников, новые сверху; основной поток помечен active.
  * Возвращает null, если свежих данных нет, иначе
- * { time, bz, bt, level, southMinutes, series: [{ time (мс), bz }] за два часа }.
+ * { time, bz, bt, level, southMinutes, mean60, series: [{ time (мс), bz }] за два часа }.
  * level: strong — Bz в среднем ≤ −10 нТл за 15 минут; south — ≤ −5 за 20 минут;
  * weak — сейчас южный, но слабо или недолго; north — северный.
  */
@@ -214,6 +214,8 @@ function solarWindSummary(rows, nowMs) {
     bt: bt === null ? null : Math.round(bt * 10) / 10,
     level: level,
     southMinutes: southMinutes,
+    // средний Bz за час: долго южное, пусть и слабо, поле копит энергию для суббури
+    mean60: Math.round(meanBz(series, 60) * 10) / 10,
     source: chosen.source,
     fallback: !chosen.active,   // основной спутник молчит — показаны данные запасного
     series: series.map(function (p) { return { time: p.time, bz: p.bz }; })
@@ -513,13 +515,49 @@ function pickKpValue(row) {
   return NaN;
 }
 
-/** Последнее измерение ряда. */
+/**
+ * Последнее измерение ряда и максимум за последний час (hourMax): поминутный Kp быстро
+ * «остывает» после всплеска, а сияние от суббури ещё светит.
+ */
 function readKpSeries(data) {
   var rows = normalizeRows(data);
   var last = rows[rows.length - 1];
   var value = pickKpValue(last);
   if (!isFinite(value)) throw codedError('bad_kp', 'invalid Kp value');
-  return { value: value, time: parseUtc(last.time_tag) };
+  var time = parseUtc(last.time_tag);
+  var hourMax = value;
+  if (time) {
+    for (var i = rows.length - 2; i >= 0; i--) {
+      var t = parseUtc(rows[i].time_tag);
+      if (!t || time.getTime() - t.getTime() > 60 * 60000) break;
+      var v = pickKpValue(rows[i]);
+      if (isFinite(v) && v > hourMax) hourMax = v;
+    }
+  }
+  return { value: value, time: time, hourMax: hourMax };
+}
+
+/**
+ * Индекс Hp30 (GFZ Потсдам, через сервер: /noaa/hp30) — тот же Kp, но за полчаса, а не за три
+ * часа: короткую суббурю он видит, а трёхчасовой Kp её «размазывает». Ответ сервера —
+ * [[время ISO, значение], …]; возвращает максимум за последний час, если данные свежие
+ * (последнее значение не старше 90 минут), иначе null.
+ */
+function hp30Recent(rows, nowMs) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  var lastTime = 0, best = null;
+  rows.forEach(function (r) {
+    var t = Array.isArray(r) ? parseUtc(r[0]) : null;
+    if (t && t.getTime() > lastTime) lastTime = t.getTime();
+  });
+  if (!lastTime || nowMs - lastTime > 90 * 60000) return null;
+  rows.forEach(function (r) {
+    var t = Array.isArray(r) ? parseUtc(r[0]) : null;
+    var v = Array.isArray(r) ? num(r[1]) : null;
+    if (!t || v === null || lastTime - t.getTime() > 30 * 60000) return;   // два последних получаса
+    if (best === null || v > best) best = v;
+  });
+  return best;
 }
 
 /** Число из ответа API или null. */
@@ -589,15 +627,78 @@ function kpScoreAt(kp, point) {
   return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Активность: Kp и быстрые признаки суббури                         */
+/*                                                                     */
+/*  Kp — планетарный индекс со станций средних широт, усреднённый за    */
+/*  три часа. Мурманск стоит почти под овалом (геомагнитная широта      */
+/*  64,9°): местная суббуря даёт яркое сияние над головой, пока Kp      */
+/*  показывает 1–2 (8.10.2026 так и было: сияние яркое, Kp 0,7, сайт —  */
+/*  «низкий»). Поэтому балл активности — лучший из нескольких           */
+/*  признаков: Kp сейчас и максимум за час, получасовой Hp30, OVATION    */
+/*  в поле зрения точки и южный Bz солнечного ветра.                    */
+/* ------------------------------------------------------------------ */
+
+/** Kp ниже порога «заметно» не больше чем на столько — ещё «возможно у северного горизонта». */
+var KP_NEAR = 0.5;
+/** OVATION, % в поле зрения точки → балл 1, 2, 3 — пороги NOAA, как у карточки OVATION на сайте
+    (ovationLevel в js/now.js). Спокойной ночью над Мурманском ~20%: «возможно». */
+var OVATION_ACTIVITY = [10, 30, 50];
+/** Bz «копит энергию»: в среднем за час не севернее −2 нТл — суббуря вероятна. */
+var BZ_LOADING_MEAN = -2;
+
+/** Балл за Kp с поправкой «рядом с порогом». */
+function kpActivityScore(kp, point) {
+  var score = kpScoreAt(kp, point);
+  if (score === 0 && kp >= kpThresholds(point).low - KP_NEAR) score = 1;
+  return score;
+}
+
+/**
+ * Балл активности 0..3 и по какому признаку он получен.
+ *   a.kp, a.kpHour — Kp сейчас и максимум за час; a.hp30 — Hp30 за последний час;
+ *   a.ovation — OVATION, % в поле зрения; a.bz — 'strong' | 'south' | 'loading' | null.
+ * Любое поле может отсутствовать. Возвращает { score, by } или null, если не известно ничего;
+ * by — 'kp' | 'hp30' | 'ovation' | 'bz' (при равенстве — первый по порядку, обычно Kp).
+ */
+function activityScore(a, point) {
+  a = a || {};
+  var best = null, by = null;
+  function consider(score, source) {
+    if (best === null || score > best) { best = score; by = source; }
+  }
+  [['kp', a.kp], ['kp', a.kpHour], ['hp30', a.hp30]].forEach(function (k) {
+    var v = num(k[1]);
+    if (v !== null) consider(kpActivityScore(v, point), k[0]);
+  });
+  var ov = num(a.ovation);
+  if (ov !== null) {
+    consider(ov >= OVATION_ACTIVITY[2] ? 3 : ov >= OVATION_ACTIVITY[1] ? 2 : ov >= OVATION_ACTIVITY[0] ? 1 : 0, 'ovation');
+  }
+  if (a.bz === 'strong') consider(3, 'bz');
+  else if (a.bz === 'south' || a.bz === 'loading') consider(2, 'bz');
+  return best === null ? null : { score: best, by: by };
+}
+
+/** Признак Bz для activityScore из сводки solarWindSummary. */
+function bzActivity(sw) {
+  if (!sw) return null;
+  if (sw.level === 'strong' || sw.level === 'south') return sw.level;
+  return sw.mean60 !== null && sw.mean60 !== undefined && sw.mean60 <= BZ_LOADING_MEAN ? 'loading' : null;
+}
+
 /**
  * Уровень вердикта: 'high' | 'mid' | 'low'.
  *
- * ks и cs — баллы за Kp и облачность (0..3) либо null, если данных нет. Если
+ * ks и cs — баллы за активность и облачность (0..3) либо null, если данных нет. Если
  * известен только один фактор, считаем по нему и выше среднего не поднимаемся.
  * alt — высота Солнца: при светлом небе сияние не различить ни при каком Kp,
  * а в неполной темноте высокий уровень не ставим.
+ * seen — сколько человек рядом отметили «Вижу сияние» за последний час: если в темноте
+ * сияние видят своими глазами, шанс не ниже среднего, что бы ни говорили индексы и модель
+ * облаков (облака могли разойтись).
  */
-function verdictLevel(ks, cs, alt) {
+function verdictLevel(ks, cs, alt, seen) {
   var level;
 
   if (ks === null || cs === null) {
@@ -608,8 +709,9 @@ function verdictLevel(ks, cs, alt) {
     level = product >= 6 ? 'high' : (product >= 2 ? 'mid' : 'low');
   }
 
-  if (alt > DARK_USABLE) level = 'low';
-  else if (alt > DARK_FULL && level === 'high') level = 'mid';
+  if (alt > DARK_USABLE) return 'low';
+  if (alt > DARK_FULL && level === 'high') level = 'mid';
+  if (seen > 0 && level === 'low') level = 'mid';
 
   return level;
 }
@@ -618,19 +720,23 @@ function verdictLevel(ks, cs, alt) {
  * Уровень для сервера уведомлений: те же баллы и те же правила, что у
  * computeVerdict на сайте, но без текстов и без обращения к DOM.
  *
- *   kpValue — текущее Kp или null;
- *   cloud   — { value, conflict } из cloudFromCurrent или null;
- *   date    — момент, для которого считаем высоту Солнца.
+ *   activity — признаки для activityScore ({ kp, kpHour, hp30, ovation, bz }) или просто
+ *              текущее Kp числом; null — активность неизвестна;
+ *   cloud    — { value, conflict } из cloudFromCurrent или null;
+ *   date     — момент, для которого считаем высоту Солнца;
+ *   seen     — отметки «Вижу сияние» у точки за последний час (необязательно).
  *
- * Возвращает null, если не из чего считать, иначе { level, ks, cs, alt }.
+ * Возвращает null, если не из чего считать, иначе { level, ks, cs, alt, by }.
  */
-function quickLevel(kpValue, cloud, point, date) {
-  var ks = kpValue !== null ? kpScoreAt(kpValue, point) : null;
+function quickLevel(activity, cloud, point, date, seen) {
+  var input = typeof activity === 'number' ? { kp: activity } : activity;
+  var act = input ? activityScore(input, point) : null;
+  var ks = act ? act.score : null;
   var cs = cloud ? cloudScore(cloud.value, cloud.conflict) : null;
   if (ks === null && cs === null) return null;
 
   var alt = solarAltitude(date, point.lat, point.lon);
-  return { level: verdictLevel(ks, cs, alt), ks: ks, cs: cs, alt: alt };
+  return { level: verdictLevel(ks, cs, alt, seen || 0), ks: ks, cs: cs, alt: alt, by: act ? act.by : null };
 }
 
 /**
@@ -956,6 +1062,12 @@ globalThis.AuroraCore = {
   solarAltitude: solarAltitude,
   kpThresholds: kpThresholds,
   kpScoreAt: kpScoreAt,
+  kpActivityScore: kpActivityScore,
+  activityScore: activityScore,
+  bzActivity: bzActivity,
+  hp30Recent: hp30Recent,
+  KP_NEAR: KP_NEAR,
+  OVATION_ACTIVITY: OVATION_ACTIVITY,
   cloudScore: cloudScore,
   normalizeRows: normalizeRows,
   pickKpValue: pickKpValue,

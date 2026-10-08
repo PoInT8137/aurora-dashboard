@@ -105,9 +105,55 @@ function darkScore(alt) {
  * Дополнительно учитывается высота Солнца: в полярный день сияние не видно
  * ни при каком Kp, поэтому светлое небо опускает вердикт.
  */
+/**
+ * Признаки активности для activityScore (core.js): Kp сейчас и за час, Hp30, OVATION в поле
+ * зрения выбранной точки, южный Bz. Устаревшие (сохранённые больше часа назад) не берём.
+ */
+function activityInput(kp) {
+  var point = currentPoint();
+  var ovPoint = state.ov && !(state.ov.stale > 60 * 60000) && state.ov.points && state.ov.points[point.id];
+  var sw = state.sw && !state.sw.stale ? state.sw : null;
+  return {
+    kp: kp ? kp.value : null,
+    kpHour: kp && !kp.stale ? kp.hourMax : null,
+    hp30: state.hp30 ? state.hp30.value : null,
+    ovation: ovPoint ? ovPoint.view : null,
+    bz: bzActivity(sw)
+  };
+}
+
+/**
+ * Получасовой индекс Hp30 (GFZ) — только через наш сервер: GFZ не пускает браузер напрямую.
+ * Это добавка к вердикту, а не отдельная карточка: не пришёл — считаем без него.
+ */
+var HP30_TIMEOUT_MS = 6000;
+
+function loadHp30() {
+  if (typeof pushConfigured !== 'function' || !pushConfigured()) return Promise.resolve(null);
+  return fetchJsonDirect(AURORA_CONFIG.pushApi + '/noaa/hp30', CONFIG.retries, 'json', HP30_TIMEOUT_MS)
+    .then(function (rows) {
+      var value = hp30Recent(rows, Date.now());
+      state.hp30 = value === null ? null : { value: value };
+      return state.hp30;
+    })
+    .catch(function () {
+      state.hp30 = null;
+      return null;
+    });
+}
+
+/** Сколько человек у точки (или у ближайшей точки области для своего места) отметили сияние за час. */
+function sightingsNow() {
+  var r = state.reports;
+  var p = r && !r.error && r.data && r.data.points && r.data.points[pushPoint().id];
+  return p ? p.count : 0;
+}
+
 function computeVerdict(kp, cloud) {
-  var ks = kp !== null ? kpScore(kp.value, currentPoint()) : null;
+  var act = activityScore(activityInput(kp), currentPoint());
+  var ks = act ? act.score : null;
   var cs = cloud !== null ? cloudScore(cloud.value, cloud.conflict) : null;
+  var seen = sightingsNow();
 
   if (ks === null && cs === null) return null; // считать не из чего
 
@@ -116,13 +162,21 @@ function computeVerdict(kp, cloud) {
   var kinds = [];   // вид каждого условия — для значка в карточке, в том же порядке
   var add = function (kind, text) { factors.push(text); kinds.push(kind); };
 
-  add('kp', ks !== null ? t('verdict.f.kp', { v: fmtKp(kp.value) }) : t('verdict.f.kp_none'));
+  // Kp за час заметно выше текущего — показываем оба: балл мог быть поставлен по часовому максимуму.
+  var kpHour = kp && !kp.stale && kp.hourMax > kp.value + 0.3 ? kp.hourMax : null;
+  add('kp', kp === null ? t('verdict.f.kp_none')
+    : kpHour !== null ? t('verdict.f.kp_hour', { v: fmtKp(kp.value), max: fmtKp(kpHour) })
+    : t('verdict.f.kp', { v: fmtKp(kp.value) }));
+  // Активность подняли не по Kp — показываем, по какому признаку: иначе «Kp 0,7» и «средний» спорят.
+  if (act && act.by === 'hp30') add('kp', t('verdict.f.hp30', { v: fmtKp(state.hp30.value) }));
+  if (act && act.by === 'ovation') add('kp', t('verdict.f.ovation', { v: activityInput(kp).ovation }));
+  if (act && act.by === 'bz') add('kp', t('verdict.f.bz'));
   add('cloud', cs !== null ? t('verdict.f.cloud', { v: cloud.value }) : t('verdict.f.cloud_none'));
   if (cloud && cloud.conflict) add('cloud', t('verdict.f.conflict'));
 
   var point = currentPoint();
   var alt = solarAltitude(new Date(), point.lat, point.lon);
-  var level = verdictLevel(ks, cs, alt);
+  var level = verdictLevel(ks, cs, alt, seen);
   var tooLight = alt > DARK_USABLE;
 
   // Освещённость неба
@@ -141,6 +195,10 @@ function computeVerdict(kp, cloud) {
     hint = t('verdict.hint.mid');
   } else if (tooLight) {
     hint = t('verdict.hint.too_light');
+  } else if (cs === 0 && ks >= 2) {
+    // Активность есть, а модель облаков говорит «сплошь»: прогноз облаков часто ошибается, и в
+    // разрывах сияние видно — так и говорим, а не просто «облачно».
+    hint = t('verdict.hint.cloudy_active');
   } else if (cs === 0) {
     hint = t('verdict.hint.cloudy');
   } else if (ks === 0) {
@@ -180,6 +238,8 @@ function computeVerdict(kp, cloud) {
   }
 
   if (partial) hint += gap + t('verdict.hint.partial');
+  // Очевидцы рядом видят сияние: это сильнее любой модели — говорим первым делом.
+  if (seen > 0 && !tooLight) hint = t('verdict.hint.seen', { n: seen }) + gap + hint;
 
   return {
     level: level,
@@ -519,9 +579,10 @@ function loadOvation(force) {
 
 /** Уровень по вероятности в поле зрения: пороги как у NOAA на карте «вероятности сияния». */
 function ovationLevel(view) {
-  if (view >= 50) return 'high';
-  if (view >= 30) return 'mid';
-  if (view >= 10) return 'low';
+  // Пороги общие с баллом активности вердикта (OVATION_ACTIVITY в core.js).
+  if (view >= OVATION_ACTIVITY[2]) return 'high';
+  if (view >= OVATION_ACTIVITY[1]) return 'mid';
+  if (view >= OVATION_ACTIVITY[0]) return 'low';
   return 'none';
 }
 

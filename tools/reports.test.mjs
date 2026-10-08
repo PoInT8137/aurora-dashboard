@@ -147,7 +147,7 @@ test('сводка кэшируется на 2 минуты; «Обновить�
   assert.equal(calls.filter(c => c.url.endsWith('/reports')).length, 1);
   await ctx.loadReports(true);
   assert.equal(calls.filter(c => c.url.endsWith('/reports')).length, 2);
-  assert.match(read('js/page.js'), /loadReports\(true\)\]/, 'входит в общее обновление');
+  assert.match(read('js/page.js'), /loadReports\(true\)\.then\(renderDerived\)/, 'входит в общее обновление и пересчитывает вердикт');
 });
 
 test('разметка: карточка скрыта до проверки сервера, выбор силы — группа кнопок, файл в оболочке', () => {

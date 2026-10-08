@@ -107,7 +107,7 @@ test('страхующий запрос: основной упал сразу �
 test('обновление: вердикт не ждёт второстепенного (отметки очевидцев, OVATION); сводка отметок — короткое ожидание без повтора', () => {
   const page = read('js/page.js');
   const refresh = /function refreshAll\(\) \{[\s\S]*?\n\}/.exec(page)[0];
-  assert.match(refresh, /var core = \[loadKp\(\), loadCloud\(\), loadForecast\(\), loadSolarWind\(\)\]\.map\(function \(task\) \{\s*return task\.then\(renderDerived, renderDerived\);/);
+  assert.match(refresh, /var core = \[loadKp\(\), loadCloud\(\), loadForecast\(\), loadSolarWind\(\), loadHp30\(\)\]\.map\(function \(task\) \{\s*return task\.then\(renderDerived, renderDerived\);/);
   assert.doesNotMatch(/var core = \[[^\]]*\]/.exec(refresh)[0], /loadReports|loadOvation/);
   const reports = read('js/reports.js');
   assert.match(reports, /fetchJsonDirect\(AURORA_CONFIG\.pushApi \+ '\/reports', CONFIG\.retries, 'json', REPORTS\.timeoutMs\)/);
