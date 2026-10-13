@@ -88,4 +88,19 @@ function registerServiceWorker() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-window.addEventListener('load', registerServiceWorker);
+
+/* Service worker при установке заново скачивает все файлы оболочки. При первом заходе на
+   медленной сети это отбирало канал у данных — регистрируем, когда первое обновление данных
+   закончилось (но не позже чем через 15 секунд). */
+window.addEventListener('load', function () {
+  var registered = false;
+  var go = function () {
+    if (registered) return;
+    registered = true;
+    registerServiceWorker();
+  };
+  var first = (typeof state !== 'undefined' && state.refreshing) || null;
+  if (first) first.then(go, go);
+  else go();
+  setTimeout(go, 15000);
+});

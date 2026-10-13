@@ -16,7 +16,8 @@
 
 var REPORTS = {
   intervalMs: 30 * 60 * 1000,   // как на сервере (REPORT_INTERVAL_MS)
-  refreshMs: 2 * 60 * 1000      // сводку — не чаще раза в 2 минуты: сервер и так кэширует минуту
+  refreshMs: 2 * 60 * 1000,     // сводку — не чаще раза в 2 минуты: сервер и так кэширует минуту
+  timeoutMs: 6000               // ожидание сводки
 };
 
 function reportsEnabled() {
@@ -30,7 +31,9 @@ function loadReports(force) {
     renderReports();
     return Promise.resolve(state.reports);
   }
-  return fetchJson(AURORA_CONFIG.pushApi + '/reports')
+  // Сводка второстепенная: ждём недолго и без повтора — подвисший сервер не должен держать
+  // обновление (раньше — до 25 секунд при обычном ожидании с повтором).
+  return fetchJsonDirect(AURORA_CONFIG.pushApi + '/reports', CONFIG.retries, 'json', REPORTS.timeoutMs)
     .then(function (data) {
       if (!data || typeof data.points !== 'object' || data.points === null) throw appError('bad_format');
       state.reports = { data: data, loadedAt: Date.now(), error: false };

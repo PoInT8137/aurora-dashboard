@@ -3,11 +3,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleRequest } from '../src/api.js';
-import { trimRtsw, trimOvation, clearNoaaCache, SOURCES, STALE_KEEP_MS, REVALIDATE_MS } from '../src/noaa.js';
+import { trimRtsw, trimOvation, trimHp30, hp30Url, clearNoaaCache, SOURCES, STALE_KEEP_MS, REVALIDATE_MS } from '../src/noaa.js';
 import '../../core.js';
 import { makeEnv, apiRequest, fakeCtx, NIGHT, MIN, ORIGIN } from './helpers.mjs';
 
 const Core = globalThis.AuroraCore;
+
+test('Hp30 (GFZ): адрес за последние 6 часов, ответ — компактный ряд [время, значение], который понимает ядро', () => {
+  const url = hp30Url(Date.parse('2026-10-07T19:00:00Z'));
+  assert.equal(url, 'https://kp.gfz.de/app/json/?start=2026-10-07T13:00:00Z&end=2026-10-07T19:30:00Z&index=Hp30');
+  const gfz = JSON.stringify({ datetime: ['2026-10-07T17:30:00Z', '2026-10-07T18:00:00Z', '2026-10-07T18:30:00Z'], Hp30: [4, 4, null], status: ['nowcast', 'nowcast', 'nowcast'] });
+  const rows = JSON.parse(trimHp30(gfz));
+  assert.deepEqual(rows, [['2026-10-07T17:30:00Z', 4], ['2026-10-07T18:00:00Z', 4]], 'пустые значения выброшены');
+  assert.equal(Core.hp30Recent(rows, Date.parse('2026-10-07T18:40:00Z')), 4);
+  assert.throws(() => trimHp30('{"datetime":[],"Hp30":[]}'));
+  assert.equal(typeof SOURCES.hp30.url, 'function');
+});
+
+test('/noaa/hp30 ходит к GFZ, а не к NOAA', async () => {
+  clearNoaaCache();
+  const { env } = await makeEnv();
+  const calls = [];
+  const fetchFn = async url => { calls.push(String(url)); return new Response(JSON.stringify({ datetime: ['2026-10-07T18:00:00Z'], Hp30: [2.333] })); };
+  const res = await handleRequest(apiRequest('/noaa/hp30', null, { method: 'GET' }), env, fakeCtx(), NIGHT, fetchFn);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), [['2026-10-07T18:00:00Z', 2.333]]);
+  assert.match(calls[0], /^https:\/\/kp\.gfz\.de\/app\/json\/\?start=/);
+});
 
 /** Ряд RTSW как у NOAA: новые сверху, три спутника вперемешку, лишние поля, сутки данных. */
 function rtswText(now) {

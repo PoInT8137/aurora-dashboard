@@ -140,6 +140,22 @@ npx wrangler secret put TELEGRAM_OWNER_CHAT   # ваш числовой id в Te
 npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS monitor (source TEXT PRIMARY KEY, down_since INTEGER NOT NULL, notified_at INTEGER NOT NULL DEFAULT 0, detail TEXT)"
 ```
 
+### Статистика посещений и журнал ошибок (владельцу в боте)
+
+Страница подключает `track.js` сразу после `config.js`.
+
+- **Посещения** (`POST /hit`, `src/stats.js`): раз за загрузку, через 3 секунды после неё — язык, телефон или компьютер, открыто ли как приложение, первый ли визит с устройства, хост сайта, с которого пришли. Без cookies и идентификаторов: посетитель за сутки — HMAC от адреса, браузера и даты (адрес не хранится, на следующие сутки отпечаток другой). Таблица `visits`, хранится 120 дней. Считаются только визиты с `https://auroramurmansk.ru` — локальная разработка статистику не портит.
+- **Ошибки** (`POST /bug`, `src/bugs.js`): необработанные ошибки страницы (не больше 5 за загрузку, без ошибок расширений и сетевых сбоев), сбои самого сервера (проход по расписанию, запрос, webhook бота) и сообщения посетителей боту `/bug <что не так>` (не больше 5 в сутки с чата). Одинаковые склеиваются по отпечатку (текст без чисел, файл, строка) со счётчиком. Таблица `bugs`.
+- **Владельцу** (чат `TELEGRAM_OWNER_CHAT`; в меню команд — только у него): `/stats` — сегодня, вчера, 7 и 30 дней, по дням, доли новых, телефонов и приложения, языки, источники, число подписчиков; `/bugs` — открытые ошибки с кнопками «подробно», «исправлено», «не важно». О новых ошибках сервер пишет сам ближайшим проходом (все новые — одним сообщением, не больше 30 новых в час). Исправленная ошибка, повторившаяся в более новой версии сайта, открывается снова. Каждое утро после 9:00 по Москве — сводка за вчера.
+
+Таблицы для развёрнутой базы — один раз, до выкладки кода:
+
+```bash
+npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS visits (day TEXT NOT NULL, who TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 1, lang TEXT, mobile INTEGER NOT NULL DEFAULT 0, pwa INTEGER NOT NULL DEFAULT 0, fresh INTEGER NOT NULL DEFAULT 0, ref TEXT, ver TEXT, first_at INTEGER NOT NULL, last_at INTEGER NOT NULL, PRIMARY KEY (day, who))"
+npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS bugs (id INTEGER PRIMARY KEY AUTOINCREMENT, fp TEXT NOT NULL UNIQUE, kind TEXT NOT NULL, msg TEXT NOT NULL, src TEXT, line INTEGER, col INTEGER, stack TEXT, ver TEXT, ua TEXT, page TEXT, count INTEGER NOT NULL DEFAULT 1, first_at INTEGER NOT NULL, last_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'open', notified_at INTEGER NOT NULL DEFAULT 0)"
+npx wrangler d1 execute aurora-push --remote --command "CREATE INDEX IF NOT EXISTS bugs_status ON bugs(status, last_at)"
+```
+
 ### Данные NOAA для страницы
 
 `GET /noaa/<имя>` — те же файлы NOAA в том же формате, но компактнее (`src/noaa.js`): `kp`, `kp-3h`, `kp-forecast`, `sw-mag`, `sw-speed`, `ovation`, `outlook`. Страница берёт данные NOAA сначала отсюда, а прямой запрос к NOAA — запасной путь.

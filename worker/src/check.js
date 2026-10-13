@@ -8,10 +8,13 @@ import '../../core.js';
 import { sendPush } from './push.js';
 import { alertMessage, bzMessage, DEFAULT_LANG } from './messages.js';
 import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
-import { purgeReports } from './reports.js';
+import { purgeReports, reportSummary } from './reports.js';
+import { noaaProxy } from './noaa.js';
 import { optionAlerts } from './options.js';
 import { verifyStep } from './verify.js';
-import { monitorStep } from './monitor.js';
+import { monitorStep, notifyOwner } from './monitor.js';
+import { bugNotifyStep } from './bugs.js';
+import { dailyDigest } from './stats.js';
 import { ensureTelegram, telegramAlerts } from './telegram.js';
 
 export { alertMessage };
@@ -138,6 +141,12 @@ export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
     const watch = await monitorStep(env, nowMs, fetchFn);
     if (watch.problems.length) console.log('мониторинг: ' + watch.problems.join(', '));
   } catch (e) { console.error('мониторинг не выполнен: ' + (e && e.message)); }
+  // Журнал ошибок: о новых — владельцу одним сообщением; утром — сводка посещений за вчера.
+  try {
+    const bugs = await bugNotifyStep(env, nowMs, (text, markup) => notifyOwner(env, text, fetchFn, markup ? { reply_markup: markup } : {}));
+    if (bugs) console.log('ошибки: владельцу сообщено о ' + bugs);
+    if (await dailyDigest(env, nowMs, text => notifyOwner(env, text, fetchFn))) console.log('утренняя сводка отправлена');
+  } catch (e) { console.error('журнал ошибок и сводка: ' + (e && e.message)); }
 
   let summary;
   try {
@@ -174,6 +183,13 @@ async function checkOnce(env, nowMs, fetchFn) {
   if (kp === null) return { skipped: 'нет свежего Kp' };
   if (clouds === null) return { skipped: 'нет данных об облачности' };
 
+  // Быстрые признаки суббури — как у вердикта на сайте (activityScore в core.js): Kp за час,
+  // Hp30 и отметки «Вижу сияние». Южный Bz сюда не входит: у него свой ранний сигнал
+  // («сияние может начаться в ближайший час», bzAlerts) — поднимая уровень, он подменил бы его
+  // уведомлением «высокий шанс сейчас». OVATION не берём: разбор файла не укладывается в лимит
+  // процессорного времени прохода. Сбой любого признака уровень не ломает.
+  const extra = await activityExtras(env, nowMs, fetchFn);
+
   const { results: stateRows } = await env.DB.prepare('SELECT point, level, high_since FROM point_state').all();
   const prevState = new Map(stateRows.map(r => [r.point, r]));
   const prevLevels = new Map(stateRows.map(r => [r.point, r.level]));
@@ -185,7 +201,9 @@ async function checkOnce(env, nowMs, fetchFn) {
 
   points.forEach((point, i) => {
     const cloud = clouds[i];
-    const q = Core.quickLevel(kp.value, cloud, point, new Date(nowMs));
+    const activity = { kp: kp.value, kpHour: kp.hourMax, hp30: extra.hp30 };
+    const seen = extra.seen[point.id] || 0;
+    const q = Core.quickLevel(activity, cloud, point, new Date(nowMs), seen);
     if (!q || !cloud) return;                       // по этой точке считать не из чего
 
     const prev = prevState.get(point.id);
@@ -294,6 +312,23 @@ async function checkOnce(env, nowMs, fetchFn) {
   }
 
   return summary;
+}
+
+/**
+ * Признаки активности сверх Kp: Hp30 за последний час (через кэш /noaa/hp30) и отметки
+ * очевидцев по точкам. Каждый признак необязателен: не получилось — null или пусто.
+ */
+export async function activityExtras(env, nowMs, fetchFn) {
+  const out = { hp30: null, seen: {} };
+  try {
+    const [body, status] = await noaaProxy('hp30', nowMs, fetchFn, { db: env.DB });
+    if (status === 200) out.hp30 = Core.hp30Recent(JSON.parse(body), nowMs);
+  } catch { /* без Hp30 */ }
+  try {
+    const reports = await reportSummary(env, nowMs);
+    for (const [id, r] of Object.entries(reports.points)) out.seen[id] = r.count;
+  } catch { /* без отметок */ }
+  return out;
 }
 
 /**

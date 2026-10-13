@@ -15,6 +15,8 @@
 //   GET  /meteo?…                              запасной путь к Open-Meteo для страницы (src/meteo.js)
 //   GET  /noaa/<имя>                           данные NOAA в компактном виде (src/noaa.js)
 //   POST /telegram                             webhook Telegram-бота (src/telegram.js)
+//   POST /hit          { lang, mobile, pwa, fresh, ref, v }  посещение страницы (src/stats.js)
+//   POST /bug          { msg, src, line, col, stack, v, page } ошибка страницы (src/bugs.js)
 //   cron */10 * * * *                          runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
@@ -28,6 +30,8 @@ import { verifyStats } from './verify.js';
 import { meteoProxy } from './meteo.js';
 import { noaaProxy } from './noaa.js';
 import { handleTelegram } from './telegram.js';
+import { acceptHit } from './stats.js';
+import { acceptBug } from './bugs.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -170,6 +174,20 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
   if (url.pathname === '/report') {
     try {
       const [result, status] = await acceptReport(env, body, request.headers.get('CF-Connecting-IP'), nowMs);
+      return reply(result, status, cors);
+    } catch {
+      return reply({ error: 'unavailable' }, 503, cors);   // база до миграции
+    }
+  }
+
+  // Статистика посещений и ошибки страницы — тоже без подписки. Сбой учёта странице не мешает.
+  if (url.pathname === '/hit' || url.pathname === '/bug') {
+    try {
+      const origin = request.headers.get('Origin');
+      const ua = request.headers.get('User-Agent');
+      const [result, status] = url.pathname === '/hit'
+        ? await acceptHit(env, body, origin, request.headers.get('CF-Connecting-IP'), ua, nowMs)
+        : await acceptBug(env, body, origin, ua, nowMs);
       return reply(result, status, cors);
     } catch {
       return reply({ error: 'unavailable' }, 503, cors);   // база до миграции

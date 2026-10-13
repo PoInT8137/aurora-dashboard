@@ -110,7 +110,8 @@ const lightVars = cssVars(/html\[data-theme="light"\]\s*{([\s\S]*?)\n}/.exec(css
 const nightVars = cssVars(/html\[data-theme="night"\]\s*{([\s\S]*?)\n}/.exec(css)[1]);
 
 test('светлая тема переопределяет все цветовые переменные тёмной: ничего не остаётся «тёмным» на светлом фоне', () => {
-  const NOT_COLORS = ['--radius'];
+  // не цвета: скругление и шкала размеров текста — одинаковы во всех темах
+  const NOT_COLORS = ['--radius', '--fs-title-1', '--fs-title-2', '--fs-caption'];
   for (const vars of [lightVars, nightVars]) {
     const missing = Object.keys(darkVars).filter(name => !NOT_COLORS.includes(name) && !(name in vars));
     assert.deepEqual(missing, []);

@@ -48,7 +48,27 @@ export function trimOvation(text, { lonFrom = 17, lonTo = 53, latFrom = 55, latT
   return JSON.stringify(head);
 }
 
-/** Что отдаётся: адрес NOAA, срок хранения, тип и обработка. */
+/**
+ * Получасовой индекс Hp30 (GFZ Потсдам): ответ API { datetime: [...], Hp30: [...] } → компактный
+ * ряд [[время, значение], …] за последние 6 часов. Kp за три часа «размазывает» короткую
+ * суббурю; Hp30 её видит. GFZ не отдаёт заголовков CORS, поэтому только через сервер.
+ */
+export function trimHp30(text) {
+  const data = JSON.parse(text);
+  const times = Array.isArray(data.datetime) ? data.datetime : [];
+  const values = Array.isArray(data.Hp30) ? data.Hp30 : [];
+  const rows = [];
+  times.forEach((t, i) => { if (typeof values[i] === 'number') rows.push([t, values[i]]); });
+  if (!rows.length) throw new Error('hp30: пусто');
+  return JSON.stringify(rows.slice(-12));
+}
+
+export function hp30Url(nowMs) {
+  const iso = ms => new Date(ms).toISOString().slice(0, 19) + 'Z';
+  return 'https://kp.gfz.de/app/json/?start=' + iso(nowMs - 6 * 60 * MIN) + '&end=' + iso(nowMs + 30 * MIN) + '&index=Hp30';
+}
+
+/** Что отдаётся: адрес NOAA (или свой адрес url(now)), срок хранения, тип и обработка. */
 export const SOURCES = {
   'kp':          { path: 'json/planetary_k_index_1m.json', ttl: MIN, type: 'json' },
   'kp-3h':       { path: 'products/noaa-planetary-k-index.json', ttl: 5 * MIN, type: 'json' },
@@ -56,7 +76,8 @@ export const SOURCES = {
   'sw-mag':      { path: 'json/rtsw/rtsw_mag_1m.json', ttl: MIN, type: 'json', trim: trimRtsw },
   'sw-speed':    { path: 'products/summary/solar-wind-speed.json', ttl: MIN, type: 'json' },
   'ovation':     { path: 'json/ovation_aurora_latest.json', ttl: 5 * MIN, type: 'json', trim: text => trimOvation(text) },
-  'outlook':     { path: 'text/27-day-outlook.txt', ttl: 60 * MIN, type: 'text' }
+  'outlook':     { path: 'text/27-day-outlook.txt', ttl: 60 * MIN, type: 'text' },
+  'hp30':        { url: hp30Url, ttl: 10 * MIN, type: 'json', trim: trimHp30 }
 };
 
 /** Последняя удачная копия дольше срока свежести — на случай, если NOAA не отвечает. */
@@ -86,7 +107,7 @@ async function readSaved(db, name) {
 function load(name, source, nowMs, fetchFn, db) {
   if (pending.has(name)) return pending.get(name);
   const job = (async () => {
-    const res = await fetchFn(BASE + source.path, { signal: AbortSignal.timeout(10000) });
+    const res = await fetchFn(source.url ? source.url(nowMs) : BASE + source.path, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error('http ' + res.status);
     const text = await res.text();
     const body = source.trim ? source.trim(text, nowMs) : text;

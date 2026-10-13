@@ -203,21 +203,29 @@ test('нет связи — показываем сохранённое с по�
 const verdict = (ctx, kp, cloud) =>
   ctx.computeVerdict({ value: kp, stale: null }, { value: cloud, conflict: false, stale: null });
 
-test('вердикт: южный ветер добавляет подсказку «ждите роста», но уровень не меняет', () => {
+test('вердикт: южный Bz поднимает активность (суббуря вероятна), слабый и северный — нет', () => {
   const { ctx } = page();
-  const base = verdict(ctx, 1.3, 20);
-  assert.doesNotMatch(base.hint, /Солнечный ветер/);
+  const base = verdict(ctx, 1.3, 60);   // Kp 1,3 — балл 1; облачность 60% — балл 1: низкий
+  assert.equal(base.level, 'low');
+  assert.equal(base.meters.kp, 1);
 
-  for (const level of ['strong', 'south']) {
-    ctx.state.sw = { level, stale: null, southMinutes: 30 };
-    const v = verdict(ctx, 1.3, 20);
-    assert.equal(v.level, base.level, 'уровень от ветра не зависит');
-    assert.match(v.hint, /Солнечный ветер обещает рост активности в ближайший час/);
+  for (const [level, score] of [['strong', 3], ['south', 2]]) {
+    ctx.state.sw = { level, stale: null, southMinutes: 30, mean60: -6 };
+    const v = verdict(ctx, 1.3, 60);
+    assert.equal(v.meters.kp, score, level);
+    assert.ok(v.factors.includes('Bz южный — суббуря вероятна'), level);
+    assert.notEqual(v.level, 'low', level);
   }
-  for (const level of ['weak', 'north']) {
-    ctx.state.sw = { level, stale: null, southMinutes: 0 };
-    assert.doesNotMatch(verdict(ctx, 1.3, 20).hint, /Солнечный ветер/, level);
+  // слабо южный, но целый час — копит энергию: тоже «вероятна»
+  ctx.state.sw = { level: 'weak', stale: null, southMinutes: 50, mean60: -2.5 };
+  assert.equal(verdict(ctx, 1.3, 60).meters.kp, 2);
+  for (const sw of [{ level: 'weak', mean60: -1 }, { level: 'north', mean60: 2 }]) {
+    ctx.state.sw = { ...sw, stale: null, southMinutes: 0 };
+    assert.equal(verdict(ctx, 1.3, 60).meters.kp, 1, sw.level);
   }
+  // сохранённые (устаревшие) данные ветра активность не поднимают
+  ctx.state.sw = { level: 'strong', stale: 40 * 60000, southMinutes: 30, mean60: -12 };
+  assert.equal(verdict(ctx, 1.3, 60).meters.kp, 1);
 });
 
 test('вердикт: подсказки о ветре нет, когда она бесполезна — уже высокий шанс, сплошные облака, светло, данные устарели', () => {
@@ -239,7 +247,8 @@ test('вердикт: подсказки о ветре нет, когда она
 
 test('обновление запрашивает и солнечный ветер; кнопка «Повторить» в карточке перезапрашивает его', () => {
   const app = appSource();
-  assert.match(app, /var tasks = \[[^\]]*loadSolarWind\(\)[^\]]*\];/);
+  // среди главных запросов: вердикт пересчитывается, как только он пришёл
+  assert.match(app, /var core = \[[^\]]*loadSolarWind\(\)[^\]]*\]/);
   assert.match(app, /if \(what === 'sw'\)\s+loadSolarWind\(\)\.then\(renderDerived\);/);
   const html = read('index.html');
   assert.equal((html.match(/data-retry="sw"/g) || []).length, 2);
