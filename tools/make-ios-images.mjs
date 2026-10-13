@@ -24,9 +24,11 @@ export const IOS_SCREENS = [
 
 export const splashName = s => `icons/splash-${s.w * s.dpr}x${s.h * s.dpr}.png`;
 
-function shoot(chrome, url, w, h, dpr, out) {
+export function shoot(chrome, url, w, h, dpr, out) {
   execFileSync(chrome, [
     '--headless=new', '--disable-gpu', '--hide-scrollbars', '--allow-file-access-from-files',
+    // под root (Linux, контейнер) Chrome без песочницы не запускается
+    ...(process.getuid && process.getuid() === 0 ? ['--no-sandbox'] : []),
     `--window-size=${w},${h}`, `--force-device-scale-factor=${dpr}`,
     `--screenshot=${path.join(root, out)}`, url
   ], { stdio: 'ignore' });
@@ -36,7 +38,8 @@ function shoot(chrome, url, w, h, dpr, out) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const chrome = process.argv[2] || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
   const page = pathToFileURL(path.join(root, 'tools/ios-images.html')).href;
-  shoot(chrome, page + '?kind=icon&w=180&h=180', 180, 180, 1, 'icons/apple-touch-icon.png');
+  // Иконка «Домой» — со знака «Север» (tools/brand.html), как и иконки приложения
+  shoot(chrome, pathToFileURL(path.join(root, 'tools/brand.html')).href + '?kind=icon&w=180', 180, 180, 1, 'icons/apple-touch-icon.png');
   for (const s of IOS_SCREENS) shoot(chrome, page + `?kind=splash&w=${s.w}&h=${s.h}`, s.w, s.h, s.dpr, splashName(s));
   if (!fs.existsSync(path.join(root, 'icons/apple-touch-icon.png'))) process.exit(1);
 }

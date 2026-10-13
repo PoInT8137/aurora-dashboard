@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Значок вкладки: знак «Север» для 16–32 px — без оси и звезды (они пропадают в пикселях),
+       кольцо толще. На тёмном круге: читается и на светлой, и на тёмной панели вкладок. -->
+  <defs>
+    <linearGradient id="n" gradientUnits="userSpaceOnUse" x1="37" y1="0" x2="59" y2="0">
+      <stop offset="0" stop-color="#4DFFB8"/><stop offset=".5" stop-color="#35D6E8"/><stop offset="1" stop-color="#9B7BFF"/>
+    </linearGradient>
+  </defs>
+  <circle cx="48" cy="48" r="47" fill="#0A111C"/>
+  <path d="M56.23 15.01A34 34 0 1 1 39.77 15.01" fill="none" stroke="#B7C3CE" stroke-width="6"/>
+  <path d="M37 48H59L48 78Z" fill="#46586D"/>
+  <path d="M48 6L37 48H59Z" fill="url(#n)"/>
+  <path d="M48 6L37 48H48Z" fill="#000" fill-opacity=".2"/>
+</svg>

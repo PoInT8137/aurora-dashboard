@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!-- Шаблон картинок со знаком «Север» (icons/logo.svg): иконка приложения (?kind=icon), она же
+     для маски Android (?kind=maskable — знак в безопасном круге 80%), и превью ссылки (?kind=og).
+     Снимает tools/make-icons.mjs через Chrome без окна; размер — из адреса (?w=&h=). -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #060b14; }
+
+  /* Фон иконки — два плоских тона: небо и полоса земли внизу с тонкой линией горизонта.
+     Без свечений и градиентов: иконка читается на любых обоях. */
+  .icon {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--w);
+    height: var(--w);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: #0B1626;
+  }
+  .icon::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 22%;
+    background: #14263E;
+    box-shadow: inset 0 calc(var(--w) * 0.004) 0 #1E3654;
+  }
+  .mark {
+    position: relative;
+    z-index: 1;
+    width: calc(var(--w) * var(--size));
+    height: calc(var(--w) * var(--size));
+    background: url(../icons/logo.svg) center / contain no-repeat;
+  }
+
+  /* Превью ссылки 1200×630: знак слева, название и подпись справа, плоский ночной фон */
+  .og {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 1200px;
+    height: 630px;
+    display: flex;
+    align-items: center;
+    gap: 52px;
+    padding: 0 96px;
+    box-sizing: border-box;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0A111C;
+  }
+  /* три цвета сияния полосой внизу справа — как на листе знака */
+  .og::after {
+    content: "";
+    position: absolute;
+    right: 64px;
+    bottom: 52px;
+    width: 120px;
+    height: 8px;
+    background: linear-gradient(90deg, #4dffb8 0 30%, transparent 30% 35%, #35d6e8 35% 65%, transparent 65% 70%, #9b7bff 70%);
+  }
+  .og .mark { --size: 1; width: 300px; height: 300px; flex: none; }
+  .og h1 {
+    position: relative;
+    margin: 0;
+    font-size: 68px;
+    line-height: 1.05;
+    white-space: nowrap;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: #e9eef2;
+  }
+  .og p { position: relative; margin: 14px 0 0; font-size: 32px; color: #8ea3b5; }
+  .og small { position: relative; display: block; margin-top: 30px; font-size: 24px; color: #6f8396; }
+</style>
+</head>
+<body>
+<script>
+  // Размер — из адреса, а не от окна: Chrome без окна не бывает уже ~500 px.
+  var q = new URLSearchParams(location.search);
+  var kind = q.get('kind') || 'icon';
+  var w = Number(q.get('w') || 512);
+  document.documentElement.style.setProperty('--w', w + 'px');
+  // Знак: на обычной иконке — 66% стороны; в маске Android — 55%: знак со звездой в безопасном круге 80%
+  document.documentElement.style.setProperty('--size', kind === 'maskable' ? '0.55' : '0.66');
+  document.body.innerHTML = kind === 'og'
+    ? '<div class="og"><div class="mark"></div><div><h1>Северное сияние</h1><p>Мурманская область</p>' +
+      '<small>Прогноз северного сияния · auroramurmansk.ru</small></div></div>'
+    : '<div class="icon"><div class="mark"></div></div>';
+</script>
+</body>
+</html>

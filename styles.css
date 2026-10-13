@@ -680,6 +680,27 @@ html.intro .topbar h1 {
   color: transparent;
 }
 
+/* Знак «Север» слева от названия, на две строки — название и регион. Градиентный текст h1 на
+   знак не влияет: у SVG свои заливки из переменных темы (светлая — темнее, ночное зрение — красный). */
+.topbar h1 {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+.topbar h1 > span { grid-column: 2; }
+.logo { grid-row: 1 / span 2; width: 48px; height: 48px; overflow: visible; }
+/* Знак плоский: без свечения. Кольцо и юг — тоном текста, лопасть — цветами сияния темы,
+   левая грань в тени, ось — цветом фона (в светлой теме — цветом кольца, иначе выглядела бы дыркой). */
+.logo__ring { fill: none; stroke: var(--text-dim); stroke-width: 4; }
+.logo__south { fill: color-mix(in srgb, var(--text-dim) 38%, var(--bg)); }
+.logo__shade { fill: rgba(var(--qr-shade), 0.2); }
+.logo__hub { fill: var(--bg); }
+.logo__star { fill: var(--text); transform-box: fill-box; transform-origin: center; }
+html[data-theme="light"] .logo__hub { fill: var(--text-dim); }
+html[data-theme="night"] .logo__shade { fill: rgba(var(--qr-shade), 0.3); }
+.logo__needle { transform-box: view-box; transform-origin: 48px 48px; }
+
 /* Регион — второй строкой заголовка, без градиента и без капса */
 .topbar__region {
   display: block;
@@ -774,6 +795,11 @@ html.intro .topbar h1 {
   .topbar__title,
   .topbar__actions { display: contents; }
   .topbar h1 { grid-area: title; font-size: 22px; line-height: 1.15; }
+  /* знак меньше: название «Северное сияние» должно остаться в одну строку на 375 px */
+  .topbar h1 { column-gap: 8px; }
+  .logo { width: 32px; height: 32px; }
+  /* на узком экране название чуть меньше, чтобы уместиться в строку рядом со знаком; не влезает (крупный текст) — переносится */
+  .topbar h1 > span:first-of-type { font-size: clamp(17px, 5.3vw, 22px); }
   .topbar__region { font-size: 13px; margin-top: 1px; }
 
   .point { grid-area: point; margin-top: 10px; }
@@ -2629,10 +2655,14 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
   .foot a { display: inline-block; padding: 14px 0; margin: -14px 0; }
 }
 
-/* Крупный текст на компьютере: «Обновлено в 23:10» — в две строки, чтобы кнопки шапки
-   уместились в один ряд и ночное зрение не уезжало вниз */
+/* На компьютере «Обновлено в 23:10» — в две строки: со знаком «Север» название шире, и иначе
+   кнопки шапки не умещаются в один ряд (ночное зрение уезжало вниз) */
 @media (min-width: 720px) {
-  html[data-size="xlarge"] .topbar .updated { max-width: 6.5em; line-height: 1.25; text-align: right; }
+  .topbar .updated { max-width: 6.5em; line-height: 1.25; text-align: right; }
+  /* крупный текст: знак, название и отступы чуть меньше, чтобы кнопки не переносились */
+  html[data-size="xlarge"] .topbar { column-gap: 16px; }
+  html[data-size="xlarge"] .topbar h1 { font-size: 26px; column-gap: 10px; }
+  html[data-size="xlarge"] .logo { width: 36px; height: 36px; }
 }
 
 /* ---------- Смена вкладок: View Transitions ----------
@@ -2691,4 +2721,33 @@ html.vt-tabs [role="tabpanel"]:not([hidden]) { animation: none; }
   .verdict__more::details-content,
   .more::details-content,
   .card__warn::details-content { transition: none; }
+}
+
+/* ---------- Анимация знака ----------
+   При запуске (раз за сеанс, класс intro) стрелка, как у настоящего компаса, качается и
+   успокаивается на севере, затем загорается Полярная звезда. На компьютере при наведении
+   на название стрелка коротко вздрагивает. Только transform и штрих; при «уменьшить движение» — нет. */
+html.intro .logo__needle { animation: logo-settle 1.7s cubic-bezier(0.25, 0.8, 0.3, 1) 0.2s both; }
+html.intro .logo__star { animation: logo-star 0.6s cubic-bezier(0.23, 1, 0.32, 1) 1.3s both; }
+@keyframes logo-settle {
+  0%   { transform: rotate(-70deg); }
+  28%  { transform: rotate(24deg); }
+  48%  { transform: rotate(-11deg); }
+  66%  { transform: rotate(5deg); }
+  82%  { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes logo-star { from { opacity: 0; transform: scale(0.4) rotate(-45deg); } }
+@media (hover: hover) and (pointer: fine) {
+  .topbar h1:hover .logo__needle { animation: logo-nudge 0.9s cubic-bezier(0.25, 0.8, 0.3, 1); }
+}
+@keyframes logo-nudge {
+  0%   { transform: rotate(0deg); }
+  25%  { transform: rotate(-12deg); }
+  50%  { transform: rotate(6deg); }
+  75%  { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.intro .logo__needle, html.intro .logo__star, .topbar h1:hover .logo__needle { animation: none; }
 }
