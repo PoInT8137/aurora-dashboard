@@ -239,13 +239,13 @@ test('утренняя сводка: после 9:00 по Москве один 
   assert.equal(f2.telegram.filter(c => /Сводка/.test((c.body && c.body.text) || '')).length, 0);
 });
 
-test('меню владельца: /stats и /bugs только в его чате', async () => {
+test('меню владельца: /stats, /bugs и /timing только в его чате', async () => {
   const env = await botEnv();
   const fetchFn = makeFetch(NIGHT);
   await runCheck(env, NIGHT, fetchFn);
   const menus = fetchFn.telegram.filter(c => c.method === 'setMyCommands');
   const ownerMenu = menus.find(m => m.body.scope);
   assert.deepEqual(ownerMenu.body.scope, { type: 'chat', chat_id: Number(OWNER) });
-  assert.deepEqual(ownerMenu.body.commands.map(c => c.command), ['now', 'settings', 'stop', 'bug', 'stats', 'bugs']);
-  for (const m of menus.filter(x => !x.body.scope)) assert.ok(!m.body.commands.some(c => c.command === 'stats'));
+  assert.deepEqual(ownerMenu.body.commands.map(c => c.command), ['now', 'settings', 'stop', 'bug', 'stats', 'bugs', 'timing']);
+  for (const m of menus.filter(x => !x.body.scope)) assert.ok(!m.body.commands.some(c => c.command === 'stats' || c.command === 'timing'));
 });

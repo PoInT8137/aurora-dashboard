@@ -72,6 +72,24 @@ test('Hp30: максимум двух последних получасов, е�
   assert.equal(Core.hp30Recent({ error: 1 }, Date.now()), null);
 });
 
+test('Hp30: окно — час от текущего момента по концу получаса, а не от последней записи', () => {
+  // Всплеск 6 за 17:30–18:00, дальше спокойно; данные GFZ приходят с задержкой.
+  const rows = [['2026-10-07T17:30:00Z', 6], ['2026-10-07T18:00:00Z', 2], ['2026-10-07T18:30:00Z', 1.333]];
+  assert.equal(Core.hp30Recent(rows, Date.parse('2026-10-07T19:00:00Z')), 6, 'всплеск закончился час назад — ещё в счёт');
+  assert.equal(Core.hp30Recent(rows, Date.parse('2026-10-07T19:20:00Z')), 2, 'всплеск закончился 80 минут назад — уже нет');
+  assert.equal(Core.hp30Recent(rows, Date.parse('2026-10-07T20:05:00Z')), null, 'последний получас закончился больше часа назад');
+  assert.equal(Core.hp30AgeMinutes(rows, Date.parse('2026-10-07T19:20:00Z')), 20);
+  assert.equal(Core.hp30AgeMinutes([], Date.now()), null);
+});
+
+test('сумерки: «высокий» только при сильной активности', () => {
+  const twilight = -9;
+  assert.equal(Core.verdictLevel(2, 3, twilight, 0), 'mid', 'умеренная активность — ждём темноты');
+  assert.equal(Core.verdictLevel(3, 2, twilight, 0), 'high', 'яркое сияние видно и в сумерках');
+  assert.equal(Core.verdictLevel(3, 3, -4, 0), 'low', 'светлые сумерки — всё ещё не видно');
+  assert.equal(Core.verdictLevel(2, 3, -15, 0), 'high', 'в полной темноте — как прежде');
+});
+
 test('отметки очевидцев в темноте — шанс не ниже среднего; днём — нет', () => {
   assert.equal(Core.verdictLevel(0, 0, -20, 0), 'low');
   assert.equal(Core.verdictLevel(0, 0, -20, 2), 'mid', 'видят своими глазами — облака могли разойтись');

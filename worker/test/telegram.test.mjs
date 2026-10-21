@@ -157,7 +157,7 @@ test('порог «средний» и ранний сигнал о Bz — дл�
   const { f } = await run(env, NIGHT + 10 * MIN, { kp: 1.3, bz: -12 });
   const byChat = Object.fromEntries(alerts(f).map(m => [m.body.chat_id, m.body.text]));
   assert.match(byChat['1'], /^Средний шанс увидеть сияние — Мурманск/);
-  assert.match(byChat['2'], /^Aurora may start within the hour — Murmansk/);
+  assert.match(byChat['2'], /^Aurora may start within 1–2 hours — Murmansk/);
   assert.equal(byChat['3'], undefined, 'ранний сигнал выключен, порог — только высокий');
 });
 

@@ -94,20 +94,22 @@ const SKY = {
   }
 };
 
-// Ранний сигнал: поле солнечного ветра повернуло на юг, Kp ещё не вырос.
+// Ранний сигнал: поле солнечного ветра повернуло на юг, Kp ещё не вырос. Суббуря после поворота
+// начинается обычно через 30–90 минут (ветер идёт от L1 до Земли, поле копит энергию), поэтому
+// обещаем 1–2 часа, а не «ближайший час»: иначе человек выходит к пустому небу.
 const BZ = {
   ru: {
-    title: name => 'Сияние может начаться в ближайший час — ' + name,
+    title: name => 'Сияние может начаться в ближайшие 1–2 часа — ' + name,
     body: (bz, cloud, strong) => 'Магнитное поле солнечного ветра ' + (strong ? 'резко ' : '') + 'повернуло на юг: Bz ' + bz +
       ' нТл. Небо тёмное, облачность ' + cloud + '%. Выходите заранее и смотрите на север.'
   },
   en: {
-    title: name => 'Aurora may start within the hour — ' + name,
+    title: name => 'Aurora may start within 1–2 hours — ' + name,
     body: (bz, cloud, strong) => 'The solar wind magnetic field has turned ' + (strong ? 'sharply ' : '') + 'south: Bz ' + bz +
       ' nT. Dark sky, cloud cover ' + cloud + '%. Head out early and look north.'
   },
   zh: {
-    title: name => '极光可能在一小时内出现——' + name,
+    title: name => '极光可能在一两小时内出现——' + name,
     body: (bz, cloud, strong) => '太阳风磁场' + (strong ? '急剧' : '') + '转向南：Bz ' + bz +
       ' nT。夜空漆黑，云量 ' + cloud + '%。请提前出门，朝北看。'
   }

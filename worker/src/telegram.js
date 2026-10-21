@@ -14,19 +14,21 @@
 //
 // Любой посетитель может написать /bug <что не так> — сообщение попадает в журнал ошибок
 // (src/bugs.js) и владельцу. Владельцу (чат TELEGRAM_OWNER_CHAT) доступны ещё /stats — посещения
-// сайта (src/stats.js) и /bugs — открытые ошибки с кнопками «исправлено» и «не важно».
+// сайта (src/stats.js), /bugs — открытые ошибки с кнопками «исправлено» и «не важно» и /timing —
+// сверка уведомлений с отметками очевидцев по журналу проходов (src/journal.js).
 
 import '../../core.js';
 import { alertMessage, bzMessage, pointName, normalizeLang, DEFAULT_LANG } from './messages.js';
 import { bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
 import { statsText } from './stats.js';
+import { tally, timingText } from './journal.js';
 import { bugsList, bugDetail, setBugStatus, userBug, recordWorkerError } from './bugs.js';
 
 const Core = globalThis.AuroraCore;
 
 export const SITE = 'https://auroramurmansk.ru/';
 /** Сменить при изменении адреса или набора событий — сервер перерегистрирует webhook. */
-export const WEBHOOK_VERSION = '2';
+export const WEBHOOK_VERSION = '3';
 const COOLDOWN_MS = 3 * 60 * 60 * 1000;
 const MAX_FAILS = 5;
 const RANK = { low: 0, mid: 1, high: 2 };
@@ -118,7 +120,7 @@ export async function webhookSecret(token) {
 }
 
 /** Команды, которые видит в меню только владелец. */
-const OWNER_COMMANDS = [['stats', 'Посещения сайта'], ['bugs', 'Открытые ошибки']];
+const OWNER_COMMANDS = [['stats', 'Посещения сайта'], ['bugs', 'Открытые ошибки'], ['timing', 'Уведомления и очевидцы']];
 
 async function metaGet(env, key) {
   const row = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind(key).first();
@@ -264,6 +266,10 @@ export async function telegramReply(env, update, nowMs) {
   const cmd = command ? command.replace(/@.*$/, '').toLowerCase() : '';
 
   if (owner && cmd === '/stats') return [send(await statsText(env, nowMs))];
+  if (owner && cmd === '/timing') {
+    const names = Object.fromEntries(Core.POINTS.map(p => [p.id, pointName(p, 'ru')]));
+    return [send(await timingText(env, nowMs, names))];
+  }
   if (owner && cmd === '/bugs') {
     const list = await bugsList(env, nowMs);
     return [send(list.text, list.reply_markup ? { reply_markup: list.reply_markup } : {})];
@@ -347,17 +353,20 @@ export async function telegramAlerts(env, nowMs, fetchFn, ctx, summary, budget) 
       if (budget <= 0) break;
       let message = null;
       let column = 'last_sent';
+      let kind = 'high';   // для журнала проходов
       const lang = sub.lang || DEFAULT_LANG;
       const cooled = nowMs - sub.last_sent >= COOLDOWN_MS;
       if (level === 'high' && high && sub.created < high && sub.last_sent < high && cooled) {
         message = alertMessage(point, ctx.kp, cloud, nowMs, lang, 'high');
       } else if (sub.min_level === 'mid' && RANK[level] >= 1 && mid && sub.created < mid && sub.last_sent < mid && cooled) {
         message = alertMessage(point, ctx.kp, cloud, nowMs, lang, level);
+        kind = level === 'high' ? 'high' : 'other';
       } else if (sub.bz && bzLevel && bzState && level !== 'high' && bzPointOk(point, cloud, nowMs) &&
         sub.created < bzState.southSince && sub.last_bz < bzState.southSince && nowMs - sub.last_bz >= BZ_COOLDOWN_MS &&
         nowMs - sub.last_sent >= BZ_AFTER_ALERT_MS) {
         message = bzMessage(point, bzState.bz, cloud, bzLevel, nowMs, lang);
         column = 'last_bz';
+        kind = 'bz';
       }
       if (!message || sentIds.has(sub.chat_id)) continue;
       sentIds.add(sub.chat_id);
@@ -368,6 +377,7 @@ export async function telegramAlerts(env, nowMs, fetchFn, ctx, summary, budget) 
       catch { r = { ok: false, status: 0 }; }
       if (r.ok) {
         summary.tgSent++;
+        tally(summary, point.id, kind);
         updates.push(env.DB.prepare('UPDATE tg_subs SET ' + column + ' = ?, fails = 0 WHERE chat_id = ?').bind(nowMs, sub.chat_id));
       } else if (r.status === 403 || r.status === 400) {
         // Бот заблокирован или чат удалён — подписка больше не нужна.

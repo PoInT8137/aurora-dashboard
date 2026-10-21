@@ -89,15 +89,19 @@ test('ночи: только завершившиеся и целиком поп
 test('оценка — по правилам окна наблюдения: Kp и облака по часам; лучший уровень и его часы', () => {
   const { ctx } = page();
   const night22 = t => t >= Date.parse('2026-09-22T18:00:00Z') && t < Date.parse('2026-09-23T06:00:00Z');
-  // 22-го: Kp 4 и ясно с полуночи до 02:00 UTC; в остальные ночи — Kp 1 и сплошные облака
+  // 22-го: Kp 2,33 (умеренно) и ясно с полуночи до 02:00 UTC; в остальные ночи — Kp 1 и сплошные облака
   const clear = t => t >= Date.parse('2026-09-23T00:00:00Z') && t < Date.parse('2026-09-23T03:00:00Z');
   const hours = ctx.readHourlyCloud(cloudResponse(t => (clear(t) ? 5 : 95)));
-  const kp = ctx.readKpHistory(kpResponse(t => (night22(t) ? 4 : 1)));
+  const kp = ctx.readKpHistory(kpResponse(t => (night22(t) ? 2.33 : 1)));
   const [n23, n22, n21] = ctx.computePastNights(hours, kp, ctx.findPoint('murmansk'), NOW);
   assert.equal(n22.level, 2, 'высокий');
-  assert.equal(n22.bestHours, 2, 'в 02:00 UTC уже сумерки — высокий не ставится, как в окне наблюдения');
+  assert.equal(n22.bestHours, 2, 'в 02:00 UTC уже сумерки — при умеренной активности высокий не ставится, как в окне наблюдения');
   assert.equal(n22.bestFrom.toISOString(), '2026-09-23T00:00:00.000Z');
-  assert.equal(n22.kpMax, 4);
+  assert.equal(n22.kpMax, 2.33);
+
+  // сильная активность (Kp 4): яркое сияние видно и в сумерках — высокий и в 02:00
+  const strong = ctx.computePastNights(hours, ctx.readKpHistory(kpResponse(t => (night22(t) ? 4 : 1))), ctx.findPoint('murmansk'), NOW)[1];
+  assert.equal(strong.bestHours, 3);
   assert.equal(n22.cloudMin, 5);
   assert.equal(n23.level, 0);
   assert.equal(n21.level, 0);
@@ -113,7 +117,7 @@ test('белые ночи: темноты не было — ни одной но
 
 test('загрузка: два запроса (Kp NOAA и облака за 7 суток той же моделью), строки с оценкой, итог по-русски', async () => {
   const clear = t => t >= Date.parse('2026-09-23T00:00:00Z') && t < Date.parse('2026-09-23T03:00:00Z');
-  const { ctx, el, calls } = page({ cloudAt: t => (clear(t) ? 5 : 95), kpAt: () => 3 });
+  const { ctx, el, calls } = page({ cloudAt: t => (clear(t) ? 5 : 95), kpAt: () => 2.33 });
   await ctx.loadHistory(false);
   assert.equal(calls.length, 2);
   const cloudUrl = new URL(calls.find(u => u.includes('open-meteo')));
@@ -125,7 +129,7 @@ test('загрузка: два запроса (Kp NOAA и облака за 7 с
   const rows = el('history-list').children;
   assert.equal(rows.length, 3);
   assert.equal(rows[1].children[1].textContent, 'Высокий шанс');
-  assert.match(rows[1].children[2].textContent, /^Kp до 3,0 · облачность от 5% · лучше всего с 03:00, 2 часа$/);
+  assert.match(rows[1].children[2].textContent, /^Kp до 2,3 · облачность от 5% · лучше всего с 03:00, 2 часа$/);
   assert.equal(rows[1].style.props['--tone'], 'var(--ok)');
   assert.equal(el('history-card').attrs['data-state'], 'ok');
   assert.ok(ctx.localStorage.getItem('aurora.history-murmansk'), 'в кэше');

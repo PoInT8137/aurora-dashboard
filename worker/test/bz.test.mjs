@@ -41,12 +41,13 @@ test('длительность южного поля: копится между 
   assert.equal(nextBzState(s, { bz: -8 }, t0 + 50 * MIN).southSince, t0 + 50 * MIN, 'после долгого перерыва — отсчёт заново');
 });
 
-test('уровень: сильный — ≤ −10 два прохода подряд; южный — ≤ −5 три прохода; иначе повода нет', () => {
+test('уровень: сильный — ≤ −10 два прохода подряд; южный — ≤ −5 четыре прохода; иначе повода нет', () => {
   const t0 = NIGHT;
   assert.equal(bzLevel({ bz: -12, southSince: t0 }, t0), null, 'один отсчёт — могло мигнуть');
   assert.equal(bzLevel({ bz: -12, southSince: t0 }, t0 + 10 * MIN), 'strong');
   assert.equal(bzLevel({ bz: -7, southSince: t0 }, t0 + 10 * MIN), null);
-  assert.equal(bzLevel({ bz: -7, southSince: t0 }, t0 + 20 * MIN), 'south');
+  assert.equal(bzLevel({ bz: -7, southSince: t0 }, t0 + 20 * MIN), null, '20 минут умеренно южного — ещё мало');
+  assert.equal(bzLevel({ bz: -7, southSince: t0 }, t0 + 30 * MIN), 'south');
   assert.equal(bzLevel({ bz: -3, southSince: 0 }, t0), null);
   assert.equal(bzLevel(null, t0), null);
 });
@@ -72,12 +73,12 @@ test('поле держится южным — подписчик получае
   assert.deepEqual(pushedTo(second.fetch).sort(), [ep(1), ep(2)].sort());
 
   const ru = JSON.parse(subRow(env, 1).msg);
-  assert.equal(ru.title, 'Сияние может начаться в ближайший час — Мурманск');
+  assert.equal(ru.title, 'Сияние может начаться в ближайшие 1–2 часа — Мурманск');
   assert.match(ru.body, /^Магнитное поле солнечного ветра резко повернуло на юг: Bz −11,0 нТл\. Небо тёмное, облачность \d+%\./);
   assert.equal(ru.kind, 'bz');
   assert.equal(subRow(env, 1).last_bz, NIGHT + 10 * MIN);
   assert.equal(subRow(env, 1).last_sent, 0, 'лимит основных уведомлений не тронут');
-  assert.match(JSON.parse(subRow(env, 2).msg).title, /^Aurora may start within the hour — Murmansk$/);
+  assert.match(JSON.parse(subRow(env, 2).msg).title, /^Aurora may start within 1–2 hours — Murmansk$/);
 
   // эпизод продолжается — повторов нет
   const third = await run(env, NIGHT + 20 * MIN, { ...QUIET_KP, bz: -14 });
@@ -180,6 +181,6 @@ test('тексты раннего сигнала: три языка, знак м
   assert.match(ru.body, /^Магнитное поле солнечного ветра повернуло на юг: Bz −7,3 нТл\. Небо тёмное, облачность 35%\. Выходите заранее и смотрите на север\.$/);
   assert.match(bzMessage(murmansk, -12, cloud, 'strong', NIGHT, 'en').body, /turned sharply south: Bz −12\.0 nT/);
   const zh = bzMessage(Core.findPoint('teriberka'), -12, cloud, 'strong', NIGHT, 'zh');
-  assert.equal(zh.title, '极光可能在一小时内出现——捷里别尔卡');
+  assert.equal(zh.title, '极光可能在一两小时内出现——捷里别尔卡');
   assert.equal(bzMessage(murmansk, -8, cloud, 'south', NIGHT, 'xx').lang, 'ru');
 });

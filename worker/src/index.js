@@ -2,7 +2,7 @@
 // обработчики (иначе среда выполнения не запускается), поэтому вся логика —
 // в api.js и check.js, а здесь только связка с расписанием и HTTP.
 import { handleRequest } from './api.js';
-import { runCheck } from './check.js';
+import { runCheck, refreshOvation, OVATION_CRON } from './check.js';
 import { recordWorkerError } from './bugs.js';
 
 export default {
@@ -17,7 +17,15 @@ export default {
     }
   },
 
-  scheduled(_event, env, ctx) {
+  scheduled(event, env, ctx) {
+    // Своё расписание у OVATION: свежая копия для следующего прохода, без проверки и рассылки.
+    if (event && event.cron === OVATION_CRON) {
+      ctx.waitUntil(refreshOvation(env).then(
+        r => console.log('ovation: ' + r),
+        error => console.error('ovation не обновлён: ' + (error && error.message))
+      ));
+      return;
+    }
     ctx.waitUntil(runCheck(env).then(
       summary => console.log('проверка: ' + JSON.stringify(summary)),
       error => {

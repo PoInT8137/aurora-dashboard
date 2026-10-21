@@ -11,6 +11,7 @@
 import '../../core.js';
 import { sendPush } from './push.js';
 import { alertMessage, skyMessage, DEFAULT_LANG } from './messages.js';
+import { tally } from './journal.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -58,13 +59,14 @@ export function skyChance(point, kp, cloud, nowMs) {
 }
 
 /** Рассылка набора подписчиков; column — какая отметка времени ставится при успехе. */
-async function deliver(env, nowMs, fetchFn, subs, messageFor, column, summary, key) {
+async function deliver(env, nowMs, fetchFn, subs, messageFor, column, summary, key, pointId) {
   const updates = [];
   const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
   subs.forEach((sub, i) => {
     const status = statuses[i];
     if (status >= 200 && status < 300) {
       summary[key]++;
+      tally(summary, pointId, 'other');
       updates.push(env.DB.prepare('UPDATE subs SET ' + column + ' = ?, msg = ?, fails = 0 WHERE id = ?')
         .bind(nowMs, JSON.stringify(messageFor(sub)), sub.id));
     } else if (status === 404 || status === 410) {
@@ -122,7 +124,7 @@ export async function optionAlerts(env, nowMs, fetchFn, ctx, summary) {
     const cloud = ctx.clouds[i];
     await deliver(env, nowMs, fetchFn, subs,
       s => alertMessage(point, ctx.kp, cloud, nowMs, s.lang || DEFAULT_LANG, level),
-      'last_sent', summary, 'midSent');
+      'last_sent', summary, 'midSent', point.id);
   }
 
   // «Небо скоро откроется».
@@ -141,7 +143,7 @@ export async function optionAlerts(env, nowMs, fetchFn, ctx, summary) {
     subs.forEach(s => ctx.sentIds.add(s.id));
     await deliver(env, nowMs, fetchFn, subs,
       s => skyMessage(point, ctx.kp, clear, nowMs, s.lang || DEFAULT_LANG, s.tz),
-      'last_sky', summary, 'skySent');
+      'last_sky', summary, 'skySent', point.id);
   }
   return budget;
 }

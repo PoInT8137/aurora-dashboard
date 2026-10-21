@@ -16,6 +16,7 @@ import { monitorStep, notifyOwner } from './monitor.js';
 import { bugNotifyStep } from './bugs.js';
 import { dailyDigest } from './stats.js';
 import { ensureTelegram, telegramAlerts } from './telegram.js';
+import { tally, journalStatement, purgeJournalStatement } from './journal.js';
 
 export { alertMessage };
 
@@ -184,10 +185,12 @@ async function checkOnce(env, nowMs, fetchFn) {
   if (clouds === null) return { skipped: 'нет данных об облачности' };
 
   // Быстрые признаки суббури — как у вердикта на сайте (activityScore в core.js): Kp за час,
-  // Hp30 и отметки «Вижу сияние». Южный Bz сюда не входит: у него свой ранний сигнал
-  // («сияние может начаться в ближайший час», bzAlerts) — поднимая уровень, он подменил бы его
-  // уведомлением «высокий шанс сейчас». OVATION не берём: разбор файла не укладывается в лимит
-  // процессорного времени прохода. Сбой любого признака уровень не ломает.
+  // Hp30, OVATION в поле зрения точки и отметки «Вижу сияние». Южный Bz сюда не входит: у него
+  // свой ранний сигнал («сияние может начаться в ближайшие 1–2 часа», bzAlerts) — поднимая
+  // уровень, он подменил бы его уведомлением «высокий шанс сейчас». OVATION берётся из готовой
+  // урезанной копии в noaa_cache (её обновляет отдельное расписание, refreshOvation): разбор
+  // полного файла в этом проходе не уложился бы в лимит процессора. Сбой любого признака
+  // уровень не ломает.
   const extra = await activityExtras(env, nowMs, fetchFn);
 
   const { results: stateRows } = await env.DB.prepare('SELECT point, level, high_since FROM point_state').all();
@@ -198,16 +201,22 @@ async function checkOnce(env, nowMs, fetchFn) {
   const summary = { levels: {}, highSince: {}, sent: 0, gone: 0, failed: 0 };
   const stateWrites = [];
   const targets = [];   // { point, cloud, alt, highSince }
+  const journal = [];   // строки журнала проходов (journal.js); отправки дописываются в конце
 
   points.forEach((point, i) => {
     const cloud = clouds[i];
-    const activity = { kp: kp.value, kpHour: kp.hourMax, hp30: extra.hp30 };
+    const ovation = extra.ovation[point.id] ?? null;
+    const activity = { kp: kp.value, kpHour: kp.hourMax, hp30: extra.hp30, ovation };
     const seen = extra.seen[point.id] || 0;
     const q = Core.quickLevel(activity, cloud, point, new Date(nowMs), seen);
     if (!q || !cloud) return;                       // по этой точке считать не из чего
 
     const prev = prevState.get(point.id);
     summary.levels[point.id] = q.level;
+    journal.push({
+      point: point.id, level: q.level, ks: q.ks, cs: q.cs, by: q.by, alt: q.alt, seen, cloud: cloud.value,
+      kp: kp.value, kpHour: kp.hourMax, hp30: extra.hp30, hp30Age: extra.hp30Age, ovation
+    });
 
     // Момент начала «высокого»: переход из другого уровня. Первое наблюдение
     // за точкой — только точка отсчёта (0): подписчиков не будим тем, что
@@ -267,6 +276,7 @@ async function checkOnce(env, nowMs, fetchFn) {
       const status = statuses[i];
       if (status >= 200 && status < 300) {
         summary.sent++;
+        tally(summary, t.point.id, 'high');
         updates.push(env.DB.prepare('UPDATE subs SET last_sent = ?, msg = ?, fails = 0 WHERE id = ?')
           .bind(nowMs, messageFor(sub), sub.id));
       } else if (status === 404 || status === 410) {
@@ -311,24 +321,65 @@ async function checkOnce(env, nowMs, fetchFn) {
     console.error('telegram-рассылка не выполнена: ' + (e && e.message));
   }
 
+  // Журнал проходов — последним: в нём уже видно, сколько чего ушло. База без таблицы
+  // (до миграции) или сбой записи рассылку не трогают.
+  try {
+    const bz = summary.bz || {};
+    const writes = journal.map(e => journalStatement(env, nowMs, { ...e, bz: bz.value, bzLevel: bz.level },
+      summary.byPoint && summary.byPoint[e.point]));
+    if (writes.length) await env.DB.batch([...writes, purgeJournalStatement(env, nowMs)]);
+    summary.journal = writes.length;
+  } catch (e) {
+    summary.journalError = true;
+    console.error('журнал проходов не записан: ' + (e && e.message));
+  }
+
   return summary;
 }
 
+/** Копия OVATION в noaa_cache старше этого в уровень не идёт: обновляется раз в 10 минут. */
+export const OVATION_CACHE_MAX_MS = 25 * 60 * 1000;
+
 /**
- * Признаки активности сверх Kp: Hp30 за последний час (через кэш /noaa/hp30) и отметки
- * очевидцев по точкам. Каждый признак необязателен: не получилось — null или пусто.
+ * Признаки активности сверх Kp: Hp30 за последний час (через кэш /noaa/hp30), OVATION в поле
+ * зрения каждой точки (готовая копия в noaa_cache) и отметки очевидцев по точкам. Каждый
+ * признак необязателен: не получилось — null или пусто.
  */
 export async function activityExtras(env, nowMs, fetchFn) {
-  const out = { hp30: null, seen: {} };
+  const out = { hp30: null, hp30Age: null, ovation: {}, seen: {} };
   try {
     const [body, status] = await noaaProxy('hp30', nowMs, fetchFn, { db: env.DB });
-    if (status === 200) out.hp30 = Core.hp30Recent(JSON.parse(body), nowMs);
+    if (status === 200) {
+      const rows = JSON.parse(body);
+      out.hp30 = Core.hp30Recent(rows, nowMs);
+      out.hp30Age = Core.hp30AgeMinutes(rows, nowMs);
+    }
   } catch { /* без Hp30 */ }
+  try {
+    // Только из базы: загрузка и вырезка полного файла — дело refreshOvation по своему расписанию.
+    const row = await env.DB.prepare('SELECT body, at FROM noaa_cache WHERE name = ?').bind('ovation').first();
+    if (row && nowMs - row.at <= OVATION_CACHE_MAX_MS) {
+      const ov = Core.ovationSummary(JSON.parse(row.body), Core.POINTS, nowMs);
+      if (ov) for (const [id, p] of Object.entries(ov.points)) out.ovation[id] = p.view;
+    }
+  } catch { /* без OVATION */ }
   try {
     const reports = await reportSummary(env, nowMs);
     for (const [id, r] of Object.entries(reports.points)) out.seen[id] = r.count;
   } catch { /* без отметок */ }
   return out;
+}
+
+/**
+ * Отдельное расписание (OVATION_CRON): свежая урезанная копия OVATION в noaa_cache. Загрузка
+ * 1,6 МБ и вырезка нужного куска — столько же процессора, сколько у запроса /noaa/ovation, и
+ * поэтому не в общем проходе, где процессор уже занят. Возвращает 'ok' | 'cached' | 'error'.
+ */
+export const OVATION_CRON = '5,15,25,35,45,55 * * * *';
+
+export async function refreshOvation(env, nowMs = Date.now(), fetchFn = fetch) {
+  const [, status, , stale] = await noaaProxy('ovation', nowMs, fetchFn, { db: env.DB });
+  return status === 200 && !stale ? 'ok' : (status === 200 ? 'cached' : 'error');
 }
 
 /**
@@ -369,6 +420,7 @@ async function bzAlerts(env, nowMs, fetchFn, reading, points, clouds, summary, b
       const status = statuses[k];
       if (status >= 200 && status < 300) {
         summary.bzSent++;
+        tally(summary, point.id, 'bz');
         const msg = JSON.stringify(bzMessage(point, state.bz, cloud, level, nowMs, sub.lang || DEFAULT_LANG));
         updates.push(env.DB.prepare('UPDATE subs SET last_bz = ?, msg = ?, fails = 0 WHERE id = ?').bind(nowMs, msg, sub.id));
       } else if (status === 404 || status === 410) {

@@ -145,3 +145,28 @@ CREATE TABLE IF NOT EXISTS bugs (
 );
 
 CREATE INDEX IF NOT EXISTS bugs_status ON bugs(status, last_at);
+
+-- Журнал проходов (src/journal.js): что сервер видел и решил по точке раз в 10 минут и сколько
+-- уведомлений ушло. По нему видно, пришло уведомление раньше очевидцев или позже (/timing). 90 дней.
+CREATE TABLE IF NOT EXISTS alert_log (
+  at         INTEGER NOT NULL,          -- мс прохода
+  point      TEXT NOT NULL,             -- id точки
+  level      TEXT NOT NULL,             -- high | mid | low
+  ks         INTEGER,                   -- балл активности 0..3
+  cs         INTEGER,                   -- балл облачности 0..3
+  source     TEXT,                      -- по какому признаку балл активности: kp | hp30 | ovation
+  kp         REAL,                      -- Kp сейчас
+  kp_hour    REAL,                      -- максимум Kp за час
+  hp30       REAL,                      -- Hp30 за последний час (NULL — нет свежего)
+  hp30_age   INTEGER,                   -- мин с конца последнего получаса Hp30
+  ovation    REAL,                      -- OVATION, % в поле зрения точки
+  bz         REAL,                      -- нТл
+  bz_level   TEXT,                      -- strong | south | NULL
+  cloud      INTEGER,                   -- эффективная облачность, %
+  alt        REAL,                      -- высота Солнца, °
+  seen       INTEGER NOT NULL DEFAULT 0,-- отметок «Вижу сияние» у точки за последний час
+  sent_high  INTEGER NOT NULL DEFAULT 0,-- уведомлений о высоком шансе (браузер и Telegram)
+  sent_bz    INTEGER NOT NULL DEFAULT 0,-- ранних сигналов Bz
+  sent_other INTEGER NOT NULL DEFAULT 0,-- «средний шанс» и «небо откроется»
+  PRIMARY KEY (at, point)
+);

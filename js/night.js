@@ -24,17 +24,18 @@ function kpAt(time, rows, fallback) {
 function hourLevel(kp, cloudPct, alt, conflict, point) {
   var cs = cloudScore(cloudPct, conflict);
   var level;
+  var ks = kp === null ? null : kpScore(kp, point);
 
-  if (kp === null) {
+  if (ks === null) {
     // Без прогноза Kp судим только по небу и выше среднего не поднимаемся.
     level = cs >= 3 ? 1 : 0;
   } else {
-    var product = kpScore(kp, point) * cs;
+    var product = ks * cs;
     level = product >= 6 ? 2 : (product >= 2 ? 1 : 0);
   }
 
-  // В неполной темноте высокий уровень не ставим — как и в вердикте.
-  if (alt > DARK_FULL && level > 1) level = 1;
+  // В неполной темноте высокий уровень — только при сильной активности, как и в вердикте.
+  if (alt > DARK_FULL && level > 1 && ks !== TWILIGHT_HIGH_KS) level = 1;
   return level;
 }
 

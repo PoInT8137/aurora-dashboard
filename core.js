@@ -81,6 +81,7 @@ var CLOUD_LAYERS = [
 
 var DARK_USABLE = -6;  // ниже этой высоты Солнца сияние уже различимо
 var DARK_FULL = -12;   // полная темнота
+var TWILIGHT_HIGH_KS = 3;   // балл активности, при котором «высокий» ставится и в сумерках
 
 /**
  * Модель Open-Meteo: и сайт, и сервер уведомлений должны запрашивать одну и ту
@@ -540,24 +541,39 @@ function readKpSeries(data) {
 /**
  * Индекс Hp30 (GFZ Потсдам, через сервер: /noaa/hp30) — тот же Kp, но за полчаса, а не за три
  * часа: короткую суббурю он видит, а трёхчасовой Kp её «размазывает». Ответ сервера —
- * [[время ISO, значение], …]; возвращает максимум за последний час, если данные свежие
- * (последнее значение не старше 90 минут), иначе null.
+ * [[начало получаса ISO, значение], …]; возвращает максимум по получасам, закончившимся не
+ * раньше чем HP30_WINDOW_MS назад от текущего момента, иначе null.
+ *
+ * Окно отсчитывается от «сейчас», а не от последней записи: GFZ публикует значения с задержкой,
+ * и при окне от последней записи всплеск полуторачасовой давности ещё поднимал уровень — так
+ * уведомление уходило, когда суббуря уже прошла.
  */
+var HP30_STEP_MS = 30 * 60000;
+var HP30_WINDOW_MS = 60 * 60000;
+
 function hp30Recent(rows, nowMs) {
   if (!Array.isArray(rows) || !rows.length) return null;
-  var lastTime = 0, best = null;
-  rows.forEach(function (r) {
-    var t = Array.isArray(r) ? parseUtc(r[0]) : null;
-    if (t && t.getTime() > lastTime) lastTime = t.getTime();
-  });
-  if (!lastTime || nowMs - lastTime > 90 * 60000) return null;
+  var best = null;
   rows.forEach(function (r) {
     var t = Array.isArray(r) ? parseUtc(r[0]) : null;
     var v = Array.isArray(r) ? num(r[1]) : null;
-    if (!t || v === null || lastTime - t.getTime() > 30 * 60000) return;   // два последних получаса
+    if (!t || v === null) return;
+    var end = t.getTime() + HP30_STEP_MS;
+    if (end > nowMs + HP30_STEP_MS || nowMs - end > HP30_WINDOW_MS) return;
     if (best === null || v > best) best = v;
   });
   return best;
+}
+
+/** Сколько минут назад закончился последний получас Hp30 в ряду; null — ряда нет. Для журнала. */
+function hp30AgeMinutes(rows, nowMs) {
+  if (!Array.isArray(rows)) return null;
+  var last = 0;
+  rows.forEach(function (r) {
+    var t = Array.isArray(r) ? parseUtc(r[0]) : null;
+    if (t && t.getTime() > last) last = t.getTime();
+  });
+  return last ? Math.round((nowMs - last - HP30_STEP_MS) / 60000) : null;
 }
 
 /** Число из ответа API или null. */
@@ -693,7 +709,9 @@ function bzActivity(sw) {
  * ks и cs — баллы за активность и облачность (0..3) либо null, если данных нет. Если
  * известен только один фактор, считаем по нему и выше среднего не поднимаемся.
  * alt — высота Солнца: при светлом небе сияние не различить ни при каком Kp,
- * а в неполной темноте высокий уровень не ставим.
+ * а в неполной темноте (навигационные сумерки, −6°…−12°) высокий уровень ставим, только если
+ * активность сильная (ks = 3): яркое сияние в сумерках видно, и вечером уведомление иначе
+ * ждало полной темноты — около часа после того, как сияние уже показалось.
  * seen — сколько человек рядом отметили «Вижу сияние» за последний час: если в темноте
  * сияние видят своими глазами, шанс не ниже среднего, что бы ни говорили индексы и модель
  * облаков (облака могли разойтись).
@@ -710,7 +728,7 @@ function verdictLevel(ks, cs, alt, seen) {
   }
 
   if (alt > DARK_USABLE) return 'low';
-  if (alt > DARK_FULL && level === 'high') level = 'mid';
+  if (alt > DARK_FULL && level === 'high' && ks !== TWILIGHT_HIGH_KS) level = 'mid';
   if (seen > 0 && level === 'low') level = 'mid';
 
   return level;
@@ -1055,6 +1073,7 @@ globalThis.AuroraCore = {
   CLOUD_LAYERS: CLOUD_LAYERS,
   DARK_USABLE: DARK_USABLE,
   DARK_FULL: DARK_FULL,
+  TWILIGHT_HIGH_KS: TWILIGHT_HIGH_KS,
   WEATHER_MODEL: WEATHER_MODEL,
   findPoint: findPoint,
   geomagneticLatitude: geomagneticLatitude,
@@ -1066,6 +1085,7 @@ globalThis.AuroraCore = {
   activityScore: activityScore,
   bzActivity: bzActivity,
   hp30Recent: hp30Recent,
+  hp30AgeMinutes: hp30AgeMinutes,
   KP_NEAR: KP_NEAR,
   OVATION_ACTIVITY: OVATION_ACTIVITY,
   cloudScore: cloudScore,
