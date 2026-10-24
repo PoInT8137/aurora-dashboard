@@ -125,7 +125,7 @@ test('подробности часа: по умолчанию — начало 
   assert.equal(Number(first.attrs['data-time']), w.from.getTime());
   assert.equal(el('window-detail').textContent, first.attrs['aria-label']);
   assert.match(el('window-detail').textContent,
-    /^\d\d:\d\d–\d\d:\d\d · (Высокий|Средний|Низкий) шанс · облачность 10% · Kp 4,3 · (полная|неполная) темнота · Луна \d+%, (над|под) горизонтом$/);
+    /^\d\d:\d\d–\d\d:\d\d · (Высокий|Средний|Низкий) шанс · облачность 10% · Kp 4,3 за 3 ч · (полная|неполная) темнота · Луна \d+%, (над|под) горизонтом$/);
   assert.equal(first.tabIndex, 0);
   assert.ok(columns(el).filter(c => c !== first).every(c => c.tabIndex === -1), 'в порядке Tab — только выбранный час');
 });
@@ -177,7 +177,7 @@ test('на английском — своя легенда и подробно�
   ctx.setLang('en');
   ctx.renderWindow();
   assert.deepEqual(el('window-hours').children[0].children.map(c => c.textContent), ['Height is clear sky', 'High chance', 'Medium chance', 'Low chance', 'Best window']);
-  assert.match(el('window-detail').textContent, / · cloud cover 10% · Kp 4\.3 · /);
+  assert.match(el('window-detail').textContent, / · cloud cover 10% · Kp 4\.3 for 3 h · /);
 });
 
 test('полярный день: график и подробности убраны, а не остались от прошлой ночи', () => {

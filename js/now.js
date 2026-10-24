@@ -305,7 +305,33 @@ function loadKp() {
     });
 }
 
+/**
+ * Карточка Kp показывает минутную оценку NOAA, прогноз и ночной график: значение за всю
+ * трёхчасовку. Числа законно расходятся (например, 0,3 и 1,3), и без подписи это выглядит как
+ * ошибка. Строку показываем, только когда разница заметна: от 0,5.
+ */
+var KP_NOTE_GAP = 0.5;
+
+function renderKpNote() {
+  var out = $('forecast-kp-note');
+  if (!out) return;
+  var slot = (state.forecast || []).filter(function (row) { return row.current; })[0];
+  var kp = state.kp;
+  if (!slot || !kp || kp.stale || Math.abs(slot.value - kp.value) < KP_NOTE_GAP) {
+    out.textContent = '';
+    out.hidden = true;
+    return;
+  }
+  out.textContent = t('forecast.kp_note', {
+    slot: fmtKp(slot.value),
+    now: fmtKp(kp.value),
+    status: t('forecast.status.' + (slot.status || 'estimated'))
+  });
+  out.hidden = false;
+}
+
 function renderKp(kp) {
+  renderKpNote();
   var tone = kpTone(kp.value);
   setTone($('kp-card'), tone);
 
@@ -948,6 +974,9 @@ function loadForecast() {
     });
 }
 
+/* Пометка NOAA у трёхчасовки: измерено, оценка, прогноз. */
+var FORECAST_STATUS = ['observed', 'estimated', 'predicted'];
+
 /** Строки NOAA -> ячейки прогноза: только будущее, максимум 24 трёхчасовки. */
 function buildForecastRows(source) {
   var now = Date.now();
@@ -958,7 +987,10 @@ function buildForecastRows(source) {
     var v = pickKpValue(source[i]);
     if (!t || !isFinite(v)) continue;
     if (t.getTime() + 3 * 3600000 < now) continue; // прошедшие трёхчасовки пропускаем
-    rows.push({ time: t, value: v, current: t.getTime() <= now });
+    // observed: «observed» (измерено), «estimated» (оценка текущей трёхчасовки), «predicted» (прогноз)
+    var status = String(source[i].observed || '').toLowerCase();
+    if (FORECAST_STATUS.indexOf(status) < 0) status = null;
+    rows.push({ time: t, value: v, current: t.getTime() <= now, status: status });
     if (rows.length >= 24) break;
   }
 
@@ -1036,7 +1068,8 @@ function renderForecast(rows, ageMs, refreshing) {
     var said = document.createElement('span');
     said.className = 'sr-only';
     said.textContent = fmtWeekday(row.time) + ' ' + fmtTime(row.time)
-      + (row.current ? ' (' + t('forecast.now') + ')' : '') + ' — Kp ' + fmtKp(row.value);
+      + (row.current ? ' (' + t('forecast.now') + ')' : '') + ' — Kp ' + fmtKp(row.value)
+      + (row.status ? ', ' + t('forecast.status.' + row.status) : '');
     day.setAttribute('aria-hidden', 'true');
     value.setAttribute('aria-hidden', 'true');
     time.setAttribute('aria-hidden', 'true');
@@ -1052,6 +1085,7 @@ function renderForecast(rows, ageMs, refreshing) {
   list.appendChild(line);
   list.appendChild(cols);
   list.appendChild(legend);
+  renderKpNote();
 
   applyFreshness('forecast-card', 'forecast-stale', ageMs === undefined ? null : ageMs,
     refreshing ? LEAD_REFRESHING : LEAD_OFFLINE);

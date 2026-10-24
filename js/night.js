@@ -240,7 +240,7 @@ function nightHourText(h, moon) {
     levelWord(h.level),
     t('win.cloud_one', { v: h.cloud })
   ];
-  if (h.kp !== null && h.kp !== undefined) parts.push(t('hour.kp', { v: fmtKp(h.kp) }));
+  if (h.kp !== null && h.kp !== undefined) parts.push(t('hour.kp3', { v: fmtKp(h.kp) }));
   parts.push(t(h.alt <= DARK_FULL ? 'win.dark_full' : 'win.dark_part'));
   parts.push(t(moon.up ? 'moon.win.up' : 'moon.win.down', { pct: moonPercent(moon.illumination) }));
   return parts.join(t('sep.dot'));
