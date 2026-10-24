@@ -365,7 +365,8 @@ export async function activityExtras(env, nowMs, fetchFn) {
   } catch { /* без OVATION */ }
   try {
     const reports = await reportSummary(env, nowMs);
-    for (const [id, r] of Object.entries(reports.points)) out.seen[id] = r.count;
+    // Подтверждением считаются отметки минимум с CONFIRM_DEVICES разных устройств.
+    for (const [id, r] of Object.entries(reports.points)) out.seen[id] = r.confirmed ? r.devices : 0;
   } catch { /* без отметок */ }
   return out;
 }

@@ -45,11 +45,13 @@ CREATE TABLE IF NOT EXISTS reports (
   point    TEXT NOT NULL,              -- id точки области
   strength TEXT NOT NULL,              -- faint | bright
   at       INTEGER NOT NULL,           -- мс
-  who      TEXT NOT NULL               -- 16 hex HMAC(адрес|сутки)
+  who      TEXT NOT NULL,              -- 16 hex HMAC(адрес|сутки)
+  dev      TEXT                        -- 16 hex HMAC(случайный номер устройства); NULL у старых отметок
 );
 
 CREATE INDEX IF NOT EXISTS reports_at ON reports(at);
 CREATE INDEX IF NOT EXISTS reports_who ON reports(who, at);
+CREATE INDEX IF NOT EXISTS reports_dev ON reports(dev, point, at);
 
 -- Проверка прогноза (src/verify.js): вечером — какой шанс обещан на ночь, утром — каким он был.
 CREATE TABLE IF NOT EXISTS verify (

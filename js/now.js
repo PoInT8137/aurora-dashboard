@@ -146,7 +146,8 @@ function loadHp30() {
 function sightingsNow() {
   var r = state.reports;
   var p = r && !r.error && r.data && r.data.points && r.data.points[pushPoint().id];
-  return p ? p.count : 0;
+  // Шанс поднимают только подтверждённые отметки: с REPORTS.confirm разных устройств за час.
+  return reportsConfirmed(p) ? (p.devices || p.count) : 0;
 }
 
 function computeVerdict(kp, cloud) {
