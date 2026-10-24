@@ -190,7 +190,7 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE INDEX IF NOT EXIS
 
 ### Проверка прогноза
 
-Вечером сервер записывает, какой шанс на ночь обещает прогноз для каждой из семи точек, а утром — каким он оказался; `GET /verify` отдаёт итог за последние 60 ночей (`{ nights, total, exact, offByOne, offByTwo, promised: { high: { n, high, mid, low }, … } }`, кэш на час). Код — `src/verify.js`.
+Вечером сервер записывает, какой шанс на ночь обещает прогноз для каждой из семи точек (уровень, наибольший Kp и наименьшая облачность за тёмные часы), а утром каким он оказался по измерениям и сколько разных устройств отметили сияние у точки за самый «людный» час ночи. `GET /verify` отдаёт итог за последние 30 дней (`{ days, nights, total, exact, offByOne, offByTwo, promised: { high: { n, high, mid, low }, … }, seen: { checked, confirmed, hit } }`, кэш на час). `seen.confirmed`: случаи с подтверждённым сиянием (3 устройства за час), `seen.hit`: из них вечерний прогноз был средним или высоким. Код в `src/verify.js`.
 
 - **Правила** — те же, что у окна наблюдения на сайте: ночь — первый тёмный отрезок (Солнце ниже −6°), уровень часа — `verdictLevel` из ядра, уровень ночи — лучший из часов.
 - **Прогноз** (первый проход с 17:00 до 20:00 МСК): Kp — прогноз NOAA (`noaa-planetary-k-index-forecast.json`), облачность — прогноз ICON-EU на сутки для семи точек одним запросом.
@@ -202,6 +202,16 @@ npx wrangler d1 execute aurora-push --remote --command "CREATE INDEX IF NOT EXIS
 ```bash
 npx wrangler d1 execute aurora-push --remote --command "CREATE TABLE IF NOT EXISTS verify (night TEXT NOT NULL, point TEXT NOT NULL, forecast TEXT NOT NULL, actual TEXT, from_ms INTEGER NOT NULL, PRIMARY KEY (night, point))"
 npx wrangler deploy
+```
+
+Kp, облачность и очевидцы в сверке (октябрь 2026), один раз для развёрнутой базы. До этого сервер пишет и считает по-старому:
+
+```bash
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE verify ADD COLUMN forecast_kp REAL"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE verify ADD COLUMN forecast_cloud INTEGER"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE verify ADD COLUMN actual_kp REAL"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE verify ADD COLUMN actual_cloud INTEGER"
+npx wrangler d1 execute aurora-push --remote --command "ALTER TABLE verify ADD COLUMN seen INTEGER"
 ```
 
 ### О чём сообщать: средний шанс и «небо откроется»

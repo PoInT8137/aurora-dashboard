@@ -186,25 +186,41 @@ function accuracyPage(stats) {
   return { ctx, el: getElement, calls };
 }
 
-test('точность: итог по-русски — доля совпадений, промахи и что было при обещанном высоком', async () => {
-  const { ctx, el, calls } = accuracyPage({ nights: 23, total: 150, exact: 111, offByOne: 34, offByTwo: 5,
-    promised: { high: { n: 12, high: 7, mid: 3, low: 2 }, mid: { n: 0, high: 0, mid: 0, low: 0 }, low: { n: 0, high: 0, mid: 0, low: 0 } } });
+test('точность за 30 дней: размер выборки всегда, проценты вниз, сверка с измерениями и с очевидцами', async () => {
+  const { ctx, el, calls } = accuracyPage({ days: 30, nights: 23, total: 150, exact: 111, offByOne: 34, offByTwo: 5,
+    promised: { high: { n: 12, high: 7, mid: 3, low: 2 }, mid: { n: 0, high: 0, mid: 0, low: 0 }, low: { n: 0, high: 0, mid: 0, low: 0 } },
+    seen: { checked: 140, confirmed: 13, hit: 9 } });
   await ctx.loadAccuracy(false);
   assert.equal(calls[0], 'https://aurora-push.aurora-murmansk.workers.dev/verify');
   assert.equal(el('accuracy-card').hidden, false);
   assert.equal(el('accuracy-text').textContent,
-    'За 23 ночи по семи точкам прогноз на ночь совпал с тем, что было, в 74% случаев (111 из 150); ошибся на одну ступень — 34, на две — 5. ' +
-    'Когда обещали высокий шанс, он оказался высоким или средним в 10 из 12.');
+    'За 30 дней сверено 150 прогнозов (точка за ночь, ночей: 23). Уровень совпал в 111 из 150 (74%). Ошибка на одну ступень: 34, на две: 5. ' +
+    'Когда обещали высокий шанс, он оказался высоким или средним в 10 из 12. ' +
+    'Очевидцы подтвердили сияние в 13 случаях (точка за ночь); прогноз на вечер был средним или высоким в 9 из них (69%).');
   await ctx.loadAccuracy(false);
   assert.equal(calls.length, 1, 'не чаще раза в час');
 });
 
-test('точность: меньше пяти ночей — «статистика копится», без процентов; сервер недоступен — карточки нет', async () => {
-  const few = accuracyPage({ nights: 2, total: 14, exact: 14, offByOne: 0, offByTwo: 0, promised: {} });
+test('точность: проценты не округляются в пользу прогноза (149 из 150 это 99%, а не 100%)', async () => {
+  const { ctx } = accuracyPage('fail');
+  assert.equal(ctx.floorPct(149, 150), 99);
+  assert.equal(ctx.floorPct(2, 3), 66);
+  assert.equal(ctx.floorPct(0, 0), 0);
+});
+
+test('точность: данных мало — без процентов, но с числом; очевидцев мало — тоже без процентов', async () => {
+  const few = accuracyPage({ days: 30, nights: 4, total: 28, exact: 28, offByOne: 0, offByTwo: 0, promised: {},
+    seen: { checked: 28, confirmed: 2, hit: 2 } });
   await few.ctx.loadAccuracy(false);
   assert.equal(few.el('accuracy-text').textContent,
-    'Статистика копится: сервер каждый вечер записывает прогноз на ночь, а утром сверяет его с тем, что было. Сверено ночей: 2; цифры появятся после 5.');
+    'Данных пока мало: сверено прогнозов 28 (точка за ночь). Цифры покажем, когда их будет хотя бы 30. ' +
+    'Случаев, когда сияние подтвердили очевидцы, пока 2: для вывода нужно хотя бы 10. Ночей, по которым очевидцев уже считали: 28.');
   assert.doesNotMatch(few.el('accuracy-text').textContent, /%/);
+
+  // старый сервер (без сверки очевидцев) и пустая база
+  const old = accuracyPage({ nights: 0, total: 0, exact: 0, offByOne: 0, offByTwo: 0, promised: {} });
+  await old.ctx.loadAccuracy(false);
+  assert.match(old.el('accuracy-text').textContent, /сверено прогнозов 0 .* Сверка с очевидцами появится/);
 
   const down = accuracyPage('fail');
   await down.ctx.loadAccuracy(false);

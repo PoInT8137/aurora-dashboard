@@ -60,6 +60,11 @@ CREATE TABLE IF NOT EXISTS verify (
   forecast TEXT NOT NULL,              -- high | mid | low — прогноз, записанный вечером
   actual   TEXT,                       -- то же по измеренным данным; NULL — ещё не сверено
   from_ms  INTEGER NOT NULL,           -- начало тёмного отрезка, который оценивался
+  forecast_kp    REAL,                 -- прогноз: наибольший Kp за тёмные часы
+  forecast_cloud INTEGER,              -- прогноз: наименьшая облачность за тёмные часы, %
+  actual_kp      REAL,                 -- измерено: наибольший Kp за тёмные часы
+  actual_cloud   INTEGER,              -- облачность модели за прошедшие тёмные часы, наименьшая
+  seen           INTEGER,              -- очевидцы: разных устройств за самый «людный» час ночи; NULL — не считали
   PRIMARY KEY (night, point)
 );
 

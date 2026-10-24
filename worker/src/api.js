@@ -150,7 +150,7 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     // Меняется раз в сутки — кэшируется на час.
     let stats;
     try {
-      stats = await verifyStats(env);
+      stats = await verifyStats(env, nowMs);
     } catch {
       stats = { nights: 0, total: 0, exact: 0, offByOne: 0, offByTwo: 0, promised: {} };   // база до миграции
     }
