@@ -59,10 +59,14 @@ test('/subscribe: окно и пояс сохраняются; не присла
   row = subRow(env, 1);
   assert.deepEqual([row.quiet_from, row.quiet_to, row.tz], [0, 6, 'Asia/Shanghai']);
 
-  // выключение: окно исчезает, пояс остаётся (он ещё пригодится)
+  // выключение: окно исчезает, и пояс не храним (нужен только для тихих часов)
   await call(env, '/subscribe', { endpoint: ep(1), point: 'teriberka', quiet: null, tz: 'Asia/Shanghai' });
   row = subRow(env, 1);
-  assert.deepEqual([row.quiet_from, row.quiet_to, row.tz], [null, null, 'Asia/Shanghai']);
+  assert.deepEqual([row.quiet_from, row.quiet_to, row.tz], [null, null, null]);
+
+  // новая подписка без тихих часов: пояса нет, даже если страница его прислала
+  await call(env, '/subscribe', { endpoint: ep(2), point: 'murmansk', quiet: null, tz: 'Europe/Moscow' });
+  assert.equal(subRow(env, 2).tz, null);
 
   // новая подписка без тихих часов
   await call(env, '/subscribe', { endpoint: ep(2), point: 'murmansk' });

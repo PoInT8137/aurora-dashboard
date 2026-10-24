@@ -197,6 +197,43 @@ function isStandalone() {
     window.navigator.standalone === true;
 }
 
+/** Версия iOS из строки браузера: [16, 4] или null (не iOS или не удалось понять). */
+function iosVersion() {
+  var m = /OS (\d+)_(\d+)/.exec(navigator.userAgent || '');
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+/** На iOS push от сайтов есть с 16.4. Неизвестная версия (iPad в режиме компьютера) не мешает. */
+function iosPushCapable() {
+  var v = iosVersion();
+  return !v || v[0] > 16 || (v[0] === 16 && v[1] >= 4);
+}
+
+/** Как разрешить заблокированные уведомления: инструкция под браузер человека. */
+function deniedGuideKey() {
+  var ua = navigator.userAgent || '';
+  if (isIOS()) return 'push.denied.ios';
+  if (/Android/.test(ua)) return 'push.denied.android';
+  if (/Firefox\//.test(ua)) return 'push.denied.firefox';
+  if (/Safari\//.test(ua) && !/Chrome\/|Chromium\/|Edg\//.test(ua)) return 'push.denied.safari';
+  return 'push.denied.chrome';
+}
+
+/**
+ * Блок для iPhone: шаги «на экран Домой» и проверка, как открыт сайт. Виден всегда на iPhone и
+ * iPad: человеку важно знать, почему кнопка неактивна в браузере и что делать.
+ */
+function renderIosPush() {
+  var box = $('push-ios');
+  if (!box) return;
+  if (!isIOS()) { box.hidden = true; return; }
+  box.hidden = false;
+  var standalone = isStandalone();
+  $('push-ios-steps').hidden = standalone;
+  $('push-ios-state').textContent = t(!iosPushCapable() ? 'push.ios.old' : standalone ? 'push.ios.app' : 'push.ios.browser');
+  box.setAttribute('data-ok', String(standalone && iosPushCapable()));
+}
+
 function isIOS() {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -437,13 +474,18 @@ function renderPushCard() {
   $('push-test').disabled = busy || !active;
   $('push-test-later').disabled = busy || !active;
 
+  renderIosPush();
   var hint = $('push-hint');
   if (!supported) {
-    hint.textContent = t((isIOS() && !isStandalone()) ? 'push.hint.ios' : 'push.hint.unsupported');
+    // На iPhone причина и шаги уже в заметном блоке выше; повторять их строкой не нужно.
+    hint.textContent = isIOS() ? '' : t('push.hint.unsupported');
   } else if (permission === 'denied' && !active) {
-    hint.textContent = t('push.hint.denied');
+    hint.textContent = t('push.hint.denied', { how: t(deniedGuideKey()) });
   } else if (active) {
-    hint.textContent = t('push.hint.on', { name: pointName(pushPoint()) }) + customPushNote();
+    hint.textContent = t('push.hint.on', {
+      name: pointName(pushPoint()),
+      level: t(setting('alert') === 'mid' ? 'push.level.mid' : 'push.level.high')
+    }) + customPushNote();
   } else {
     hint.textContent = t('push.hint.off', { name: pointName(pushPoint()) }) + customPushNote();
   }

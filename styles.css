@@ -1593,6 +1593,21 @@ html[data-theme="night"] .clouds__slider { filter: grayscale(1) sepia(1) saturat
   .install__actions .btn { flex: 1; min-height: 44px; }
 }
 
+/* iPhone: заметная подсказка в карточке уведомлений. Зелёная рамка, когда сайт уже открыт
+   как приложение и уведомления можно включить. */
+.ios-push {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--mid-rgb), 0.55);
+  border-left-width: 4px;
+  border-radius: 14px;
+  background: rgba(var(--mid-rgb), 0.08);
+}
+.ios-push[data-ok="true"] { border-color: rgba(var(--ok-rgb), 0.55); background: rgba(var(--ok-rgb), 0.08); }
+.ios-push__title { margin: 0 0 8px; font-weight: 650; font-size: 16px; color: var(--text); }
+.ios-push__steps { margin: 0 0 8px; padding-left: 22px; display: grid; gap: 4px; font-size: 15px; color: var(--text); }
+.ios-push__state { margin: 0; font-size: 14px; color: var(--text-dim); }
+
 /* Окно «Поделиться» */
 .share {
   width: min(420px, calc(100vw - 32px));

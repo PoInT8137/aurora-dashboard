@@ -7,10 +7,10 @@ compatibility_date = "2025-09-01"
 workers_dev = true
 preview_urls = false
 
-# Раз в 10 минут: проверка условий и рассылка (см. src/check.js). Со сдвигом на 5 минут —
-# свежая копия OVATION для следующей проверки (refreshOvation, OVATION_CRON в src/check.js).
+# Раз в 5 минут: проверка условий и рассылка (см. src/check.js). Раз в 10 минут, за минуту до
+# проверки, свежая копия OVATION для следующих проверок (refreshOvation, OVATION_CRON в src/check.js).
 [triggers]
-crons = ["*/10 * * * *", "5,15,25,35,45,55 * * * *"]
+crons = ["*/5 * * * *", "4,14,24,34,44,54 * * * *"]
 
 [[d1_databases]]
 binding = "DB"
