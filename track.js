@@ -16,6 +16,9 @@
   'use strict';
   var api = typeof AURORA_CONFIG !== 'undefined' && AURORA_CONFIG.pushApi;
   if (!api || typeof fetch !== 'function' || location.protocol === 'file:') return;
+  // Роботы поисковиков выполняют скрипты, но это не посетители, а их «ошибки» — шум
+  // (сервер отсеивает их так же, worker/src/stats.js BOT_UA).
+  if (navigator.webdriver || /bot\/|crawl|spider|slurp|lighthouse|headless|pagespeed|externalhit|google-|(google|yandex|bing|apple|petal|ahrefs|semrush|mj12|telegram|twitter|duckduck|baidu)[a-z]*bot/i.test(navigator.userAgent || '')) return;
 
   var MAX_BUGS = 5;
   var sentBugs = {};

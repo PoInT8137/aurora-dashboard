@@ -30,7 +30,7 @@ import { verifyStats } from './verify.js';
 import { meteoProxy } from './meteo.js';
 import { noaaProxy } from './noaa.js';
 import { handleTelegram } from './telegram.js';
-import { acceptHit } from './stats.js';
+import { acceptHit, isBot } from './stats.js';
 import { acceptBug } from './bugs.js';
 
 const Core = globalThis.AuroraCore;
@@ -185,6 +185,7 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     try {
       const origin = request.headers.get('Origin');
       const ua = request.headers.get('User-Agent');
+      if (isBot(ua)) return reply(url.pathname === '/hit' ? { ok: true, counted: false } : { ok: true, recorded: false }, 200, cors);
       const [result, status] = url.pathname === '/hit'
         ? await acceptHit(env, body, origin, request.headers.get('CF-Connecting-IP'), ua, nowMs)
         : await acceptBug(env, body, origin, ua, nowMs);

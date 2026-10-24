@@ -249,3 +249,23 @@ test('меню владельца: /stats, /bugs и /timing только в ег
   assert.deepEqual(ownerMenu.body.commands.map(c => c.command), ['now', 'settings', 'stop', 'bug', 'stats', 'bugs', 'timing']);
   for (const m of menus.filter(x => !x.body.scope)) assert.ok(!m.body.commands.some(c => c.command === 'stats' || c.command === 'timing'));
 });
+
+test('роботы поисковиков не считаются посетителями, их ошибки не пишутся; телефон Cubot — не робот', async () => {
+  const env = await botEnv();
+  const bots = [
+    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/136.0.7103.92 Safari/537.36',
+    'Mozilla/5.0 (compatible; YandexRenderResourcesBot/1.0; +http://yandex.com/bots) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/136.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Mobile Safari/537.36 Chrome-Lighthouse',
+    ''
+  ];
+  for (const ua of bots) {
+    assert.deepEqual((await call(env, page('/hit', { lang: 'ru' }, { ua }))).body, { ok: true, counted: false }, ua);
+    assert.deepEqual((await call(env, page('/bug', { msg: 'ReferenceError: initInstallHint is not defined' }, { ua }))).body, { ok: true, recorded: false }, ua);
+  }
+  const cubot = 'Mozilla/5.0 (Linux; Android 12; CUBOT X50 Build/SP1A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36';
+  for (const ua of [cubot, IPHONE, WIN, 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/128.0 YaBrowser/24.7 Safari/537.36']) {
+    assert.equal((await call(env, page('/hit', {}, { ua, ip: ua.slice(0, 20) }))).body.counted, true, ua);
+  }
+  assert.equal(env.DB.raw.prepare('SELECT COUNT(*) AS c FROM bugs').get().c, 0);
+});

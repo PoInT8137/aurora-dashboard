@@ -19,6 +19,14 @@ export const VISITS_KEEP_DAYS = 120;
 export const MAX_VISITORS_PER_DAY = 20000;     // защита базы от накрутки
 const LANGS = ['ru', 'en', 'zh'];
 
+/**
+ * Поисковые и проверочные роботы (Googlebot, YandexBot, Lighthouse, безголовый Chrome) тоже
+ * выполняют скрипты страницы. Посещениями они не считаются, а их ошибки — шум: робот грузит
+ * не все скрипты, и страница у него «падает» так, как у людей не бывает.
+ */
+export const BOT_UA = /bot\/|crawl|spider|slurp|lighthouse|headless|pagespeed|externalhit|google-|(google|yandex|bing|apple|petal|ahrefs|semrush|mj12|telegram|twitter|duckduck|baidu)[a-z]*bot|python|curl|wget/i;
+export const isBot = ua => !ua || BOT_UA.test(String(ua));
+
 /** Дата по Москве: 2026-10-05. */
 export const mskDay = nowMs => new Date(nowMs + MSK_MS).toISOString().slice(0, 10);
 

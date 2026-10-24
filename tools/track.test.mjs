@@ -7,13 +7,13 @@ import fs from 'node:fs';
 
 const code = fs.readFileSync(new URL('../track.js', import.meta.url), 'utf8');
 
-function run({ ready = 'loading', store = {}, standalone = false } = {}) {
+function run({ ready = 'loading', store = {}, standalone = false, nav = {} } = {}) {
   const listeners = {};
   const posts = [];
   const timers = [];
   const window = { addEventListener: (type, fn) => { listeners[type] = fn; }, matchMedia: q => ({ matches: q.includes('standalone') ? standalone : q.includes('coarse') }) };
   const sandbox = {
-    window, location: { protocol: 'https:', hash: '#map' }, screen: { width: 390, height: 844 }, navigator: {},
+    window, location: { protocol: 'https:', hash: '#map' }, screen: { width: 390, height: 844 }, navigator: nav,
     document: { readyState: ready, referrer: 'https://yandex.ru/search', documentElement: { lang: 'ru' } },
     localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
     setTimeout: fn => timers.push(fn),
@@ -59,4 +59,13 @@ test('ошибки: текст, файл, стек и вкладка; повто
 
   for (let i = 0; i < 10; i++) fire({ message: 'e' + i, filename: 'app.js', lineno: i });
   assert.equal(t.posts.filter(p => p.path === '/bug').length, 5, 'не больше пяти за загрузку');
+});
+
+test('робот поисковика и автоматизированный браузер — ни посещения, ни ошибок', () => {
+  for (const nav of [{ userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/136.0 Safari/537.36' }, { webdriver: true, userAgent: 'Chrome/136' }]) {
+    const t = run({ ready: 'complete', nav });
+    t.timers.forEach(fn => fn());
+    assert.equal(t.posts.length, 0);
+    assert.equal(t.listeners.error, undefined);
+  }
 });
