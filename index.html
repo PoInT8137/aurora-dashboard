@@ -361,6 +361,26 @@ try {
   </div>
 
   <!-- Ночь по часам: шанс, облака, Kp и Луна; рамка — лучшее окно (js/night.js) -->
+  <!-- Лучшая ночь ближайших дней: три ночи по всем точкам (js/tonight.js, renderNights) -->
+  <section class="card card--wide" id="nights-card" data-state="loading">
+    <h2 class="card__label" data-i18n="nights.title">Лучшая ночь ближайших дней</h2>
+
+    <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
+
+    <div class="card__body">
+      <p class="nights__value" id="nights-value"></p>
+      <p class="nights__why" id="nights-why"></p>
+      <ul class="nights" id="nights-list"></ul>
+      <p class="card__meta" data-i18n="nights.note">Облачность на вторую и третью ночь предсказывается хуже, чем на ближайшую. Проверьте прогноз ещё раз ближе к делу. Прогноз Kp от NOAA есть на трое суток.</p>
+    </div>
+
+    <p class="card__stale" id="nights-stale"><span class="stale__text"></span></p>
+
+    <div class="card__error">
+      <p data-i18n="nights.error">Нет почасовой облачности по точкам, поэтому ночи вперёд не посчитать.</p>
+    </div>
+  </section>
+
   <section class="card card--wide" id="night-card" data-state="loading">
     <h2 class="card__label" data-i18n="night.title">Ночь по часам</h2>
 

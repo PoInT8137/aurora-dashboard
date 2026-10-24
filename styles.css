@@ -2040,6 +2040,41 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
   max-width: 62ch;
 }
 
+/* Лучшая ночь ближайших дней: ответ крупно, причина, затем по строке на каждую ночь */
+.nights__value {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--tone, var(--text));
+  font-variant-numeric: tabular-nums;
+}
+.nights__why { margin: 8px 0 0; font-size: 16px; color: var(--text); max-width: 62ch; }
+.nights {
+  margin: 16px 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.nights__item {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  gap: 4px 14px;
+  align-items: baseline;
+  padding: 10px 14px;
+  background: rgba(var(--fill), 0.04);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tone, var(--border));
+  border-radius: 12px;
+}
+.nights__date { font-weight: 650; color: var(--text); }
+.nights__text { font-size: 14px; color: var(--text-dim); }
+@media (max-width: 480px) {
+  .nights__value { font-size: 22px; }
+  .nights__item { grid-template-columns: 1fr; }
+}
+
 /* Россыпь условий — свёрнута: главное уже сказано шкалами и пояснением.
    Тот же вид у «Как это считается» в карточках деталей и у предупреждения об облаках. */
 .verdict__more { margin-top: 14px; }
