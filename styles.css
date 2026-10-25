@@ -2725,6 +2725,15 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
   .card__warn summary { min-height: 44px; }
   .webcam__name { display: inline-block; padding: 10px 0; margin: -10px 0; }
   .foot a { display: inline-block; padding: 14px 0; margin: -14px 0; }
+  /* Кнопки карты и «Куда ехать»: были 34–40 px в высоту */
+  .window__where,
+  .map__pick,
+  #map-open,
+  .clouds__toggle,
+  .clouds__slider { min-height: 44px; }
+  /* Подписи точек на карте 24 px в высоту: невидимый слой делает область нажатия 44 px, сама
+     подпись и карта не сдвигаются */
+  .mappt::before { content: ""; position: absolute; inset: -10px -2px; }
 }
 
 /* На компьютере «Обновлено в 23:10» — в две строки: со знаком «Север» название шире, и иначе

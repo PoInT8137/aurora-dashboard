@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v71';
+var APP_VERSION = 'v72';
 
 var CONFIG = {
   tz: 'Europe/Moscow',

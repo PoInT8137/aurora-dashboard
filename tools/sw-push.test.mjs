@@ -13,7 +13,7 @@ const SCOPE = 'https://auroramurmansk.ru/';
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/device-1';
 
 /** Окружение service worker: события собираются, всё внешнее — подделки. */
-function worker({ subscription = { endpoint: ENDPOINT }, message, serverStatus = 200, windows = [], config = configCode, importFails = false, language = 'ru-RU' } = {}) {
+function worker({ subscription = { endpoint: ENDPOINT }, message, serverStatus = 200, windows = [], config = configCode, importFails = false, language = 'ru-RU', cacheNames = [] } = {}) {
   const w = { handlers: {}, shown: [], fetched: [], opened: [], focused: [], cached: [], cachePuts: [] };
 
   const sandbox = {
@@ -38,7 +38,7 @@ function worker({ subscription = { endpoint: ENDPOINT }, message, serverStatus =
         keys: async () => [],
         match: async () => undefined
       }),
-      keys: async () => [],
+      keys: async () => cacheNames,
       delete: async () => true,
       match: async () => undefined
     },
@@ -222,8 +222,8 @@ test('push: текст, который собрал сервер, показыв
   assert.equal(w.shown[0].options.lang, 'en');
 });
 
-test('установка качает файлы с меткой версии (мимо кэша CDN), а хранит под обычными адресами', async () => {
-  const w = worker();
+test('обновление версии: установка качает файлы с меткой версии (мимо кэша CDN), а хранит под обычными адресами', async () => {
+  const w = worker({ cacheNames: ['aurora-v1'] });
   await w.fire('install');
   const version = /CACHE_VERSION = '([^']+)'/.exec(swCode)[1];
   const shellFetches = w.fetched.filter(f => f.url.startsWith(SCOPE));
