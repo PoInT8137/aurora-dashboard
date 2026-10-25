@@ -161,9 +161,11 @@ test('сайт: облачно, но активность есть — подс�
   assert.match(calm.hint, /^Небо затянуто облаками/);
 });
 
-test('сайт: очевидцы рядом за последний час — «средний» даже при облаках, подсказка первой', () => {
+test('сайт: подтверждённые очевидцы (3 устройства) — «средний» даже при облаках, подсказка первой; 2 устройства — нет', () => {
   const { ctx } = page();
-  ctx.state.reports = { error: false, data: { points: { murmansk: { count: 3, bright: 1 } } } };
+  ctx.state.reports = { error: false, data: { points: { murmansk: { count: 4, devices: 2, confirmed: false, bright: 1 } } } };
+  assert.equal(verdict(ctx, 0.3, 95).level, 'low', 'не подтверждено: шанс не поднимаем');
+  ctx.state.reports = { error: false, data: { points: { murmansk: { count: 3, devices: 3, confirmed: true, bright: 1 } } } };
   const v = verdict(ctx, 0.3, 95);
   assert.equal(v.level, 'mid');
   assert.match(v.hint, /^Очевидцы видят сияние прямо сейчас: 3 отметки рядом за последний час — выходите смотреть\./);

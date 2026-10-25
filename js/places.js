@@ -288,7 +288,7 @@ function placesChanged() {
   cacheDrop('tonight');
   var hadTonight = !!state.tonight;
   state.tonight = null;
-  if (hadTonight || state.tab === 'tonight' || state.tab === 'map') loadTonight();
+  if (hadTonight || state.tab === 'tonight' || state.tab === 'map') loadTonight(true);
   renderMap();
 }
 

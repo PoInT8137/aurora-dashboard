@@ -1,4 +1,4 @@
-// Проверка по расписанию: раз в 10 минут считает вердикт по каждой точке, на
+// Проверка по расписанию: раз в 5 минут считает вердикт по каждой точке, на
 // которую есть подписчики, и шлёт push при переходе в «Высокий».
 //
 // Уровень считает общее ядро (core.js) — то же, что на сайте, поэтому
@@ -28,7 +28,7 @@ export const COOLDOWN_MS = 3 * 60 * 60 * 1000;
 /**
  * На бесплатном тарифе у worker'а лимит 50 внешних запросов за запуск.
  * Часть уходит на данные и базу, остальное — на отправку. Если подписчиков
- * больше, остальные получат push при следующем запуске (через 10 минут).
+ * больше, остальные получат push при следующем запуске (через 5 минут).
  */
 export const MAX_SENDS_PER_RUN = 35;
 
@@ -365,7 +365,8 @@ export async function activityExtras(env, nowMs, fetchFn) {
   } catch { /* без OVATION */ }
   try {
     const reports = await reportSummary(env, nowMs);
-    for (const [id, r] of Object.entries(reports.points)) out.seen[id] = r.count;
+    // Подтверждением считаются отметки минимум с CONFIRM_DEVICES разных устройств.
+    for (const [id, r] of Object.entries(reports.points)) out.seen[id] = r.confirmed ? r.devices : 0;
   } catch { /* без отметок */ }
   return out;
 }
@@ -375,7 +376,7 @@ export async function activityExtras(env, nowMs, fetchFn) {
  * 1,6 МБ и вырезка нужного куска — столько же процессора, сколько у запроса /noaa/ovation, и
  * поэтому не в общем проходе, где процессор уже занят. Возвращает 'ok' | 'cached' | 'error'.
  */
-export const OVATION_CRON = '5,15,25,35,45,55 * * * *';
+export const OVATION_CRON = '4,14,24,34,44,54 * * * *';
 
 export async function refreshOvation(env, nowMs = Date.now(), fetchFn = fetch) {
   const [, status, , stale] = await noaaProxy('ovation', nowMs, fetchFn, { db: env.DB });

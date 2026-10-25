@@ -10,9 +10,15 @@
 /*  прогноз Kp уже загружены, высота Солнца считается локально.        */
 /* ------------------------------------------------------------------ */
 
-/** Прогнозное Kp на момент time: последняя трёхчасовка, начавшаяся до него. */
+/**
+ * Прогнозное Kp на момент time: последняя трёхчасовка, начавшаяся до него. За концом прогноза
+ * Kp неизвестен (fallback): последнее значение вперёд не тянем, иначе для третьей ночи вышел
+ * бы выдуманный Kp.
+ */
 function kpAt(time, rows, fallback) {
-  if (rows) {
+  if (rows && rows.length) {
+    var last = rows[rows.length - 1];
+    if (time.getTime() >= last.time.getTime() + 3 * 3600000) return fallback;
     for (var i = rows.length - 1; i >= 0; i--) {
       if (rows[i].time.getTime() <= time.getTime()) return rows[i].value;
     }
@@ -39,17 +45,10 @@ function hourLevel(kp, cloudPct, alt, conflict, point) {
   return level;
 }
 
-/**
- * Ближайшая ночь и лучший отрезок внутри неё.
- * Возвращает null (нет данных), { polarDay: true } либо описание окна.
- */
-function computeNightWindow(cloud, kpRows, kpNow, point) {
-  if (!cloud || !cloud.hours || !cloud.hours.length) return null;
-
-  point = point || currentPoint();
+/** Ещё не прошедшие часы почасового прогноза облачности с высотой Солнца в точке. */
+function futureHours(cloud, point) {
   var now = Date.now();
   var hours = [];
-
   for (var i = 0; i < cloud.hours.length; i++) {
     var t = parseUtc(cloud.hours[i].time);
     if (!t || t.getTime() + 3600000 < now) continue; // час уже прошёл
@@ -59,24 +58,80 @@ function computeNightWindow(cloud, kpRows, kpNow, point) {
       alt: solarAltitude(t, point.lat, point.lon)
     });
   }
+  return hours;
+}
 
+/**
+ * Тёмные отрезки подряд (Солнце ниже DARK_USABLE): каждый отрезок и есть ночь. Не больше max.
+ * У последнего отрезка флаг cut, если данные кончились раньше, чем ночь.
+ */
+function darkSegments(hours, max) {
+  var segments = [];
+  var current = null;
+  for (var i = 0; i < hours.length && segments.length <= max; i++) {
+    if (hours[i].alt <= DARK_USABLE) {
+      if (!current) { current = []; segments.push(current); }
+      current.push(hours[i]);
+    } else {
+      current = null;
+    }
+  }
+  segments = segments.slice(0, max);
+  var last = segments[segments.length - 1];
+  if (last && last[last.length - 1] === hours[hours.length - 1]) last.cut = true;
+  return segments;
+}
+
+/**
+ * Ближайшая ночь и лучший отрезок внутри неё.
+ * Возвращает null (нет данных), { polarDay: true } либо описание окна.
+ */
+function computeNightWindow(cloud, kpRows, kpNow, point) {
+  if (!cloud || !cloud.hours || !cloud.hours.length) return null;
+
+  point = point || currentPoint();
+  var hours = futureHours(cloud, point);
   if (!hours.length) return null;
 
   // Ближайший тёмный отрезок — это и есть «ночь».
-  var start = -1;
-  for (i = 0; i < hours.length; i++) {
-    if (hours[i].alt <= DARK_USABLE) { start = i; break; }
-  }
-  if (start < 0) return { polarDay: true };
+  var segments = darkSegments(hours, 1);
+  if (!segments.length) return { polarDay: true };
+  return nightWindowOf(segments[0], kpRows, kpNow, cloud.conflict, point);
+}
 
-  var night = [];
-  for (i = start; i < hours.length && hours[i].alt <= DARK_USABLE; i++) night.push(hours[i]);
+/** Сколько ночей вперёд считаем: прогноз Kp NOAA есть на трое суток. */
+var NIGHTS_AHEAD = 3;
+
+/**
+ * Ближайшие ночи для точки по тем же правилам, что и ближайшая: [{ index, start, window, cut }].
+ * Текущий Kp подставляется только в первую ночь: для следующих есть лишь прогноз, а где его
+ * нет, Kp неизвестен. Пустой массив: тёмных часов нет (полярный день). null: нет данных.
+ */
+function computeNights(cloud, kpRows, kpNow, point) {
+  if (!cloud || !cloud.hours || !cloud.hours.length) return null;
+  point = point || currentPoint();
+  var hours = futureHours(cloud, point);
+  if (!hours.length) return null;
+  return darkSegments(hours, NIGHTS_AHEAD).map(function (segment, index) {
+    return {
+      index: index,
+      start: segment[0].time,
+      cut: !!segment.cut,
+      window: nightWindowOf(segment, kpRows, index === 0 ? kpNow : null, cloud.conflict, point)
+    };
+  });
+}
+
+/** Лучший отрезок внутри одной ночи: самый длинный ряд часов максимального уровня. */
+function nightWindowOf(night, kpRows, kpNow, conflict, point) {
+  var i;
+  night = night.map(function (h) { return { time: h.time, cloud: h.cloud, alt: h.alt }; });
 
   var noKp = true;
   night.forEach(function (h) {
     h.kp = kpAt(h.time, kpRows, kpNow);
     if (h.kp !== null && h.kp !== undefined) noKp = false;
-    h.level = hourLevel(h.kp === undefined ? null : h.kp, h.cloud, h.alt, cloud.conflict, point);
+    h.level = hourLevel(h.kp === undefined ? null : h.kp, h.cloud, h.alt, conflict, point);
   });
 
   // Лучший отрезок: самый длинный непрерывный ряд часов максимального уровня.

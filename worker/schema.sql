@@ -45,11 +45,13 @@ CREATE TABLE IF NOT EXISTS reports (
   point    TEXT NOT NULL,              -- id точки области
   strength TEXT NOT NULL,              -- faint | bright
   at       INTEGER NOT NULL,           -- мс
-  who      TEXT NOT NULL               -- 16 hex HMAC(адрес|сутки)
+  who      TEXT NOT NULL,              -- 16 hex HMAC(адрес|сутки)
+  dev      TEXT                        -- 16 hex HMAC(случайный номер устройства); NULL у старых отметок
 );
 
 CREATE INDEX IF NOT EXISTS reports_at ON reports(at);
 CREATE INDEX IF NOT EXISTS reports_who ON reports(who, at);
+CREATE INDEX IF NOT EXISTS reports_dev ON reports(dev, point, at);
 
 -- Проверка прогноза (src/verify.js): вечером — какой шанс обещан на ночь, утром — каким он был.
 CREATE TABLE IF NOT EXISTS verify (
@@ -58,6 +60,11 @@ CREATE TABLE IF NOT EXISTS verify (
   forecast TEXT NOT NULL,              -- high | mid | low — прогноз, записанный вечером
   actual   TEXT,                       -- то же по измеренным данным; NULL — ещё не сверено
   from_ms  INTEGER NOT NULL,           -- начало тёмного отрезка, который оценивался
+  forecast_kp    REAL,                 -- прогноз: наибольший Kp за тёмные часы
+  forecast_cloud INTEGER,              -- прогноз: наименьшая облачность за тёмные часы, %
+  actual_kp      REAL,                 -- измерено: наибольший Kp за тёмные часы
+  actual_cloud   INTEGER,              -- облачность модели за прошедшие тёмные часы, наименьшая
+  seen           INTEGER,              -- очевидцы: разных устройств за самый «людный» час ночи; NULL — не считали
   PRIMARY KEY (night, point)
 );
 

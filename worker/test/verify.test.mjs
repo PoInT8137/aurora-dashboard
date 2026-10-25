@@ -75,6 +75,10 @@ test('вечером — прогноз на ночь для семи точек
   assert.equal(done.find(r => r.point === 'murmansk').actual, 'mid', 'по измеренному Kp 1');
   assert.ok(done.every(r => r.actual !== null));
   assert.ok(morning.calls.some(u => u.includes('past_days=1')));
+
+  // вместе с уровнем: Kp и облачность прогноза и измерения, очевидцы (отметок не было: 0)
+  const m = done.find(r => r.point === 'murmansk');
+  assert.deepEqual([m.forecast_kp, m.forecast_cloud, m.actual_kp, m.actual_cloud, m.seen], [4, 10, 1, 10, 0]);
 });
 
 test('облака решают: прогноз ясного неба, а ночью было затянуто — факт низкий', async () => {
@@ -127,15 +131,45 @@ test('статистика: совпадения, промахи на ступе
   ins.run('2026-09-21', 'teriberka', 'low', 'high');
   ins.run('2026-09-22', 'murmansk', 'mid', 'mid');
   ins.run('2026-09-23', 'murmansk', 'high', null);   // не сверено — не считается
-  const s = await verifyStats(env);
+  ins.run('2026-08-01', 'murmansk', 'high', 'low');  // старше 30 дней — не считается
+  const s = await verifyStats(env, MORNING);
+  assert.equal(s.days, 30);
   assert.equal(s.nights, 3);
   assert.equal(s.total, 5);
   assert.deepEqual([s.exact, s.offByOne, s.offByTwo], [3, 1, 1]);
   assert.deepEqual(s.promised.high, { n: 2, high: 1, mid: 1, low: 0 });
+  assert.deepEqual(s.seen, { checked: 0, confirmed: 0, hit: 0 }, 'очевидцев в этих записях не считали');
 
   const res = await handleRequest(apiRequest('/verify', null, { method: 'GET' }), env, fakeCtx(), MORNING);
   assert.equal(res.headers.get('Cache-Control'), 'public, max-age=3600');
   assert.deepEqual(await res.json(), s);
+});
+
+test('очевидцы в статистике: подтверждённое сияние (3 устройства за час) и был ли прогноз средним или высоким', async () => {
+  const { env } = await makeEnv();
+  const ins = env.DB.raw.prepare('INSERT INTO verify(night, point, forecast, actual, from_ms, seen) VALUES(?, ?, ?, ?, 0, ?)');
+  ins.run('2026-09-20', 'murmansk', 'high', 'high', 4);
+  ins.run('2026-09-20', 'teriberka', 'low', 'low', 3);
+  ins.run('2026-09-21', 'murmansk', 'mid', 'mid', 2);   // два устройства: не подтверждение
+  ins.run('2026-09-21', 'teriberka', 'low', 'low', 0);
+  const s = await verifyStats(env, MORNING);
+  assert.deepEqual(s.seen, { checked: 4, confirmed: 2, hit: 1 });
+});
+
+test('очевидцы за ночь: наибольшее число разных устройств за час; одно устройство много раз — одно', async () => {
+  const { env } = await makeEnv();
+  const { nightSightings } = await import('../src/verify.js');
+  const ins = env.DB.raw.prepare('INSERT INTO reports(point, strength, at, who, dev) VALUES(?, ?, ?, ?, ?)');
+  const t0 = Date.UTC(2026, 8, 24, 19, 0);
+  ins.run('murmansk', 'faint', t0, 'ip1', 'd1');
+  ins.run('murmansk', 'faint', t0 + 10 * MIN, 'ip1', 'd1');
+  ins.run('murmansk', 'bright', t0 + 20 * MIN, 'ip2', 'd2');
+  ins.run('murmansk', 'faint', t0 + 90 * MIN, 'ip3', 'd3');    // через полтора часа: другой час
+  ins.run('teriberka', 'faint', t0, 'ip4', 'd4');
+  assert.equal(await nightSightings(env, 'murmansk', t0 - HOUR, t0 + 5 * HOUR), 2);
+  ins.run('murmansk', 'faint', t0 + 30 * MIN, 'ip5', 'd5');
+  assert.equal(await nightSightings(env, 'murmansk', t0 - HOUR, t0 + 5 * HOUR), 3);
+  assert.equal(await nightSightings(env, 'lovozero', t0 - HOUR, t0 + 5 * HOUR), 0);
 });
 
 test('проход по расписанию делает шаг сверки даже без подписчиков; база до миграции ему не мешает', async () => {

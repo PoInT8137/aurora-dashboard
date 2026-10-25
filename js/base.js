@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v67';
+var APP_VERSION = 'v72';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -73,7 +73,10 @@ var URLS = {
   outlook:    'https://services.swpc.noaa.gov/text/27-day-outlook.txt'
 };
 
-/** Адрес почасовой облачности сразу для всех точек (и своих мест): один запрос вместо семи. */
+/**
+ * Адрес почасовой облачности сразу для всех точек (и своих мест): один запрос вместо семи.
+ * На 4 суток: третья ночь заканчивается утром четвёртого дня. Модель ICON-EU считает на 5 суток.
+ */
 function allPointsWeatherUrl() {
   var points = allPoints();
   return 'https://api.open-meteo.com/v1/forecast'
@@ -81,7 +84,7 @@ function allPointsWeatherUrl() {
     + '&longitude=' + points.map(function (p) { return p.lon; }).join(',')
     + '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high'
     + '&models=' + CONFIG.weatherModel
-    + '&forecast_days=2&timezone=UTC';
+    + '&forecast_days=4&timezone=UTC';
 }
 
 /** Адрес погоды для выбранной точки. */

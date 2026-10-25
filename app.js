@@ -35,7 +35,7 @@ function init() {
     var target = e.target.closest ? e.target.closest('[data-retry]') : null;
     if (!target) return;
     var what = target.getAttribute('data-retry');
-    if (what === 'tonight')  loadTonight();
+    if (what === 'tonight')  loadTonight(true);
     if (what === 'kp')       loadKp().then(renderDerived);
     if (what === 'cloud')    loadCloud().then(renderDerived);
     if (what === 'forecast') loadForecast().then(renderDerived);

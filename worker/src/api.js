@@ -17,7 +17,7 @@
 //   POST /telegram                             webhook Telegram-бота (src/telegram.js)
 //   POST /hit          { lang, mobile, pwa, fresh, ref, v }  посещение страницы (src/stats.js)
 //   POST /bug          { msg, src, line, col, stack, v, page } ошибка страницы (src/bugs.js)
-//   cron */10 * * * *                          runCheck: проверка условий и рассылка
+//   cron */5 * * * *                           runCheck: проверка условий и рассылка
 //
 // Адрес подписки (endpoint) — секрет: зная его, можно слать push этому человеку.
 // Поэтому он не попадает в журналы и в ответы API.
@@ -150,7 +150,7 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
     // Меняется раз в сутки — кэшируется на час.
     let stats;
     try {
-      stats = await verifyStats(env);
+      stats = await verifyStats(env, nowMs);
     } catch {
       stats = { nights: 0, total: 0, exact: 0, offByOne: 0, offByTwo: 0, promised: {} };   // база до миграции
     }
@@ -218,21 +218,23 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
       const lang = normalizeLang(body.lang);
       // Тихие часы и пояс: не присланное (старая версия страницы) не трогаем, quiet: null выключает.
       const quiet = normalizeQuiet(body);
-      const tz = normalizeZone(body.tz);
+      // Пояс нужен только для тихих часов: выключили их, значит, и пояс не храним.
+      const quietOff = quiet.set && quiet.from === null;
+      const tz = quietOff ? null : normalizeZone(body.tz);
       // Порог и «небо откроется»: не присланное (старая страница) не трогаем.
       const level = body.level === 'mid' || body.level === 'high' ? body.level : null;
       const sky = typeof body.sky === 'boolean' ? (body.sky ? 1 : 0) : null;
       await env.DB.prepare(
         "INSERT INTO subs(id, endpoint, point, created, lang, quiet_from, quiet_to, tz) " +
-        "VALUES(?, ?, ?, ?, COALESCE(?, 'ru'), ?, ?, ?) " +
+        "VALUES(?, ?, ?, ?, COALESCE(?, 'ru'), ?, ?, CASE WHEN ? IS NULL THEN NULL ELSE ? END) " +
         'ON CONFLICT(id) DO UPDATE SET ' +
         'created = CASE WHEN subs.point != excluded.point THEN excluded.created ELSE subs.created END, ' +
         'point = excluded.point, lang = COALESCE(?, subs.lang), ' +
         'quiet_from = CASE WHEN ? THEN ? ELSE subs.quiet_from END, ' +
         'quiet_to = CASE WHEN ? THEN ? ELSE subs.quiet_to END, ' +
-        'tz = COALESCE(?, subs.tz)'
-      ).bind(id, endpoint, point.id, nowMs, lang, quiet.from ?? null, quiet.to ?? null, tz,
-        lang, quiet.set ? 1 : 0, quiet.from ?? null, quiet.set ? 1 : 0, quiet.to ?? null, tz).run();
+        'tz = CASE WHEN ? THEN NULL ELSE COALESCE(?, subs.tz) END'
+      ).bind(id, endpoint, point.id, nowMs, lang, quiet.from ?? null, quiet.to ?? null, quiet.from ?? null, tz,
+        lang, quiet.set ? 1 : 0, quiet.from ?? null, quiet.set ? 1 : 0, quiet.to ?? null, quietOff ? 1 : 0, tz).run();
       // Отдельным запросом: база до миграции (без колонок) не мешает самой подписке.
       if (level !== null || sky !== null) {
         try {

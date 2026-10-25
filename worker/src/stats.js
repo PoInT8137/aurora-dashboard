@@ -9,7 +9,7 @@
 // Считаются только визиты на рабочий сайт (Origin https://auroramurmansk.ru): локальная разработка
 // статистику не портит. Строки старше 120 дней удаляются проходом по расписанию.
 
-import { reporterId } from './reports.js';
+import { reporterId, reportSalt } from './reports.js';
 import { purgeBugs } from './bugs.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -47,7 +47,7 @@ export function refHost(ref) {
 export async function acceptHit(env, body, origin, ip, ua, nowMs) {
   if (origin !== SITE_ORIGIN) return [{ ok: true, counted: false }, 200];
   const day = mskDay(nowMs);
-  const who = await reporterId(String(ip) + '|' + String(ua || '').slice(0, 300), nowMs, 'visit:' + (env.REPORT_SECRET || env.VAPID_PRIVATE_KEY));
+  const who = await reporterId(String(ip) + '|' + String(ua || '').slice(0, 300), nowMs, 'visit:' + (reportSalt(env) || 'none'));
   const lang = LANGS.includes(body.lang) ? body.lang : null;
   const ver = /^v\d{1,4}$/.test(body.v) ? body.v : null;
 

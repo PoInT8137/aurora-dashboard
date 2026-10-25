@@ -15,7 +15,7 @@ try { importScripts('config.js'); } catch (e) { /* без настроек push 
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v67';
+var CACHE_VERSION = 'v72';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -59,15 +59,20 @@ var APP_SHELL = [
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      // cache: 'reload' — мимо HTTP-кэша браузера. ?v=<версия> — мимо кэша CDN GitHub Pages:
-      // он держит файлы до 10 минут, и новый sw.js мог приехать раньше остальных файлов —
-      // тогда в кэш новой версии легли бы старые копии и остались там до следующей версии
-      // (так было с v39). Хранится файл под обычным адресом, без метки.
+    Promise.all([caches.open(CACHE_NAME), caches.keys()]).then(function (opened) {
+      var cache = opened[0];
+      // Обновление (уже есть кэш прошлой версии): cache: 'reload' мимо HTTP-кэша браузера и
+      // ?v=<версия> мимо кэша CDN GitHub Pages. CDN держит файлы до 10 минут, и новый sw.js мог
+      // приехать раньше остальных файлов: тогда в кэш новой версии легли бы старые копии и
+      // остались там до следующей версии (так было с v39).
+      // Первая установка: страница только что загрузила те же файлы, поэтому берём их из
+      // HTTP-кэша браузера, а не качаем второй раз. На медленной сети это половина трафика
+      // первого захода (около 220 КБ). Хранится файл под обычным адресом, без метки.
+      var update = opened[1].some(function (name) { return name.indexOf('aurora-') === 0 && name !== CACHE_NAME; });
       return Promise.all(APP_SHELL.map(function (path) {
         var url = new URL(path, self.registration.scope).href;
         var fresh = url + (url.indexOf('?') < 0 ? '?' : '&') + 'v=' + CACHE_VERSION;
-        return fetch(new Request(fresh, { cache: 'reload' }))
+        return fetch(update ? new Request(fresh, { cache: 'reload' }) : new Request(url))
           .then(function (response) {
             if (!response.ok) throw new Error('HTTP ' + response.status + ' для ' + path);
             return cache.put(url, response);

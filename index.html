@@ -363,6 +363,26 @@ try {
   </div>
 
   <!-- Ночь по часам: шанс, облака, Kp и Луна; рамка — лучшее окно (js/night.js) -->
+  <!-- Лучшая ночь ближайших дней: три ночи по всем точкам (js/tonight.js, renderNights) -->
+  <section class="card card--wide" id="nights-card" data-state="loading">
+    <h2 class="card__label" data-i18n="nights.title">Лучшая ночь ближайших дней</h2>
+
+    <div class="card__loading" data-i18n="loading.calc">Считаем…</div>
+
+    <div class="card__body">
+      <p class="nights__value" id="nights-value"></p>
+      <p class="nights__why" id="nights-why"></p>
+      <ul class="nights" id="nights-list"></ul>
+      <p class="card__meta" data-i18n="nights.note">Облачность на вторую и третью ночь предсказывается хуже, чем на ближайшую. Проверьте прогноз ещё раз ближе к делу. Прогноз Kp от NOAA есть на трое суток.</p>
+    </div>
+
+    <p class="card__stale" id="nights-stale"><span class="stale__text"></span></p>
+
+    <div class="card__error">
+      <p data-i18n="nights.error">Нет почасовой облачности по точкам, поэтому ночи вперёд не посчитать.</p>
+    </div>
+  </section>
+
   <section class="card card--wide" id="night-card" data-state="loading">
     <h2 class="card__label" data-i18n="night.title">Ночь по часам</h2>
 
@@ -710,9 +730,9 @@ try {
 
   <!-- Насколько сбывается прогноз: сверка сервера (worker/src/verify.js) -->
   <section class="card card--wide card--plain" id="accuracy-card" hidden>
-    <h2 class="card__label" data-i18n="accuracy.title">Насколько сбывается прогноз</h2>
+    <h2 class="card__label" data-i18n="accuracy.title">Как часто прогноз сбывается</h2>
     <p class="accuracy__text" id="accuracy-text"></p>
-    <p class="card__meta" data-i18n="accuracy.note">Прогноз записывается каждый вечер в 18:00 по Москве для семи точек области, а утром сверяется с измеренным Kp NOAA и облачностью модели ICON-EU за прошедшие часы. Совпадение — тот же уровень шанса на ночь.</p>
+    <p class="card__meta" data-i18n="accuracy.note">Каждый вечер в 18:00 по Москве сервер записывает прогноз на ночь для семи точек: уровень шанса, наибольший Kp и наименьшую облачность. Утром он сверяет его с измеренным Kp NOAA, облачностью модели ICON-EU за прошедшие часы и отметками очевидцев. Окно: последние 30 дней. Проценты округлены вниз. Совпадение значит тот же уровень шанса на ночь.</p>
   </section>
 
   <footer class="foot">
@@ -968,6 +988,17 @@ try {
     <p class="ntest__lead" data-i18n="push.lead">Сервер проверяет условия раз в 10 минут и присылает уведомление, когда в
       выбранной точке шанс увидеть сияние становится высоким, — даже если приложение закрыто. А если магнитное поле солнечного ветра уверенно повернуло на юг, предупредит заранее: сияние может начаться в ближайший час.</p>
 
+    <!-- iPhone: push от сайта приходят, только если он добавлен на экран «Домой» и открыт оттуда -->
+    <div class="ios-push" id="push-ios" hidden>
+      <p class="ios-push__title" data-i18n="push.ios.title">На iPhone уведомления приходят, только если сайт добавлен на экран «Домой»</p>
+      <ol class="ios-push__steps" id="push-ios-steps">
+        <li data-i18n="push.ios.step1">Откройте сайт в Safari.</li>
+        <li data-i18n="push.ios.step2">Нажмите «Поделиться» (квадрат со стрелкой вверх).</li>
+        <li data-i18n="push.ios.step3">Выберите «На экран „Домой“» и подтвердите.</li>
+        <li data-i18n="push.ios.step4">Откройте сайт с новой иконки на экране «Домой» и включите уведомления здесь.</li>
+      </ol>
+      <p class="ios-push__state" id="push-ios-state"></p>
+    </div>
     <div class="ntest__actions">
       <button class="btn" type="button" id="push-toggle" aria-pressed="false" data-i18n="push.toggle.on">Включить уведомления</button>
       <button class="btn btn--ghost" type="button" id="push-test" data-i18n="push.test">Пробное с сервера</button>

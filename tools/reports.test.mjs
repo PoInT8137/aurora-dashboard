@@ -50,47 +50,68 @@ test('нет отметок — приглашение отметить; кно�
   await ctx.loadReports(true);
   assert.equal(calls[0].url, 'https://aurora-push.aurora-murmansk.workers.dev/reports');
   assert.equal(el('reports-card').hidden, false);
-  assert.equal(el('reports-summary').textContent, 'За последний час отметок нет. Видите сияние — отметьте: это поможет другим.');
+  assert.equal(el('reports-summary').textContent, 'За последний час отметок нет. Если видите сияние, отметьте: это поможет тем, кто решает, ехать ли.');
   assert.equal(el('report-btn').disabled, false);
   assert.equal(el('report-note').textContent, '');
 });
 
-test('сводка: у своей точки подробно, с числом людей по-русски и яркими; остальные — списком', async () => {
+test('сводка: подтверждение от трёх разных устройств; меньше — просто число; остальные точки списком', async () => {
   const at = Date.parse(NIGHT) - 5 * 60000;
-  const { ctx, el } = page({ reports: { window: 60, total: 6, points: {
-    murmansk: { count: 3, bright: 1, last: at }, teriberka: { count: 2, bright: 2, last: at }, kirovsk: { count: 1, bright: 0, last: at }
+  const { ctx, el } = page({ reports: { window: 60, total: 6, confirm: 3, points: {
+    murmansk: { count: 3, devices: 3, confirmed: true, bright: 1, last: at },
+    teriberka: { count: 2, devices: 2, confirmed: false, bright: 2, last: at },
+    kirovsk: { count: 1, devices: 1, confirmed: false, bright: 0, last: at }
   } } });
   await ctx.loadReports(true);
   assert.equal(el('reports-summary').textContent,
-    'За последний час сияние у точки «Мурманск» отметили 3 человека. Ярким — 1. Последняя отметка — в 21:55. Ещё отметки: Териберка — 2, Кировск — 1.');
-  assert.equal(el('reports-card').style.props['--tone'], 'var(--ok)', 'есть отметки рядом — зелёная полоса');
+    'Сияние у точки «Мурманск» подтверждают 3 устройства за последний час. Ярким отметили: 1. Последняя отметка в 21:55. Ещё отметки: Териберка — 2, Кировск — 1.');
+  assert.equal(el('reports-card').style.props['--tone'], 'var(--ok)', 'подтверждено: зелёная полоса');
+
+  ctx.state.point = ctx.findPoint('teriberka');
+  ctx.renderReports();
+  assert.match(el('reports-summary').textContent,
+    /^У точки «Териберка» за последний час отметок: 2\. Подтверждением считаем отметки хотя бы с 3 разных устройств\./);
+  assert.equal(el('reports-card').style.props['--tone'], null, 'не подтверждено: без зелёной полосы');
+  ctx.state.point = ctx.findPoint('murmansk');
 
   ctx.state.point = ctx.findPoint('lovozero');
   ctx.renderReports();
   assert.equal(el('reports-summary').textContent, 'Здесь отметок нет, но сияние видели: Мурманск — 3, Териберка — 2, Кировск — 1.');
   assert.equal(el('reports-card').style.props['--tone'], null);
 
-  const one = page({ reports: { window: 60, total: 5, points: { murmansk: { count: 5, bright: 0, last: at } } } });
+  // пять отметок с одного устройства не подтверждают ничего
+  const one = page({ reports: { window: 60, total: 5, points: { murmansk: { count: 5, devices: 1, confirmed: false, bright: 0, last: at } } } });
   await one.ctx.loadReports(true);
-  assert.match(one.el('reports-summary').textContent, /отметили 5 человек\./);
-  one.ctx.setLang('en');
-  one.ctx.renderReports();
-  assert.match(one.el('reports-summary').textContent, /^In the last hour 5 people reported the aurora at Murmansk\./);
+  assert.match(one.el('reports-summary').textContent, /отметок: 5\. Подтверждением считаем/);
+  const five = page({ reports: { window: 60, total: 5, points: { murmansk: { count: 5, devices: 5, confirmed: true, bright: 0, last: at } } } });
+  await five.ctx.loadReports(true);
+  assert.match(five.el('reports-summary').textContent, /подтверждают 5 устройств за последний час/);
+  five.ctx.setLang('en');
+  five.ctx.renderReports();
+  assert.match(five.el('reports-summary').textContent, /^The aurora at “Murmansk” is confirmed by 5 devices in the last hour\./);
 });
 
-test('отметка: выбор силы, запрос с точкой и силой, благодарность, кнопка ждёт 30 минут', async () => {
+test('отметка: выбор силы, запрос с точкой, силой и номером устройства; кнопка ждёт час', async () => {
   const sent = [];
   const { ctx, el } = page({ post: body => { sent.push(body); return json({ ok: true, point: body.point }); } });
   el('report-choice').hidden = true;   // как в разметке
+  ctx.crypto = globalThis.crypto;      // в браузере есть всегда, в песочнице нет
   ctx.initReports();
   await ctx.loadReports(true);
   el('report-btn').listeners.click();
   assert.equal(el('report-choice').hidden, false);
   await ctx.sendReport('bright');
-  assert.deepEqual(sent, [{ point: 'murmansk', strength: 'bright' }]);
+  assert.equal(sent.length, 1);
+  assert.deepEqual([sent[0].point, sent[0].strength], ['murmansk', 'bright']);
+  assert.match(sent[0].device, /^[0-9a-f]{32}$/, 'случайный номер устройства');
+  assert.equal(ctx.reportDevice(), sent[0].device, 'номер один и тот же, пока его хранит браузер');
   assert.equal(el('report-status').textContent, 'Спасибо! Отметку увидят все, кто смотрит прогноз.');
   assert.equal(el('report-btn').disabled, true);
-  assert.equal(el('report-note').textContent, 'Следующая отметка — после 22:30.');
+  assert.equal(el('report-note').textContent, 'Следующая отметка — после 23:00.');
+  // другая точка: свой час
+  ctx.state.point = ctx.findPoint('teriberka');
+  ctx.renderReports();
+  assert.equal(el('report-btn').disabled, false);
   assert.equal(el('report-choice').hidden, true);
 });
 
@@ -109,12 +130,12 @@ test('своё место: сводка и отметка — у ближайш�
   await ctx.loadReports(true);
   assert.equal(el('report-note').textContent, 'Отметка ставится у ближайшей точки области — «Кировск».');
   await ctx.sendReport('faint');
-  assert.deepEqual(sent, [{ point: 'kirovsk', strength: 'faint' }]);
+  assert.deepEqual([sent[0].point, sent[0].strength], ['kirovsk', 'faint']);
 });
 
 test('ошибки сервера: слишком часто, «не темно», сбой — понятный текст, кнопка снова доступна', async () => {
   for (const [status, error, text] of [
-    [429, 'too_often', 'Отмечать можно не чаще раза в 30 минут.'],
+    [429, 'too_often', 'С одного устройства одну точку можно отметить раз в час.'],
     [400, 'not_dark', 'Отметить можно, когда у точки стемнеет.'],
     [500, null, 'Не удалось отправить отметку — проверьте связь и попробуйте ещё раз.']
   ]) {

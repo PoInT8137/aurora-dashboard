@@ -541,7 +541,8 @@ function refreshAll() {
   // OVATION и отметки очевидцев тоже влияют на вердикт (activityScore, verdictLevel), но приходят
   // позже — пересчитываем, когда пришли, не задерживая главное.
   var tasks = [coreDone, loadOvation(false).then(renderDerived), loadReports(true).then(renderDerived)];
-  if (state.tonight) tasks.push(loadTonight());
+  // Лучшая ночь ближайших дней на главной считается по облачности всех точек.
+  tasks.push(loadTonight(false));
   // Сетка облаков — 90 точек, для Open-Meteo это 90 обращений: не чаще раза в час (loadCloudGrid
   // сама решает, пора ли) и только на открытой карте. Раньше она перезапрашивалась при каждом
   // обновлении — открытая весь день вкладка выбирала суточный лимит Open-Meteo на адрес, и

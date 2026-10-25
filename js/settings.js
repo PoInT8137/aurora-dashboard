@@ -158,7 +158,8 @@ function inQuietNow() {
  */
 function pushPreferences() {
   var quiet = quietWindow();
-  return { lang: getLang(), quiet: quiet, tz: quietZone(), level: setting('alert'), sky: setting('sky') === 'on' };
+  // Пояс нужен серверу только для тихих часов: без них его не отправляем.
+  return { lang: getLang(), quiet: quiet, tz: quiet ? quietZone() : null, level: setting('alert'), sky: setting('sky') === 'on' };
 }
 
 /** Вкладка при открытии: адрес важнее всего, затем настройка, затем последняя открытая. */

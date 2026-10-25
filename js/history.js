@@ -184,11 +184,20 @@ function renderHistory() {
 /*                                                                     */
 /*  Сервер каждый вечер записывает прогноз на ночь для семи точек, а    */
 /*  утром сверяет его с измеренными данными (worker/src/verify.js).     */
-/*  Здесь — итог за последние 60 ночей. Пока сверено меньше пяти ночей, */
-/*  цифр не показываем: по двум-трём ночам они ничего не значат.        */
+/*  Здесь итог за последние 30 дней, всегда с размером выборки.         */
+/*  Пороги «данных мало»: minChecks сверенных прогнозов (точка за       */
+/*  ночь, около пяти ночей по семи точкам) для сверки с измерениями и   */
+/*  minSeen случаев подтверждённого сияния для сверки с очевидцами.     */
+/*  Меньше: показываем только, сколько набралось. Проценты округляются  */
+/*  вниз, чтобы не приукрашивать прогноз.                               */
 /* ------------------------------------------------------------------ */
 
-var ACCURACY = { minNights: 5, refreshMs: 60 * 60 * 1000 };
+var ACCURACY = { minChecks: 30, minSeen: 10, refreshMs: 60 * 60 * 1000 };
+
+/** Процент без округления в свою пользу: 29,9% это 29%. */
+function floorPct(part, whole) {
+  return whole ? Math.floor(100 * part / whole) : 0;
+}
 
 function loadAccuracy(force) {
   if (!pushConfigured()) { renderAccuracy(); return Promise.resolve(null); }
@@ -209,19 +218,32 @@ function loadAccuracy(force) {
     });
 }
 
-/** Текст итога: доля совпадений, промахи, что было при обещанном высоком шансе. */
+/**
+ * Текст итога: сверка с измерениями (доля совпадений, промахи, что было при обещанном высоком
+ * шансе) и сверка с очевидцами. Размер выборки называется всегда.
+ */
 function accuracyText(d) {
-  if (!d || d.nights < ACCURACY.minNights) {
-    return t('accuracy.collecting', { n: d ? d.nights : 0, min: ACCURACY.minNights });
+  var parts = [];
+  var total = d ? d.total : 0;
+  if (total < ACCURACY.minChecks) {
+    parts.push(t('accuracy.collecting', { n: total, min: ACCURACY.minChecks }));
+  } else {
+    parts.push(t('accuracy.main', {
+      days: d.days || 30, nights: d.nights, total: total, exact: d.exact,
+      pct: floorPct(d.exact, total), one: d.offByOne, two: d.offByTwo
+    }));
+    var high = d.promised && d.promised.high;
+    if (high && high.n) parts.push(t('accuracy.high', { ok: high.high + high.mid, n: high.n }));
   }
-  var text = t('accuracy.main', {
-    nights: t('history.nights', { n: d.nights }),
-    pct: Math.round(100 * d.exact / Math.max(1, d.total)),
-    exact: d.exact, total: d.total, one: d.offByOne, two: d.offByTwo
-  });
-  var high = d.promised && d.promised.high;
-  if (high && high.n) text += ' ' + t('accuracy.high', { ok: high.high + high.mid, n: high.n });
-  return text;
+
+  var seen = d && d.seen;
+  if (!seen || !seen.checked) parts.push(t('accuracy.seen_none'));
+  else if (seen.confirmed < ACCURACY.minSeen) {
+    parts.push(t('accuracy.seen_few', { confirmed: seen.confirmed, min: ACCURACY.minSeen, checked: seen.checked }));
+  } else {
+    parts.push(t('accuracy.seen', { confirmed: seen.confirmed, hit: seen.hit, pct: floorPct(seen.hit, seen.confirmed) }));
+  }
+  return parts.join(' ');
 }
 
 function renderAccuracy() {

@@ -6,16 +6,18 @@
 /* ------------------------------------------------------------------ */
 /*  Очевидцы                                                           */
 /*                                                                     */
-/*  Прогноз говорит, что сияние возможно; отметка очевидца — что оно   */
+/*  Прогноз говорит, что сияние возможно; отметка очевидца, что оно    */
 /*  есть. Отметка анонимна: точка, время и «слабое / яркое», без       */
 /*  текста и фотографий. Сервер принимает её, только если у точки      */
-/*  темно, и не чаще раза в 30 минут с одного адреса; страница те же   */
-/*  правила показывает заранее, чтобы не отправлять заведомо лишнее.   */
-/*  Для своего места отметка ставится у ближайшей точки области.       */
+/*  темно, и с одного устройства у одной точки раз в час; страница те  */
+/*  же правила показывает заранее. Подтверждением сияния отметки       */
+/*  считаются от REPORTS.confirm разных устройств за час, иначе это    */
+/*  просто число. Для своего места отметка ставится у ближайшей точки. */
 /* ------------------------------------------------------------------ */
 
 var REPORTS = {
-  intervalMs: 30 * 60 * 1000,   // как на сервере (REPORT_INTERVAL_MS)
+  intervalMs: 60 * 60 * 1000,   // устройство и точка, как на сервере (DEVICE_INTERVAL_MS)
+  confirm: 3,                   // разных устройств за час для подтверждения (CONFIRM_DEVICES)
   refreshMs: 2 * 60 * 1000,     // сводку — не чаще раза в 2 минуты: сервер и так кэширует минуту
   timeoutMs: 6000               // ожидание сводки
 };
@@ -47,10 +49,37 @@ function loadReports(force) {
     });
 }
 
-/** Когда можно отметить снова (мс) или 0 — уже можно. */
-function reportAgainAt() {
+/**
+ * Случайный номер этого устройства для отметок: по нему сервер не даёт одному устройству
+ * отмечать одну точку чаще раза в час. Это не личные данные: просто случайная строка в
+ * хранилище браузера, и сервер хранит не её саму, а её хеш с солью. Без хранилища номера нет,
+ * тогда сервер считает устройством хеш IP.
+ */
+function reportDevice() {
+  var key = CACHE.prefix + 'device';
+  try {
+    var saved = localStorage.getItem(key);
+    if (saved && /^[A-Za-z0-9_-]{16,64}$/.test(saved)) return saved;
+    var bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    var made = Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+    localStorage.setItem(key, made);
+    return made;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Подтверждено ли сияние у точки: отметки с REPORTS.confirm разных устройств за час. */
+function reportsConfirmed(p) {
+  return !!(p && (p.confirmed || (p.devices || 0) >= REPORTS.confirm));
+}
+
+/** Когда можно снова отметить эту точку (мс) или 0, если уже можно. */
+function reportAgainAt(point) {
   var last = 0;
-  try { last = Number(localStorage.getItem(CACHE.prefix + 'reportAt')) || 0; } catch (e) { /* без хранилища — решит сервер */ }
+  point = point || pushPoint();
+  try { last = Number(localStorage.getItem(CACHE.prefix + 'reportAt-' + point.id)) || 0; } catch (e) { /* без хранилища решит сервер */ }
   var next = last + REPORTS.intervalMs;
   return next > Date.now() ? next : 0;
 }
@@ -65,9 +94,12 @@ function reportsSummaryText(data, point) {
   var mine = data.points[point.id];
   var parts = [];
   if (mine && mine.count) {
-    parts.push(t('reports.here', { n: mine.count, name: pointName(point), people: t('reports.people', { n: mine.count }) }) +
-      (mine.bright ? ' ' + t('reports.bright', { n: mine.bright }) : '') +
-      ' ' + t('reports.last', { time: fmtTime(new Date(mine.last)) }));
+    var devices = mine.devices || mine.count;
+    parts.push(reportsConfirmed(mine)
+      ? t('reports.confirmed', { name: pointName(point), devices: t('reports.devices', { n: devices }) })
+      : t('reports.unconfirmed', { name: pointName(point), n: mine.count, need: REPORTS.confirm }));
+    parts.push((mine.bright ? t('reports.bright', { n: mine.bright }) + ' ' : '') +
+      t('reports.last', { time: fmtTime(new Date(mine.last)) }));
   }
   var others = POINTS.filter(function (p) { return p.id !== point.id && data.points[p.id] && data.points[p.id].count; })
     .map(function (p) { return t('reports.other', { name: pointName(p), n: data.points[p.id].count }); });
@@ -88,14 +120,15 @@ function renderReports() {
   if (r && r.data) {
     summary.textContent = reportsSummaryText(r.data, point);
     var here = r.data.points[point.id];
-    setTone(card, here && here.count ? TONE.ok : null);
+    // Зелёным карточка становится, только когда сияние подтверждено разными устройствами.
+    setTone(card, reportsConfirmed(here) ? TONE.ok : null);
   } else {
     summary.textContent = r && r.error ? t('reports.error') : t('reports.loading');
   }
 
   var btn = $('report-btn');
   var dark = reportDark(point);
-  var again = reportAgainAt();
+  var again = reportAgainAt(point);
   btn.disabled = !dark || !!again || state.reportBusy;
   $('report-note').textContent = !dark ? t('reports.not_dark')
     : again ? t('reports.again', { time: fmtTime(new Date(again)) })
@@ -115,9 +148,12 @@ function sendReport(strength) {
   $('report-choice').hidden = true;
   setReportStatus('reports.sending');
   renderReports();
-  return pushRequest('/report', { point: point.id, strength: strength })
+  var body = { point: point.id, strength: strength };
+  var device = reportDevice();
+  if (device) body.device = device;
+  return pushRequest('/report', body)
     .then(function () {
-      try { localStorage.setItem(CACHE.prefix + 'reportAt', String(Date.now())); } catch (e) { /* решит сервер */ }
+      try { localStorage.setItem(CACHE.prefix + 'reportAt-' + point.id, String(Date.now())); } catch (e) { /* решит сервер */ }
       setReportStatus('reports.thanks');
       return loadReports(true);
     }, function (err) {

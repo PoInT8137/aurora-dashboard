@@ -166,13 +166,28 @@ function readAllPointsHours(data) {
   });
 }
 
-function loadTonight() {
+/*
+ * Облачность по всем точкам нужна теперь и на главной (лучшая ночь ближайших дней), поэтому
+ * грузится при каждом обновлении. Чтобы не тратить лимит Open-Meteo (он считает каждую точку
+ * отдельно), сохранённый ответ моложе получаса считаем свежим. force: по кнопке «Обновить».
+ */
+var TONIGHT_REFRESH_MS = 30 * 60 * 1000;
+
+function loadTonight(force) {
   if (!state.tonight) {
     var early = cacheLoad('tonight');
     if (early) {
       state.tonight = { rows: early.payload, stale: early.age };
       renderTonight();
+      if (!force && early.age < TONIGHT_REFRESH_MS) {
+        state.tonight.stale = null;
+        renderTonight();
+        return Promise.resolve(early.payload);
+      }
     }
+  } else if (!force && state.tonight.loadedAt && Date.now() - state.tonight.loadedAt < TONIGHT_REFRESH_MS) {
+    renderTonight();
+    return Promise.resolve(state.tonight.rows);
   }
   markLoading('best-card');
   markLoading('places-card');
@@ -184,7 +199,7 @@ function loadTonight() {
   return fetchJson(allPointsWeatherUrl())
     .then(function (data) {
       var rows = readAllPointsHours(data);
-      state.tonight = { rows: rows, stale: null };
+      state.tonight = { rows: rows, stale: null, loadedAt: Date.now() };
       cacheSave('tonight', rows);
       renderTonight();
       return rows;
@@ -203,6 +218,7 @@ function loadTonight() {
       renderMap();
       setState('best-card', 'error');
       setState('places-card', 'error');
+      setState('nights-card', 'error');
       return null;
     })
     .finally(function () { state.tonightLoading = false; });
@@ -249,7 +265,170 @@ function levelTone(level) {
   return level === 2 ? TONE.ok : (level === 1 ? TONE.mid : TONE.bad);
 }
 
+/**
+ * Три ближайшие ночи по всем точкам: [{ index, start, list: [{ point, window }] }], в каждой
+ * ночи точки отсортированы так же, как на «Куда ехать». null: данных по точкам нет;
+ * пустой массив: тёмных часов нет.
+ */
+function computeAllNights() {
+  if (!state.tonight || !state.tonight.rows) return null;
+  var kpNow = state.kp ? state.kp.value : null;
+  var nights = [];
+  state.tonight.rows.forEach(function (row) {
+    var point = findPlace(row.id);
+    if (!point) return;
+    var list = computeNights({ hours: row.hours, conflict: false }, state.forecast, kpNow, point);
+    (list || []).forEach(function (night) {
+      var slot = nights[night.index] || (nights[night.index] = { index: night.index, start: night.start, cut: false, list: [] });
+      if (night.start < slot.start) slot.start = night.start;
+      if (night.cut) slot.cut = true;
+      slot.list.push({ point: point, window: night.window });
+    });
+  });
+  nights.forEach(function (night) { night.list.sort(comparePlaces); });
+  return nights;
+}
+
+/** Порядок точек: выше уровень, затем чище небо, затем ближе. */
+function comparePlaces(a, b) {
+  var aw = a.window, bw = b.window;
+  var aRank = (aw && !aw.polarDay) ? aw.level : -1;
+  var bRank = (bw && !bw.polarDay) ? bw.level : -1;
+  if (aRank !== bRank) return bRank - aRank;
+  var aCloud = (aw && !aw.polarDay) ? aw.cloudMin : 101;
+  var bCloud = (bw && !bw.polarDay) ? bw.cloudMin : 101;
+  if (aCloud !== bCloud) return aCloud - bCloud;
+  return a.point.km - b.point.km;
+}
+
+/** Точки ночи с заметным шансом (средний и выше), лучшие первыми. */
+function goodPlaces(night) {
+  return night.list.filter(function (item) { return item.window && item.window.level >= 1; });
+}
+
+/**
+ * Лучшая ночь из трёх: выше уровень у лучшей точки; при равенстве раньше (ближняя ночь
+ * надёжнее), затем чище небо. null: ни одной ночи с шансом.
+ */
+function bestNight(nights) {
+  var best = null;
+  (nights || []).forEach(function (night) {
+    var top = goodPlaces(night)[0];
+    if (!top) return;
+    if (!best || top.window.level > best.top.window.level) best = { night: night, top: top };
+  });
+  return best;
+}
+
+/**
+ * Почему все ночи низкие: если везде сплошные облака (меньше 75% нигде нет), а Kp по прогнозу
+ * заметный (от 2), называем облака. from: с какой ночи смотреть (для «когда ехать» со второй).
+ * Возвращает ключ и параметры текста.
+ */
+function nightsLowReason(nights, from) {
+  var short = nights.length < NIGHTS_AHEAD || nights[nights.length - 1].cut;
+  nights = nights.slice(from || 0);
+  var kpMax = null;
+  var cloudy = true;
+  nights.forEach(function (night) {
+    night.list.forEach(function (item) {
+      var win = item.window;
+      if (!win || win.polarDay) return;
+      if (win.cloudMin <= 75) cloudy = false;
+      if (win.kpMax !== null && (kpMax === null || win.kpMax > kpMax)) kpMax = win.kpMax;
+    });
+  });
+  if (cloudy && kpMax !== null && kpMax >= 2) return { key: 'nights.none_cloudy', params: { kp: fmtKp(kpMax) } };
+  return { key: short ? 'nights.none_short' : 'nights.none', params: {} };
+}
+
+/** Подпись ночи: «эта ночь» для ближайшей, дальше день недели и дата вечера. */
+function nightLabel(night) {
+  return night.index === 0 ? t('nights.first') : fmtNightDate(night.start);
+}
+
+/** Названия точек через запятую, не больше трёх: «Териберка, Мурманск и ещё 2». */
+function placeNames(items) {
+  var names = items.slice(0, 3).map(function (item) { return pointName(item.point); }).join(', ');
+  return items.length > 3 ? t('nights.more', { names: names, n: items.length - 3 }) : names;
+}
+
+function renderNights() {
+  var card = $('nights-card');
+  if (!card) return;
+  var nights = computeAllNights();
+  if (nights === null) {
+    // Данных по точкам ещё нет: показываем загрузку, пока они не придут, а при ошибке их загрузки
+    // карточка уходит в ошибку вместе с «Куда ехать».
+    return;
+  }
+
+  var list = $('nights-list');
+  list.innerHTML = '';
+  var value = $('nights-value');
+  var why = $('nights-why');
+
+  if (!nights.length) {
+    setTone(card, TONE.mid);
+    setTone(value, TONE.mid);
+    value.textContent = t('win.no_dark');
+    why.textContent = t('nights.polar');
+    setState('nights-card', 'ok');
+    return;
+  }
+
+  var best = bestNight(nights);
+  if (best) {
+    var win = best.top.window;
+    var tone = levelTone(win.level);
+    setTone(card, tone);
+    setTone(value, tone);
+    value.textContent = t('nights.value', { date: nightLabel(best.night), from: fmtTime(win.from), to: fmtTime(win.to) });
+    why.textContent = t('nights.why', {
+      name: pointName(best.top.point),
+      level: levelWord(win.level).toLowerCase(),
+      cloud: cloudRangeText(win),
+      kp: win.kpMax !== null ? t('win.kp_max', { v: fmtKp(win.kpMax) }) : t('nights.kp_none')
+    });
+  } else {
+    setTone(card, TONE.bad);
+    setTone(value, TONE.bad);
+    value.textContent = t('nights.none_value');
+    var reason = nightsLowReason(nights, 0);
+    why.textContent = t(reason.key, reason.params);
+  }
+
+  nights.forEach(function (night) {
+    var good = goodPlaces(night);
+    var top = night.list[0];
+    var li = document.createElement('li');
+    li.className = 'nights__item';
+    var date = document.createElement('span');
+    date.className = 'nights__date';
+    date.textContent = nightLabel(night);
+    var text = document.createElement('span');
+    text.className = 'nights__text';
+    var parts = [];
+    if (good.length) {
+      parts.push(levelWord(good[0].window.level) + ': ' + placeNames(good));
+      setTone(li, levelTone(good[0].window.level));
+    } else {
+      parts.push(t('nights.low_everywhere'));
+      setTone(li, TONE.bad);
+    }
+    if (top && top.window && top.window.noKp) parts.push(t('nights.no_kp'));
+    if (night.cut) parts.push(t('nights.cut'));
+    text.textContent = parts.join(t('sep.dot'));
+    li.appendChild(date);
+    li.appendChild(text);
+    list.appendChild(li);
+  });
+
+  applyFreshness('nights-card', 'nights-stale', state.tonight.stale, 'lead.calc_saved');
+}
+
 function renderTonight() {
+  renderNights();
   var list = computeAllWindows();
 
   if (!list) {
@@ -265,6 +444,29 @@ function renderTonight() {
   var age = state.tonight.stale;
   applyFreshness('best-card', 'best-stale', age, 'lead.calc_saved');
   setState('places-card', 'ok');
+}
+
+/**
+ * Когда ехать, если этой ночью некуда: ближайшая следующая ночь с заметным шансом и её точки.
+ * Если такой нет или прогноз кончается, так и говорим.
+ */
+function nextNightText() {
+  var nights = computeAllNights();
+  if (!nights || nights.length < 2) return t('best.next_unknown');
+  for (var i = 1; i < nights.length; i++) {
+    var good = goodPlaces(nights[i]);
+    if (good.length) {
+      return t('best.next', {
+        date: nightLabel(nights[i]),
+        from: fmtTime(good[0].window.from),
+        to: fmtTime(good[0].window.to),
+        names: placeNames(good)
+      });
+    }
+  }
+  var reason = nightsLowReason(nights, 1);
+  if (reason.key === 'nights.none') return t('best.next_none');
+  return t(reason.key, reason.params);
 }
 
 /** Крупная строка с ответом. Лучшее из плохого здесь не показываем. */
@@ -310,7 +512,7 @@ function renderBest(list) {
     } else {
       reason = t('best.reason.other');
     }
-    hintEl.textContent = reason + t('sep.sentence') + t('best.wait');
+    hintEl.textContent = reason + t('sep.sentence') + nextNightText();
     return;
   }
 
