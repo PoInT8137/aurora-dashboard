@@ -109,10 +109,15 @@ function loadHistory(force) {
     }), loadedAt: Date.now() - cached.age, stale: cached.age } : null;
     renderHistory();
   }
+  // Запрос по этой точке уже в пути — ждём его, а не шлём второй.
+  if (state.historyPending && state.historyPending.pointId === point.id) return state.historyPending.job;
   markLoading('history-card');
 
-  return Promise.all([fetchJson(HISTORY.kpUrl), fetchJson(historyCloudUrl(point))])
+  // Ответ по точке, которую уже сменили, не должен ни затереть историю новой, ни показать ошибку.
+  var current = function () { return currentPoint().id === point.id; };
+  var job = Promise.all([fetchJson(HISTORY.kpUrl), fetchJson(historyCloudUrl(point))])
     .then(function (res) {
+      if (!current()) return null;
       var kp = readKpHistory(res[0]);
       var hours = readHourlyCloud(res[1]);
       if (!kp.length || !hours.length) throw appError('no_values');
@@ -122,11 +127,18 @@ function loadHistory(force) {
       return state.history;
     })
     .catch(function (err) {
+      if (!current()) return null;
       if (state.history && state.history.pointId === point.id) { renderHistory(); return state.history; }
       showError('history-error', 'history.error', err);
       setState('history-card', 'error');
       return null;
+    })
+    .then(function (result) {
+      if (state.historyPending && state.historyPending.job === job) state.historyPending = null;
+      return result;
     });
+  state.historyPending = { pointId: point.id, job: job };
+  return job;
 }
 
 var HISTORY_TONE = ['bad', 'mid', 'ok'];

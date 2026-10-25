@@ -549,6 +549,7 @@ i18nRegister('en', {
   /* --- viewing window --- */
   'win.no_dark': 'It will not get dark',
   'win.polar': 'For the next two days the Sun does not sink low enough — it is polar day. The aurora cannot be seen at any level of geomagnetic activity.',
+  'win.white': 'For the next two days the Sun sets only briefly and not deep enough: white nights, the sky never gets dark enough. The aurora cannot be seen at any level of geomagnetic activity.',
   'win.q.high': 'high chance',
   'win.q.mid': 'medium chance',
   'win.q.low': 'the best available, but conditions are poor',

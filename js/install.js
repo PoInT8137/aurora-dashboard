@@ -46,13 +46,29 @@ function installMode(env) {
   return env.canPrompt ? 'prompt' : null;
 }
 
+/**
+ * Встроенный браузер приложения (Telegram, VK, Instagram…): пункта «На экран Домой» там нет,
+ * и инструкция только путала бы. На iOS у такого окна в строке браузера нет «Safari/».
+ */
+function isInAppBrowser() {
+  var ua = navigator.userAgent || '';
+  return /FBAN|FBAV|Instagram|VKClient|Telegram|MicroMessenger|Line\//.test(ua) ||
+    (isIOS() && !/Safari\//.test(ua));
+}
+
+function firstVisitSession() {
+  try { return sessionStorage.getItem('aurora.firstVisit') === '1'; } catch (e) { return false; }
+}
+
 function installEnv() {
   return {
     standalone: isStandalone(),
-    firstVisit: document.documentElement.classList.contains('has-splash'),
+    // Класс заставки живёт секунды (её можно пропустить, при «уменьшить движение» её нет) —
+    // признак первого визита берём из сеанса.
+    firstVisit: firstVisitSession() || document.documentElement.classList.contains('has-splash'),
     dismissedAt: installDismissedAt(),
     now: Date.now(),
-    ios: isIOS(),
+    ios: isIOS() && !isInAppBrowser(),
     canPrompt: !!installPrompt
   };
 }

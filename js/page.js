@@ -44,8 +44,11 @@ function revealTab(btn) {
 var tabsReady = false;
 
 /** Показ панели и выбор кнопки вкладки; подсветка-капсула переезжает под выбранную. */
-function switchPanel(id) {
-  var leaving = TAB_IDS.indexOf(state.tab) >= 0 && state.tab !== id;
+function switchPanel(id, fromTab) {
+  // fromTab — вкладка до перехода: с View Transitions эта функция вызывается позже, когда
+  // state.tab уже новый, и без него прокрутка старой вкладки переносилась на новую.
+  var prev = fromTab === undefined ? state.tab : fromTab;
+  var leaving = TAB_IDS.indexOf(prev) >= 0 && prev !== id;
   TAB_IDS.forEach(function (tab) {
     $('tab-' + tab).hidden = (tab !== id);
   });
@@ -114,16 +117,19 @@ function showTab(id, historyMode) {
 
   // Смена вкладки с движением: новая въезжает со стороны своего места в меню, старая уходит
   // в обратную сторону (View Transitions). Нет поддержки или «уменьшить движение» — как раньше.
-  var from = TAB_IDS.indexOf(state.tab);
+  var prevTab = state.tab;
+  var from = TAB_IDS.indexOf(prevTab);
   var root = document.documentElement;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (tabsReady && from >= 0 && state.tab !== id && typeof document.startViewTransition === 'function' && !reduce) {
+  if (tabsReady && from >= 0 && prevTab !== id && typeof document.startViewTransition === 'function' && !reduce) {
     root.classList.add('vt-tabs');
     root.setAttribute('data-tab-dir', TAB_IDS.indexOf(id) > from ? 'next' : 'prev');
-    var done = document.startViewTransition(function () { switchPanel(id); });
+    var done = document.startViewTransition(function () { switchPanel(id, prevTab); });
     done.finished.then(function () { root.removeAttribute('data-tab-dir'); }, function () {});
+    // Переход пропускается (вкладка в фоне, быстрый второй клик) — это не ошибка, панель уже сменилась.
+    if (done.ready) done.ready.catch(function () {});
   } else {
-    switchPanel(id);
+    switchPanel(id, prevTab);
   }
 
   state.tab = id;
@@ -172,7 +178,11 @@ function initTabs() {
 
   // Ссылкой с хэшем можно поделиться, работают и кнопки «назад/вперёд».
   window.addEventListener('hashchange', function () {
-    showTab((location.hash || '').replace('#', '') || 'now', 'replace');
+    var id = tabFromName((location.hash || '').replace('#', '') || 'now');
+    // Хэш поменял сам showTab (клик по вкладке) — вкладка уже открыта, второй раз загрузчики
+    // не зовём: у истории и сверки прогноза защиты от двойного запроса нет.
+    if (id === state.tab) return;
+    showTab(id, 'replace');
   });
 
   showTab(initial, 'replace');
@@ -402,7 +412,12 @@ function selectPoint(id) {
   savePointId(state.point.id);
   // Серверные уведомления привязаны к точке: подписка переезжает вместе с выбором
   // (для своего места — на ближайшую точку области: сервер знает только их).
-  pushSync(pushPoint().id).then(function () {
+  // По очереди и с точкой на момент отправки: при быстрой смене A → B запрос по A, дошедший
+  // до сервера позже, оставил бы подписку на A.
+  state.pushSyncQueue = (state.pushSyncQueue || Promise.resolve()).then(function () {
+    return pushSync(pushPoint().id);
+  });
+  state.pushSyncQueue.then(function () {
     renderPushCard();
     renderNotifyDiagnostics();
   });

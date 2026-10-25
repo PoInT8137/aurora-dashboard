@@ -35,12 +35,14 @@ function init() {
     var target = e.target.closest ? e.target.closest('[data-retry]') : null;
     if (!target) return;
     var what = target.getAttribute('data-retry');
+    // После повтора — и вердикт, и строка статуса: иначе в шапке оставалось «Нет связи».
+    var after = function () { renderDerived(); updateStatus(); };
     if (what === 'tonight')  loadTonight(true);
-    if (what === 'kp')       loadKp().then(renderDerived);
-    if (what === 'cloud')    loadCloud().then(renderDerived);
-    if (what === 'forecast') loadForecast().then(renderDerived);
-    if (what === 'sw')       loadSolarWind().then(renderDerived);
-    if (what === 'ov')       loadOvation(true);
+    if (what === 'kp')       loadKp().then(after);
+    if (what === 'cloud')    loadCloud().then(after);
+    if (what === 'forecast') loadForecast().then(after);
+    if (what === 'sw')       loadSolarWind().then(after);
+    if (what === 'ov')       loadOvation(true).then(after);
     if (what === 'outlook')  loadOutlook(true);
     if (what === 'history')  loadHistory(true);
   });
@@ -57,7 +59,11 @@ function init() {
       renderNotifyDiagnostics();
     }
 
-    if (document.visibilityState === 'visible' && refreshDue()) refreshAll();
+    // Таймер — заново: иначе он мог сработать через секунды после этого обновления.
+    if (document.visibilityState === 'visible' && refreshDue()) {
+      refreshAll();
+      armRefresh();
+    }
   });
 }
 

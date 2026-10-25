@@ -249,7 +249,7 @@ test('обновление запрашивает и солнечный вете
   const app = appSource();
   // среди главных запросов: вердикт пересчитывается, как только он пришёл
   assert.match(app, /var core = \[[^\]]*loadSolarWind\(\)[^\]]*\]/);
-  assert.match(app, /if \(what === 'sw'\)\s+loadSolarWind\(\)\.then\(renderDerived\);/);
+  assert.match(app, /if \(what === 'sw'\)\s+loadSolarWind\(\)\.then\(after\);/);
   const html = read('index.html');
   assert.equal((html.match(/data-retry="sw"/g) || []).length, 2);
 });

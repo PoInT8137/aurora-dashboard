@@ -188,6 +188,6 @@ test('нет связи: сохранённое с пометкой возрас
 test('обновление страницы и кнопка «Повторить» подключены', () => {
   const app = appSource();
   assert.match(app, /var tasks = \[[^\]]*loadOvation\(false\)[^\]]*\];/);
-  assert.match(app, /if \(what === 'ov'\)\s+loadOvation\(true\);/);
+  assert.match(app, /if \(what === 'ov'\)\s+loadOvation\(true\)\.then\(after\);/);
   assert.equal((read('index.html').match(/data-retry="ov"/g) || []).length, 2);
 });

@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v76';
+var APP_VERSION = 'v77';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -287,6 +287,8 @@ function hedgeFetch(first, second, delayMs, onSecond) {
     var a = new AbortController();
     var b = new AbortController();
     var done = false, failures = 0, firstError = null, started = false;
+    // Лимит запросов важнее «нет соединения»: прямой 429 приходит без CORS и выглядит как обрыв.
+    var rateLimited = null;
     var timer = setTimeout(startSecond, delayMs);
 
     function win(data, loser, isSecond) {
@@ -297,10 +299,11 @@ function hedgeFetch(first, second, delayMs, onSecond) {
       if (isSecond && onSecond) onSecond();
       resolve(data);
     }
-    function fail() {
+    function fail(err) {
       if (done) return;
+      if (err && err.code === 'rate_limit') rateLimited = err;
       failures++;
-      if (failures === 2) { done = true; reject(firstError); return; }
+      if (failures === 2) { done = true; reject(rateLimited || firstError); return; }
       startSecond();
     }
     function startSecond() {
@@ -309,12 +312,12 @@ function hedgeFetch(first, second, delayMs, onSecond) {
       clearTimeout(timer);
       second(b.signal).then(function (data) { win(data, a, true); }, function (err) {
         if (!firstError) firstError = err;
-        fail();
+        fail(err);
       });
     }
     first(a.signal).then(function (data) { win(data, b, false); }, function (err) {
       firstError = err;
-      fail();
+      fail(err);
     });
   });
 }

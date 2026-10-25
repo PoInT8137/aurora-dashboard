@@ -15,7 +15,7 @@ const code = read('splash.js');
 const headScript = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).find(s => /aurora\.splash/.test(s));
 
 function decide({ seen = false, reduced = false, throws = false } = {}) {
-  const local = new Map(seen ? [['aurora.splash', '1']] : []);
+  const local = new Map(seen ? [['aurora.splash', '1'], ['aurora.seen', '1']] : []);
   const session = new Map();
   const classes = new Set();
   const store = map => ({
@@ -46,7 +46,14 @@ test('повторный визит — заставки нет, интро ос
 test('«уменьшить движение» — заставки нет и флаг не ставится (включат анимацию — увидят её)', () => {
   const { classes, local } = decide({ reduced: true });
   assert.ok(!classes.has('has-splash'));
-  assert.equal(local.size, 0);
+  assert.equal(local.get('aurora.splash'), undefined);
+});
+
+test('первый визит отмечается на сеанс и без заставки: подсказка «на экран Домой» ждёт второго', () => {
+  assert.equal(decide().session.get('aurora.firstVisit'), '1');
+  assert.equal(decide({ reduced: true }).session.get('aurora.firstVisit'), '1');
+  assert.equal(decide({ reduced: true }).local.get('aurora.seen'), '1');
+  assert.equal(decide({ seen: true }).session.get('aurora.firstVisit'), undefined);
 });
 
 test('хранилище недоступно — без заставки: иначе она шла бы при каждом визите', () => {

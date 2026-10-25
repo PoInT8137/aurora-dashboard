@@ -70,6 +70,11 @@ try {
    Решается до первой отрисовки, чтобы дашборд не мелькнул перед заставкой; рисует её splash.js.
    В этот раз лёгкое интро не нужно — заставка его заменяет. */
 try {
+  // Первый визит на весь сеанс, с заставкой или без: подсказка «на экран Домой» ждёт второго (js/install.js).
+  if (!localStorage.getItem('aurora.seen')) {
+    localStorage.setItem('aurora.seen', '1');
+    sessionStorage.setItem('aurora.firstVisit', '1');
+  }
   if (!localStorage.getItem('aurora.splash') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     localStorage.setItem('aurora.splash', '1');
     document.documentElement.classList.add('has-splash');

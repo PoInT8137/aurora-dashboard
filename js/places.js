@@ -33,7 +33,9 @@ function parseCoord(text) {
 
 /** Обе координаты из одной строки — «68.97, 33.10» или «68,97 33,10»; иначе null. */
 function parseCoordPair(text) {
-  var m = /^\s*([-+]?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]\s*([-+]?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(String(text || ''));
+  // «68,35» — это одна координата с десятичной запятой, а не пара 68 и 35.
+  if (/^\s*[-+]?\d{1,3},\d+\s*$/.test(String(text || ''))) return null;
+  var m =/^\s*([-+]?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]\s*([-+]?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(String(text || ''));
   if (!m) return null;
   var lat = parseCoord(m[1]), lon = parseCoord(m[2]);
   return lat === null || lon === null ? null : { lat: lat, lon: lon };
@@ -156,7 +158,14 @@ function addPlace(name, lat, lon) {
 
   var n = 1;
   while (findPlace(PLACES.idPrefix + n)) n++;
-  var clean = cleanPlaceName(name) || t('place.default_name', { n: list.length + 1 });
+  // Имя по умолчанию — первое свободное: после удаления места номер по длине списка повторялся.
+  var k = 1;
+  var taken = function (num) {
+    var candidate = t('place.default_name', { n: num });
+    return list.some(function (p) { return p.name === candidate; });
+  };
+  while (taken(k)) k++;
+  var clean = cleanPlaceName(name) || t('place.default_name', { n: k });
   var place = makePlace(PLACES.idPrefix + n, clean, lat, lon);
   list.push(place);
   savePlaces();
@@ -220,6 +229,8 @@ function pointOption(point) {
 function openPlaceDialog(prefill) {
   var dialog = $('place-dialog');
   if (!dialog) return;
+  // Новое окно — новый счёт: ответ геолокации из прошлого окна (закрытого и Escape) не годится.
+  state.placeDialogSeq = (state.placeDialogSeq || 0) + 1;
   $('place-name').value = '';
   $('place-lat').value = prefill ? fmtCoordInput(prefill.lat) : '';
   $('place-lon').value = prefill ? fmtCoordInput(prefill.lon) : '';
@@ -231,6 +242,7 @@ function openPlaceDialog(prefill) {
 }
 
 function closePlaceDialog() {
+  state.placeDialogSeq = (state.placeDialogSeq || 0) + 1;   // поздний ответ геолокации — в никуда
   var dialog = $('place-dialog');
   if (dialog.close) dialog.close();
   else dialog.removeAttribute('open');
@@ -268,12 +280,16 @@ function submitPlace() {
 function locatePlace() {
   if (!navigator.geolocation) { setPlaceStatus('place.dlg.geo_fail'); return; }
   setPlaceStatus('place.dlg.locating');
+  // Ответ может прийти через 15 с, когда окно уже закрыли и открыли снова с точкой с карты.
+  var seq = state.placeDialogSeq;
   navigator.geolocation.getCurrentPosition(function (pos) {
+    if (seq !== state.placeDialogSeq) return;
     $('place-lat').value = fmtCoordInput(pos.coords.latitude);
     $('place-lon').value = fmtCoordInput(pos.coords.longitude);
     var error = placeError(pos.coords.latitude, pos.coords.longitude);
     setPlaceStatus(error);
   }, function (err) {
+    if (seq !== state.placeDialogSeq) return;
     setPlaceStatus(err && err.code === 1 ? 'place.dlg.geo_denied' : 'place.dlg.geo_fail');
   }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 });
 }

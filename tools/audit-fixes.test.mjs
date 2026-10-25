@@ -114,3 +114,33 @@ test('запасная копия сервера (X-Stale) уступает пр
   const down = make(async () => { throw new TypeError('Failed to fetch'); });
   assert.equal((await down.fetchJson(KP))[0].v, 'stale');
 });
+
+test('координаты: «68,35» в поле широты — одна координата, а не пара 68 и 35', () => {
+  const ctx = page(() => Promise.reject(new TypeError('x')));
+  assert.equal(ctx.parseCoordPair('68,35'), null);
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.parseCoordPair('68.97, 33.10'))), { lat: 68.97, lon: 33.1 });
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.parseCoordPair('68,97 33,10'))), { lat: 68.97, lon: 33.1 });
+});
+
+test('имя своего места по умолчанию не повторяется после удаления', () => {
+  const ctx = page(() => Promise.reject(new TypeError('x')));
+  ctx.addPlace('', 68.5, 33.5);
+  ctx.addPlace('', 68.6, 33.6);
+  ctx.removePlace(ctx.userPlaces()[0].id);
+  ctx.addPlace('', 68.7, 33.7);
+  const names = ctx.userPlaces().map(p => p.name);
+  assert.equal(new Set(names).size, names.length, names.join(' / '));
+});
+
+test('страхующий запрос: упали оба, один с лимитом — показываем лимит, а не «нет соединения»', async () => {
+  const ctx = page(() => Promise.reject(new TypeError('x')));
+  const offline = () => Promise.reject(ctx.appError('offline'));
+  const limited = () => Promise.reject(ctx.appError('rate_limit'));
+  await assert.rejects(ctx.hedgeFetch(offline, limited, 10), err => err.code === 'rate_limit');
+});
+
+test('скорость солнечного ветра старше получаса не идёт в «дойдёт через N минут»', () => {
+  const ctx = page(() => Promise.reject(new TypeError('x')));
+  assert.equal(ctx.readSpeed([{ proton_speed: 400, time_tag: iso(NOW - 2 * MIN) }]), 400);
+  assert.equal(ctx.readSpeed([{ proton_speed: 400, time_tag: iso(NOW - 3 * 60 * MIN) }]), null);
+});

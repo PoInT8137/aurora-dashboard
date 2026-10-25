@@ -389,7 +389,11 @@ function renderKp(kp) {
 /** Скорость из сводки NOAA: [{ proton_speed, time_tag }]; null, если нет. */
 function readSpeed(data) {
   var row = Array.isArray(data) ? data[0] : null;
-  return row ? num(row.proton_speed) : null;
+  if (!row) return null;
+  // Старая скорость (запасная копия сервера) дала бы неверное «дойдёт через N минут».
+  var time = row.time_tag ? parseUtc(row.time_tag) : null;
+  if (time && Date.now() - time.getTime() > SW_STALE_MS) return null;
+  return num(row.proton_speed);
 }
 
 function restoreSolarWind(cached, refreshing) {

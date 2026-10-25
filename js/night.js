@@ -95,7 +95,8 @@ function computeNightWindow(cloud, kpRows, kpNow, point) {
 
   // Ближайший тёмный отрезок — это и есть «ночь».
   var segments = darkSegments(hours, 1);
-  if (!segments.length) return { polarDay: true };
+  // Солнце заходит, но неглубоко (май, август) — это белые ночи, а не полярный день.
+  if (!segments.length) return { polarDay: true, whiteNights: hours.some(function (h) { return h.alt < 0; }) };
   return nightWindowOf(segments[0], kpRows, kpNow, cloud.conflict, point);
 }
 
@@ -210,7 +211,7 @@ function renderWindow() {
     setTone($('window-card'), TONE.mid);
     setTone(valueEl, TONE.mid);
     valueEl.textContent = t('win.no_dark');
-    hintEl.textContent = t('win.polar');
+    hintEl.textContent = t(win.whiteNights ? 'win.white' : 'win.polar');
     metaEl.textContent = '';
     windowFreshness();
     return;
