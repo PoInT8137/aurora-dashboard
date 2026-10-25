@@ -31,9 +31,18 @@ export const COOLDOWN_MS = 3 * 60 * 60 * 1000;
  * больше, остальные получат push при следующем запуске (через 5 минут).
  */
 export const MAX_SENDS_PER_RUN = 35;
+/** Сам лимит внешних запросов и запас под то, что уходит после рассылки. */
+export const SUBREQUEST_LIMIT = 50;
+const SUBREQUEST_RESERVE = 2;
 
 /** Данные старше этого не годятся, чтобы будить человека. */
 const KP_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * Состояние точки старше этого — не прошлый проход, а давняя история (см. checkOnce). С запасом
+ * на перерыв в работе сервера: проходы идут каждые 5 минут.
+ */
+export const STATE_FRESH_MS = 6 * 60 * 60 * 1000;
 
 /** После стольких неудач подряд подписка считается мёртвой. */
 const MAX_FAILS = 5;
@@ -124,7 +133,11 @@ async function recordHeartbeat(env, nowMs, outcome) {
  * Один проход по расписанию и его пульс. nowMs и fetchFn подменяются в тестах.
  * Возвращает сводку для журнала и тестов.
  */
-export async function runCheck(env, nowMs = Date.now(), fetchFn = fetch) {
+export async function runCheck(env, nowMs = Date.now(), rawFetch = fetch) {
+  // Счётчик внешних запросов прохода: сверка, мониторинг, сводка и регистрация бота тратят
+  // часть лимита в 50, и бюджет отправок (checkOnce) считается от остатка, а не всегда 35.
+  const fetchFn = (url, init) => { fetchFn.used++; return rawFetch(url, init); };
+  fetchFn.used = 0;
   // Отметки «Вижу сияние» старше суток не нужны. Сбой уборки проверке не мешает.
   try { await purgeReports(env, nowMs); } catch (e) { console.error('отметки не убраны: ' + (e && e.message)); }
   // Проверка прогноза: вечером — прогноз на ночь, утром — факт. Раз в сутки, от подписчиков не зависит.
@@ -193,9 +206,13 @@ async function checkOnce(env, nowMs, fetchFn) {
   // уровень не ломает.
   const extra = await activityExtras(env, nowMs, fetchFn);
 
-  const { results: stateRows } = await env.DB.prepare('SELECT point, level, high_since FROM point_state').all();
+  const { results: stateRows } = await env.DB.prepare('SELECT point, level, high_since, updated FROM point_state').all();
   const prevState = new Map(stateRows.map(r => [r.point, r]));
-  const prevLevels = new Map(stateRows.map(r => [r.point, r.level]));
+  // Переход считается только от недавнего прохода (stateFresh): у точки без подписчиков строку
+  // никто не обновлял, и переход от недельного «низкого» будил бы подписавшегося во время уже
+  // идущего «высокого» — а он должен получить только следующий.
+  const stateFresh = r => !!r && nowMs - (r.updated || 0) <= STATE_FRESH_MS;
+  const prevLevels = new Map(stateRows.filter(stateFresh).map(r => [r.point, r.level]));
   const sentIds = new Set();   // кому уже ушло в этот проход: дополнительные сигналы не дублируют
 
   const summary = { levels: {}, highSince: {}, sent: 0, gone: 0, failed: 0 };
@@ -220,9 +237,10 @@ async function checkOnce(env, nowMs, fetchFn) {
 
     // Момент начала «высокого»: переход из другого уровня. Первое наблюдение
     // за точкой — только точка отсчёта (0): подписчиков не будим тем, что
-    // «высокий» просто оказался на месте, когда мы начали смотреть.
+    // «высокий» просто оказался на месте, когда мы начали смотреть. Давнее
+    // состояние (stateFresh) — тоже только точка отсчёта.
     let highSince = prev ? prev.high_since : 0;
-    if (q.level === 'high' && prev && prev.level !== 'high') highSince = nowMs;
+    if (q.level === 'high' && prev && prev.level !== 'high') highSince = stateFresh(prev) ? nowMs : 0;
     summary.highSince[point.id] = highSince;
 
     stateWrites.push(env.DB.prepare(
@@ -241,7 +259,8 @@ async function checkOnce(env, nowMs, fetchFn) {
   // каждом проходе, поэтому лимит на число отправок просто растягивает рассылку
   // на несколько проходов, а не теряет получателей.
   const updates = [];
-  let budget = MAX_SENDS_PER_RUN;
+  let budget = Math.min(MAX_SENDS_PER_RUN,
+    Math.max(0, SUBREQUEST_LIMIT - SUBREQUEST_RESERVE - (fetchFn.used || 0)));
 
   for (const t of targets) {
     if (budget <= 0) break;

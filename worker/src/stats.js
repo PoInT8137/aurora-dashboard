@@ -146,6 +146,9 @@ export const DIGEST_HOUR = 9;   // утренняя сводка — в 9:00 п�
  * (посещения, открытые ошибки) и уборка старых строк. Возвращает, отправлена ли сводка.
  */
 export async function dailyDigest(env, nowMs, notify) {
+  // Уборка — сама по себе: раньше она шла только после доставленной сводки, и без Telegram
+  // (или с заблокированным ботом) таблицы посещений и ошибок росли без конца.
+  await dailyPurge(env, nowMs);
   if (!env.TELEGRAM_TOKEN || !env.TELEGRAM_OWNER_CHAT) return false;
   if (new Date(nowMs + MSK_MS).getUTCHours() < DIGEST_HOUR) return false;
   const today = mskDay(nowMs);
@@ -157,7 +160,19 @@ export async function dailyDigest(env, nowMs, notify) {
     '\nОткрытых ошибок: ' + open + '\n\nПодробно: /stats' + (open ? ', /bugs' : '');
   if (!await notify(text)) return false;
   await env.DB.prepare("INSERT INTO meta(key, value) VALUES('digest_day', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(today).run();
-  await purgeVisits(env, nowMs);
-  await purgeBugs(env, nowMs);
   return true;
+}
+
+/** Раз в сутки по Москве: старые посещения и закрытые ошибки. Сбой — до следующего прохода. */
+async function dailyPurge(env, nowMs) {
+  const today = mskDay(nowMs);
+  try {
+    const done = await env.DB.prepare("SELECT value FROM meta WHERE key = 'purge_day'").first();
+    if (done && done.value === today) return;
+    await purgeVisits(env, nowMs);
+    await purgeBugs(env, nowMs);
+    await env.DB.prepare("INSERT INTO meta(key, value) VALUES('purge_day', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(today).run();
+  } catch (e) {
+    console.error('уборка посещений и ошибок: ' + (e && e.message));
+  }
 }

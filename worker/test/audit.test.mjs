@@ -140,3 +140,32 @@ test('/resubscribe: браузер сменил подписку — запис�
   // чужой хост вместо старого адреса — 400
   assert.equal((await post(env, '/resubscribe', { old: 'https://evil.example/x', endpoint: ep(9) }, '198.51.100.40')).status, 400);
 });
+
+test('давнее состояние точки (подписчиков не было неделю) — не переход: подписавшийся во время «высокого» не разбужен', async () => {
+  const { runCheck } = await import('../src/check.js');
+  const { makeFetch, addSub } = await import('./helpers.mjs');
+  const { env } = await makeEnv();
+  env.DB.raw.prepare('INSERT INTO point_state(point, level, high_since, updated) VALUES(?, ?, ?, ?)')
+    .run('murmansk', 'low', 0, NIGHT - 10 * 24 * 60 * MIN);
+  addSub(env, { n: 1, created: NIGHT - MIN });
+  const fetchFn = makeFetch(NIGHT, { kp: 4.3 });
+  const summary = await runCheck(env, NIGHT, fetchFn);
+  assert.equal(summary.levels.murmansk, 'high');
+  assert.equal(fetchFn.pushCalls().length, 0);
+  assert.equal(summary.highSince.murmansk, 0, 'только точка отсчёта');
+});
+
+test('проход не выходит за лимит 50 внешних запросов: бюджет отправок — от остатка', async () => {
+  const { runCheck, SUBREQUEST_LIMIT } = await import('../src/check.js');
+  const { makeFetch, addSub } = await import('./helpers.mjs');
+  const { env } = await makeEnv();
+  // Telegram и владелец: регистрация бота и сообщения тоже тратят запросы
+  env.TELEGRAM_TOKEN = 'test-token';
+  env.TELEGRAM_OWNER_CHAT = '1';
+  for (let n = 1; n <= 60; n++) addSub(env, { n, created: NIGHT - 2 * 60 * MIN });
+  await runCheck(env, NIGHT, makeFetch(NIGHT, { kp: 0.3 }));
+  const fetchFn = makeFetch(NIGHT + 5 * MIN, { kp: 4.3 });
+  const summary = await runCheck(env, NIGHT + 5 * MIN, fetchFn);
+  assert.ok(summary.sent > 0);
+  assert.ok(fetchFn.calls.length <= SUBREQUEST_LIMIT, 'запросов ' + fetchFn.calls.length);
+});

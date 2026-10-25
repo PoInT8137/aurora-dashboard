@@ -179,6 +179,8 @@ export async function verifyStep(env, nowMs, fetchFn) {
     const night = nightKey(nowMs);
     const have = await env.DB.prepare('SELECT COUNT(*) AS c FROM verify WHERE night = ?').bind(night).first();
     if (have && have.c > 0) return null;
+    // Белые ночи: записывать нечего, и это уже известно — не запрашиваем 7 точек каждые 5 минут.
+    if (await metaGet(env, 'verify_empty') === night) return null;
 
     // Kp: для уже начавшейся трёхчасовки — измеренный, дальше — прогноз (в файле они подряд).
     const { kp, hours } = await loadInputs(fetchFn, '&forecast_hours=24');
@@ -193,6 +195,7 @@ export async function verifyStep(env, nowMs, fetchFn) {
         .bind(night, point.id, result.level, result.from));
     });
     if (writes.length) await runWithFallback(env, writes, plain);
+    else await metaSet(env, 'verify_empty', night);
     return writes.length ? 'forecast' : null;
   }
 
@@ -200,6 +203,9 @@ export async function verifyStep(env, nowMs, fetchFn) {
     const night = nightKey(nowMs - 24 * HOUR);
     const { results: open } = await env.DB.prepare('SELECT point, from_ms FROM verify WHERE night = ? AND actual IS NULL').bind(night).all();
     if (!open.length) return null;
+    // Утро полярной ночи: тёмный отрезок ещё не кончился — пробуем раз в полчаса, а не каждый проход.
+    const tried = Number(await metaGet(env, 'verify_actual_try')) || 0;
+    if (nowMs - tried < ACTUAL_RETRY_MS) return null;
 
     const { kp, hours } = await loadInputs(fetchFn, '&past_days=1&forecast_days=1');
     const measured = kp.filter(r => r.observed);
@@ -208,8 +214,9 @@ export async function verifyStep(env, nowMs, fetchFn) {
     for (const row of open) {
       const i = Core.POINTS.findIndex(p => p.id === row.point);
       if (i < 0) continue;
-      // Тот же тёмный отрезок, что оценивал прогноз: начинается около from_ms.
-      const result = nightLevel(Core.POINTS[i], hours[i], measured, row.from_ms - HOUR, nowMs);
+      // Тот же тёмный отрезок, что оценивал прогноз: ровно с from_ms. С часом запаса в полярную
+      // ночь факт захватывал лишний тёмный час, которого прогноз не оценивал.
+      const result = nightLevel(Core.POINTS[i], hours[i], measured, row.from_ms, nowMs);
       if (!result) continue;
       const seen = await nightSightings(env, row.point, result.from, result.to);
       writes.push(env.DB.prepare('UPDATE verify SET actual = ?, actual_kp = ?, actual_cloud = ?, seen = ? WHERE night = ? AND point = ?')
@@ -217,9 +224,26 @@ export async function verifyStep(env, nowMs, fetchFn) {
       plain.push(env.DB.prepare('UPDATE verify SET actual = ? WHERE night = ? AND point = ?').bind(result.level, night, row.point));
     }
     if (writes.length) await runWithFallback(env, writes, plain);
+    else await metaSet(env, 'verify_actual_try', String(nowMs));
     return writes.length ? 'actual' : null;
   }
   return null;
+}
+
+const ACTUAL_RETRY_MS = 30 * 60 * 1000;
+
+async function metaGet(env, key) {
+  try {
+    const row = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind(key).first();
+    return row ? row.value : null;
+  } catch (e) { return null; }
+}
+
+async function metaSet(env, key, value) {
+  try {
+    await env.DB.prepare('INSERT INTO meta(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .bind(key, value).run();
+  } catch (e) { /* без отметки — просто повторим */ }
 }
 
 /**

@@ -456,15 +456,24 @@ function cloudScore(pct, conflict) {
  * tz — название пояса IANA; без него берётся пояс машины. Неизвестный пояс — не тихо:
  * лучше лишнее уведомление, чем пропущенное сияние.
  */
+// Форматтер на пояс создаётся один раз: сервер проверяет тихие часы у каждого кандидата
+// рассылки, а новый Intl.DateTimeFormat стоит десятки микросекунд процессора.
+var quietFormatters = {};
+
 function inQuietHours(date, tz, from, to) {
   if (typeof from !== 'number' || typeof to !== 'number' || from === to) return false;
   if (!(from >= 0 && from <= 23 && to >= 0 && to <= 23)) return false;
 
   var hour;
   try {
-    var options = { hour: '2-digit', hourCycle: 'h23' };
-    if (tz) options.timeZone = tz;
-    hour = Number(new Intl.DateTimeFormat('en-GB', options).format(date));
+    var key = tz || '';
+    var format = quietFormatters[key];
+    if (!format) {
+      var options = { hour: '2-digit', hourCycle: 'h23' };
+      if (tz) options.timeZone = tz;
+      format = quietFormatters[key] = new Intl.DateTimeFormat('en-GB', options);
+    }
+    hour = Number(format.format(date));
   } catch (e) {
     return false;
   }
