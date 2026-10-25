@@ -14,6 +14,9 @@ export const IOS_SCREENS = [
   { w: 440, h: 956, dpr: 3 },   // 16 Pro Max
   { w: 430, h: 932, dpr: 3 },   // 14 Pro Max, 15 Plus / Pro Max, 16 Plus
   { w: 428, h: 926, dpr: 3 },   // 12 / 13 Pro Max, 14 Plus
+  { w: 420, h: 912, dpr: 3 },   // Air
+  { w: 414, h: 896, dpr: 3 },   // XS Max, 11 Pro Max
+  { w: 414, h: 736, dpr: 3 },   // 6s / 7 / 8 Plus
   { w: 402, h: 874, dpr: 3 },   // 16 Pro
   { w: 393, h: 852, dpr: 3 },   // 14 Pro, 15, 15 Pro, 16
   { w: 390, h: 844, dpr: 3 },   // 12, 13, 14

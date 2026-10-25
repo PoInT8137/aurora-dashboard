@@ -114,6 +114,9 @@ function pushStatus() {
  * открыта по file://), ready не выполнится никогда — ждём не дольше 8 секунд.
  */
 function pushRegistration() {
+  // Первый запуск (на iPhone у установленного приложения своё хранилище): регистрация service
+  // worker ещё отложена до конца первой загрузки данных — запускаем её сейчас, а не ждём.
+  if (!navigator.serviceWorker.controller && typeof registerServiceWorker === 'function') registerServiceWorker();
   return Promise.race([
     navigator.serviceWorker.ready,
     new Promise(function (resolve, reject) {
@@ -177,15 +180,14 @@ function pushEnsureSubscription(registration) {
  * иначе браузер считал бы себя подписанным, а уведомления не приходили бы.
  */
 function pushSubscribe(pointId) {
-  var registration;
-
-  return pushRegistration()
-    .then(function (reg) {
-      registration = reg;
-      return pushAskPermission();
-    })
+  // Разрешение — первым: Safari выдаёт его только по нажатию, а после ожидания service worker
+  // нажатие уже «остывает».
+  return pushAskPermission()
     .then(function (permission) {
       if (permission !== 'granted') throw pushFail('permission_' + permission);
+      return pushRegistration();
+    })
+    .then(function (registration) {
       return pushEnsureSubscription(registration);
     })
     .then(function (result) {

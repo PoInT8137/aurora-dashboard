@@ -59,25 +59,28 @@ function init() {
       renderNotifyDiagnostics();
     }
 
-    // Таймер — заново: иначе он мог сработать через секунды после этого обновления.
-    if (document.visibilityState === 'visible' && refreshDue()) {
-      refreshAll();
-      armRefresh();
-    }
+    // Таймер заново: иначе он мог сработать через секунды после этого обновления.
+    if (document.visibilityState === 'visible' && refreshDue()) { refreshAll(); armRefresh(); }
   });
 }
 
-/**
- * Регистрация service worker: он кэширует оболочку приложения, чтобы дашборд
- * открывался без сети. Работает только по http(s), с file:// молча пропускаем.
- */
+/* Регистрация service worker: оболочка приложения открывается без сети. Только по http(s). */
 function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  if (!('serviceWorker' in navigator) || (location.protocol !== 'https:' && location.hostname !== 'localhost')) return;
+  if (registerServiceWorker.done) return;   // и после загрузки данных, и при включении push
+  registerServiceWorker.done = true;
+  try {
+    // Офлайн-режим необязателен: без него дашборд работает как обычная страница.
+    navigator.serviceWorker.register('sw.js').catch(function (err) { console.warn('Service worker не зарегистрирован:', err.message); });
+  } catch (e) { /* см. выше */ }
+}
 
-  // Вышла новая версия: новый service worker сам берёт управление (skipWaiting + claim), и
-  // страница один раз перезагружается, чтобы исправления пришли сразу, а не со следующего
-  // открытия. При самой первой установке контроллера не было — страница и так свежая.
+/* Слушатели service worker — сразу при загрузке, а не при регистрации (она ждёт до 15 с):
+   новый sw.js берёт управление за 1–3 с, и поздний слушатель пропускал controllerchange. */
+(function watchServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  // Новая версия взяла управление (skipWaiting + claim) — одна перезагрузка, чтобы исправления
+  // пришли сразу. При первой установке контроллера не было — страница и так свежая.
   var hadController = !!navigator.serviceWorker.controller;
   var reloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -85,14 +88,16 @@ function registerServiceWorker() {
     reloaded = true;
     location.reload();
   });
-
-  try {
-    navigator.serviceWorker.register('sw.js').catch(function (err) {
-      // Офлайн-режим необязателен: без него дашборд работает как обычная страница.
-      console.warn('Service worker не зарегистрирован:', err.message);
-    });
-  } catch (e) { /* см. выше */ }
-}
+  // Нажали на уведомление при открытом приложении — sw.js просит показать вкладку из него.
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    if (e.data && e.data.type === 'show-tab' && typeof showTab === 'function') showTab(e.data.tab, 'push');
+  });
+  // Установленное приложение возобновляется, а не открывается заново: проверяем версию сами.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || !navigator.serviceWorker.getRegistration) return;
+    navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update().catch(function () {}); }, function () {});
+  });
+})();
 
 document.addEventListener('DOMContentLoaded', init);
 

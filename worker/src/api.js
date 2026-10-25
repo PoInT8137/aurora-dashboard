@@ -4,6 +4,7 @@
 //                                              сменить точку, язык, тихие часы (quiet: {from, to}
 //                                              или null), порог (level: high | mid) и «небо откроется»
 //   POST /unsubscribe  { endpoint }            удалить подписку
+//   POST /resubscribe  { old, endpoint }       браузер сменил подписку: перенести запись
 //   POST /message      { endpoint }            текст последнего уведомления — его
 //                                              забирает service worker при push
 //   POST /test         { endpoint, delay? }    пробное уведомление (с задержкой до 20 с,
@@ -294,6 +295,24 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
 
     case '/unsubscribe': {
       await env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(id).run();
+      return reply({ ok: true }, 200, cors);
+    }
+
+    // Браузер сам сменил подписку (sw.js, pushsubscriptionchange): переносим запись на новый
+    // адрес с точкой и настройками. Знать нужно старый адрес — он такой же секрет, как новый.
+    case '/resubscribe': {
+      const oldUrl = checkEndpoint(body.old);
+      if (!oldUrl) return reply({ error: 'bad_endpoint' }, 400, cors);
+      const oldId = await subscriptionId(oldUrl.href);
+      if (oldId === id) return reply({ ok: true }, 200, cors);
+      const taken = await env.DB.prepare('SELECT 1 AS found FROM subs WHERE id = ?').bind(id).first();
+      if (taken) {
+        await env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(oldId).run();
+        return reply({ ok: true }, 200, cors);
+      }
+      const { meta } = await env.DB.prepare('UPDATE subs SET id = ?, endpoint = ?, fails = 0 WHERE id = ?')
+        .bind(id, endpoint, oldId).run();
+      if (!meta || !meta.changes) return reply({ error: 'not_subscribed' }, 404, cors);
       return reply({ ok: true }, 200, cors);
     }
 

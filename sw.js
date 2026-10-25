@@ -15,7 +15,7 @@ try { importScripts('config.js'); } catch (e) { /* без настроек push 
 
 /* При изменении файлов оболочки поднять версию: имя кэша сменится, install
  * загрузит файлы заново, а activate удалит предыдущую версию. */
-var CACHE_VERSION = 'v77';
+var CACHE_VERSION = 'v78';
 var CACHE_NAME = 'aurora-' + CACHE_VERSION;
 
 var APP_SHELL = [
@@ -54,6 +54,7 @@ var APP_SHELL = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png',   // ещё и картинка в подсказке «на экран Домой»
   'icons/favicon.svg'
 ];
 
@@ -132,6 +133,10 @@ self.addEventListener('notificationclick', function (event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (windows) {
       for (var i = 0; i < windows.length; i++) {
         if (windows[i].url.indexOf(self.registration.scope) === 0 && 'focus' in windows[i]) {
+          // Открытое приложение могло стоять на «Карте» или в «Настройках» — переводим на вкладку
+          // из уведомления (app.js слушает сообщение), без перезагрузки.
+          var hash = url.indexOf('#') >= 0 ? url.slice(url.indexOf('#') + 1) : '';
+          if (hash && windows[i].postMessage) windows[i].postMessage({ type: 'show-tab', tab: hash });
           return windows[i].focus();
         }
       }
@@ -157,6 +162,32 @@ var FALLBACK_TEXT = {
   en: { title: 'Northern lights possible', body: 'Viewing conditions have changed — open the app.' },
   zh: { title: '可能出现极光', body: '观测条件已发生变化——请打开应用查看。' }
 };
+
+function appleDevice() {
+  var nav = self.navigator || {};
+  return /iPhone|iPad|iPod/.test(nav.userAgent || '') || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+}
+
+/*
+ * Браузер сам сменил подписку (истёк срок, обновились ключи сервиса). Оформляем новую с тем же
+ * ключом и просим сервер перенести запись со старого адреса: иначе сервер слал бы на старый,
+ * получал 410 и удалял подписчика, пока тот не откроет приложение.
+ */
+self.addEventListener('pushsubscriptionchange', function (event) {
+  var api = (typeof AURORA_CONFIG !== 'undefined' && AURORA_CONFIG.pushApi) || '';
+  var old = event.oldSubscription;
+  if (!api || !old) return;
+  var key = old.options && old.options.applicationServerKey;
+  var renewed = event.newSubscription ? Promise.resolve(event.newSubscription)
+    : (key ? self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }) : Promise.reject(new Error('no key')));
+  event.waitUntil(renewed.then(function (subscription) {
+    return fetch(api + '/resubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old: old.endpoint, endpoint: subscription.endpoint })
+    });
+  }).catch(function () { /* восстановит pushSync при следующем открытии приложения */ }));
+});
 
 function browserLang() {
   var tag = String((self.navigator && self.navigator.language) || '').toLowerCase();
@@ -188,7 +219,9 @@ function showPushNotification() {
         // Приложение открыто и перед глазами — уведомление лишнее. Пробное показываем
         // всегда: человек как раз проверяет, что оно доходит.
         var inFront = windows.some(function (w) { return w.visibilityState === 'visible' && w.focused; });
-        if (inFront && !msg.test) return null;
+        // Safari считает push без уведомления «тихим» и после нескольких таких отзывает подписку,
+        // поэтому на iPhone и iPad показываем всегда.
+        if (inFront && !msg.test && !appleDevice()) return null;
 
         var icon = new URL('icons/icon-192.png', self.registration.scope).href;
         return self.registration.showNotification(msg.title, {

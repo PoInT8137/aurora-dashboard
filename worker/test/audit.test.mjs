@@ -124,3 +124,19 @@ test('/meteo: копия после сбоя источников помечен
   assert.equal(res.headers.get('Cache-Control'), 'no-store');
   assert.equal(await res.text(), '{"ok":1}');
 });
+
+test('/resubscribe: браузер сменил подписку — запись с точкой переезжает на новый адрес', async () => {
+  const { env } = await makeEnv();
+  await post(env, '/subscribe', { endpoint: ep(1), point: 'teriberka', lang: 'en' }, '198.51.100.40');
+  const moved = await post(env, '/resubscribe', { old: ep(1), endpoint: ep(2) }, '198.51.100.40');
+  assert.deepEqual(moved, { status: 200, body: { ok: true } });
+  assert.equal(subRow(env, 1), undefined);
+  assert.equal(subRow(env, 2).point, 'teriberka');
+  assert.equal(subRow(env, 2).lang, 'en');
+  assert.equal(subRow(env, 2).endpoint, ep(2));
+  // неизвестный старый адрес — 404, ничего не создаётся
+  assert.equal((await post(env, '/resubscribe', { old: ep(7), endpoint: ep(8) }, '198.51.100.40')).status, 404);
+  assert.equal(subRow(env, 8), undefined);
+  // чужой хост вместо старого адреса — 400
+  assert.equal((await post(env, '/resubscribe', { old: 'https://evil.example/x', endpoint: ep(9) }, '198.51.100.40')).status, 400);
+});
