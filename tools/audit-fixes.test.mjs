@@ -144,3 +144,17 @@ test('скорость солнечного ветра старше получа
   assert.equal(ctx.readSpeed([{ proton_speed: 400, time_tag: iso(NOW - 2 * MIN) }]), 400);
   assert.equal(ctx.readSpeed([{ proton_speed: 400, time_tag: iso(NOW - 3 * 60 * MIN) }]), null);
 });
+
+test('формы числа: «сверен 31 прогноз», «в 21 случае», «Of the last night»', () => {
+  const ctx = page(() => Promise.reject(new TypeError('x')));
+  const d = { total: 31, days: 30, nights: 30, exact: 20, offByOne: 10, offByTwo: 1, seen: { checked: 30, confirmed: 21, hit: 15 } };
+  const ru = ctx.accuracyText(d);
+  assert.match(ru, /сверен 31 прогноз \(/);
+  assert.match(ru, /сияние в 21 случае \(/);
+  assert.match(ctx.accuracyText({ ...d, total: 25 }), /сверено прогнозов 25/);
+  ctx.setLang('en');
+  assert.match(ctx.t('history.last', { n: 1 }), /^Of the last night$/);
+  assert.match(ctx.accuracyText({ ...d, total: 1 }), /1 forecast checked/);
+  ctx.setLang('zh');
+  assert.doesNotMatch(ctx.accuracyText(d), /。 /, 'китайские фразы без пробела между ними');
+});

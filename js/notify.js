@@ -503,7 +503,7 @@ function renderPushCard() {
 /** Для своего места: сервер знает только семь точек — подписка на ближайшую из них. */
 function customPushNote() {
   var point = currentPoint();
-  return point.custom ? ' ' + t('push.hint.custom', { place: pointName(point), name: pointName(pushPoint()) }) : '';
+  return point.custom ? t('sep.sentence') + t('push.hint.custom', { place: pointName(point), name: pointName(pushPoint()) }) : '';
 }
 
 /** Операция с индикацией: блокирует кнопки, пишет статус, ошибку показывает человеку. */

@@ -193,11 +193,20 @@ function copyShareUrl() {
 }
 
 function nativeShare() {
-  var url = shareUrl(state.shareLang || getLang());
+  var lang = state.shareLang || getLang();
+  var url = shareUrl(lang);
   if (!navigator.share) return Promise.resolve();
+  // Заголовок и текст — на том же языке, что и ссылка: окно выбирает язык для получателя.
+  var page = i18nLang;
+  i18nLang = lang;
+  var message;
+  try {
+    message = { title: t('title.point', { name: pointName(currentPoint()) }), text: t('share.text'), url: url };
+  } finally {
+    i18nLang = page;
+  }
   // Отмена в системном меню — тоже отказ промиса; сообщать о нём незачем.
-  return navigator.share({ title: t('title.point', { name: pointName(currentPoint()) }), text: t('share.text'), url: url })
-    .catch(function () {});
+  return navigator.share(message).catch(function () {});
 }
 
 function downloadQrPng() {

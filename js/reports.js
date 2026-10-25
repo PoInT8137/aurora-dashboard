@@ -103,14 +103,14 @@ function reportsSummaryText(data, point) {
     parts.push(reportsConfirmed(mine)
       ? t('reports.confirmed', { name: pointName(point), devices: t('reports.devices', { n: devices }) })
       : t('reports.unconfirmed', { name: pointName(point), n: mine.count, need: REPORTS.confirm }));
-    parts.push((mine.bright ? t('reports.bright', { n: mine.bright }) + ' ' : '') +
+    parts.push((mine.bright ? t('reports.bright', { n: mine.bright }) + t('sep.sentence') : '') +
       t('reports.last', { time: fmtTime(new Date(mine.last)) }));
   }
   var others = POINTS.filter(function (p) { return p.id !== point.id && data.points[p.id] && data.points[p.id].count; })
     .map(function (p) { return t('reports.other', { name: pointName(p), n: data.points[p.id].count }); });
   if (others.length) parts.push(t(mine && mine.count ? 'reports.also' : 'reports.elsewhere', { list: others.join(t('sep.list')) }));
   if (!parts.length) parts.push(t('reports.none', { minutes: data.window || 60 }));
-  return parts.join(' ');
+  return parts.join(t('sep.sentence'));   // в китайском фразы идут без пробела
 }
 
 function renderReports() {

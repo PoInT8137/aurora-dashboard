@@ -332,7 +332,7 @@ function renderPlacesList() {
     name.textContent = place.name;
     var meta = document.createElement('p');
     meta.className = 'myplace__meta';
-    meta.textContent = fmtCoord(place.lat, 'n', 's') + ', ' + fmtCoord(place.lon, 'e', 'w') + t('sep.dot') +
+    meta.textContent = fmtCoord(place.lat, 'n', 's') + t('sep.list') + fmtCoord(place.lon, 'e', 'w') + t('sep.dot') +
       t('place.air', { dist: distText(place.km) });
     text.appendChild(name);
     text.appendChild(meta);

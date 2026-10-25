@@ -158,7 +158,7 @@ function renderHistory() {
     $('history-summary').textContent = t('history.polar');
   } else {
     var good = nights.filter(function (n) { return n.level >= 1; }).length;
-    $('history-summary').textContent = t('history.summary', { n: nights.length, good: good, nights: t('history.nights', { n: good }) });
+    $('history-summary').textContent = t('history.summary', { last: t('history.last', { n: nights.length }), nights: t('history.nights', { n: good }) });
   }
 
   nights.forEach(function (n) {
@@ -238,10 +238,10 @@ function accuracyText(d) {
   var parts = [];
   var total = d ? d.total : 0;
   if (total < ACCURACY.minChecks) {
-    parts.push(t('accuracy.collecting', { n: total, min: ACCURACY.minChecks }));
+    parts.push(t('accuracy.collecting', { count: t('accuracy.count', { n: total }), min: ACCURACY.minChecks }));
   } else {
     parts.push(t('accuracy.main', {
-      days: d.days || 30, nights: d.nights, total: total, exact: d.exact,
+      days: d.days || 30, checked: t('accuracy.checked', { n: total }), nights: d.nights, total: total, exact: d.exact,
       pct: floorPct(d.exact, total), one: d.offByOne, two: d.offByTwo
     }));
     var high = d.promised && d.promised.high;
@@ -253,9 +253,9 @@ function accuracyText(d) {
   else if (seen.confirmed < ACCURACY.minSeen) {
     parts.push(t('accuracy.seen_few', { confirmed: seen.confirmed, min: ACCURACY.minSeen, checked: seen.checked }));
   } else {
-    parts.push(t('accuracy.seen', { confirmed: seen.confirmed, hit: seen.hit, pct: floorPct(seen.hit, seen.confirmed) }));
+    parts.push(t('accuracy.seen', { cases: t('accuracy.cases', { n: seen.confirmed }), hit: seen.hit, pct: floorPct(seen.hit, seen.confirmed) }));
   }
-  return parts.join(' ');
+  return parts.join(t('sep.sentence'));   // в китайском фразы идут без пробела
 }
 
 function renderAccuracy() {
