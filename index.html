@@ -58,6 +58,7 @@ try {
   if (theme === 'auto') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   if (theme === 'light' || theme === 'dark' || theme === 'night') root.setAttribute('data-theme', theme);
   if (saved.size === 'large' || saved.size === 'xlarge') root.setAttribute('data-size', saved.size);
+  if (saved.motion === 'off') root.setAttribute('data-motion', 'off');
 } catch (e) { /* без хранилища — оформление по умолчанию */ }
 /* Ярлык «Ночное зрение» (manifest.json) открывает ?theme=night — тема сразу, без вспышки */
 try {
@@ -145,6 +146,7 @@ try {
 <div class="sky-stars" aria-hidden="true"></div>
 <div class="sky-stars sky-stars--near" aria-hidden="true"></div>
 <div class="aurora-bg" aria-hidden="true"></div>
+<div class="hero-sky-frame" aria-hidden="true"><canvas class="hero-sky" id="hero-sky"></canvas></div>
 
 <div class="intro-sky" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 
@@ -902,6 +904,14 @@ try {
         </div>
       </div>
       <div class="pref">
+        <span class="pref__name" id="pref-motion" data-i18n="pref.motion">Живой фон</span>
+        <div class="seg" role="group" aria-labelledby="pref-motion" data-pref="motion">
+          <button class="seg__btn" type="button" data-value="on" aria-pressed="false" data-i18n="pref.motion.on">Вкл</button>
+          <button class="seg__btn" type="button" data-value="off" aria-pressed="false" data-i18n="pref.motion.off">Выкл</button>
+        </div>
+        <p class="pref__hint" data-i18n="pref.motion.hint">Медленные волны сияния за первым экраном; во время бури они чуть живее. «Выкл» — фон неподвижный. На слабых устройствах и при «уменьшить движение» в системе он неподвижный всегда.</p>
+      </div>
+      <div class="pref">
         <span class="pref__name" id="pref-start" data-i18n="pref.start">Открывать на вкладке</span>
         <div class="seg" role="group" aria-labelledby="pref-start" data-pref="start">
           <button class="seg__btn" type="button" data-value="last" aria-pressed="false" data-i18n="pref.start.last">Где закрыл</button>
@@ -1027,6 +1037,7 @@ try {
 <script src="js/clouds.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/page.js"></script>
+<script src="js/hero-sky.js"></script>
 <script src="js/share.js"></script>
 <script src="js/install.js"></script>
 <script src="js/settings.js"></script>

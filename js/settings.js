@@ -13,7 +13,7 @@
 
 var SETTINGS_DEFAULTS = { tz: 'murmansk', clock: '24', dist: 'km', temp: 'c', refresh: '5',
                           theme: 'dark', size: 'normal', start: 'last', quiet: 'off',
-                          alert: 'high', sky: 'off' };
+                          alert: 'high', sky: 'off', motion: 'on' };
 var SETTINGS_CHOICES = {
   tz: ['murmansk', 'device'],
   clock: ['24', '12'],
@@ -25,7 +25,8 @@ var SETTINGS_CHOICES = {
   start: ['last', 'now', 'tonight', 'map'],  // last — вкладка, на которой закрыли
   quiet: ['off', '22-08', '23-07', '00-06'],  // часы, когда уведомления о сиянии не присылаются
   alert: ['high', 'mid'],   // о каком шансе сообщать: только о высоком или уже о среднем
-  sky: ['off', 'on']        // сервер сообщает, что небо скоро откроется
+  sky: ['off', 'on'],       // сервер сообщает, что небо скоро откроется
+  motion: ['on', 'off']     // живой фон первого экрана (js/hero-sky.js); выкл — неподвижный кадр
 };
 
 function loadSettings() {
@@ -86,6 +87,7 @@ function applyAppearance() {
   var theme = resolvedTheme();
   root.setAttribute('data-theme', theme);
   root.setAttribute('data-size', setting('size'));
+  root.setAttribute('data-motion', setting('motion'));
 
   var meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', THEME_COLORS[theme]);

@@ -35,6 +35,7 @@ var APP_SHELL = [
   'js/clouds.js',
   'js/notify.js',
   'js/page.js',
+  'js/hero-sky.js',
   'js/share.js',
   'js/install.js',
   'js/settings.js',

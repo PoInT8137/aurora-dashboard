@@ -26,6 +26,7 @@ function init() {
   initPushCard();
   initTabs();
   initSkyDepth();
+  initHeroSky();
   initTopMenu();
   $('refresh').addEventListener('click', refreshAll);
 

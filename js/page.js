@@ -268,7 +268,8 @@ var SKY_LAYERS = [
   { sel: '.sky-stars--far', scroll: 0.02, cursor: 4 },
   { sel: '.sky-stars:not(.sky-stars--far):not(.sky-stars--near)', scroll: 0.05, cursor: 8 },
   { sel: '.sky-stars--near', scroll: 0.1, cursor: 16 },
-  { sel: '.aurora-bg', scroll: 0, cursor: 40 }
+  { sel: '.aurora-bg', scroll: 0, cursor: 40 },
+  { sel: '.hero-sky', scroll: 0, cursor: 24 }
 ];
 
 function initSkyDepth() {

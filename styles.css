@@ -262,6 +262,46 @@ html[data-theme="night"] .sky-stars { display: none; }
   .aurora-bg { animation: none; }
 }
 
+/* ---------- Живое небо первого экрана (js/hero-sky.js) ----------
+   Холст на высоту экрана за шапкой и вердиктом; уходит вверх вместе со страницей и книзу
+   растворяется в фоне. На тёмной теме складывается со страницей «экраном» (тёмное не видно,
+   звёзды просвечивают), на светлой — умножается бледной вуалью. Виден, когда скрипт
+   поставил html.sky-gl (WebGL есть и первые кадры шли быстро); до того и вместо — CSS-градиент
+   .aurora-bg. Холст шире рамки на 32 px с боков — под сдвиг за курсором; рамка обрезает
+   лишнее, чтобы страница не прокручивалась вбок. */
+.hero-sky-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100svh;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to bottom, black 0, black 45%, transparent 100%);
+          mask-image: linear-gradient(to bottom, black 0, black 45%, transparent 100%);
+}
+.hero-sky {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: -32px;
+  width: calc(100% + 64px);
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1.6s ease, translate 1.6s var(--ease-out);
+}
+html.sky-gl .hero-sky { opacity: 0.75; }
+html.sky-gl .aurora-bg { opacity: 0; animation-play-state: paused; }
+html[data-theme="light"] .hero-sky-frame { mix-blend-mode: multiply; }
+html[data-theme="light"].sky-gl .hero-sky { opacity: 1; }
+/* заставка и интро идут поверх — живое небо проявляется уже после них */
+html.has-splash .hero-sky,
+html.intro .hero-sky { opacity: 0; }
+html[data-theme="night"] .hero-sky-frame { display: none; }
+
 /* ---------- Заставка первого визита ----------
    Отдельный слой поверх страницы (fixed, свой z-index): разметку под собой не двигает.
    Видна, пока на <html> класс has-splash; исчезает прозрачностью, потом класс снимается.
