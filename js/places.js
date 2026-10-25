@@ -286,9 +286,13 @@ function placesChanged() {
   renderPointOptions();
   renderPlacesList();
   cacheDrop('tonight');
-  var hadTonight = !!state.tonight;
+  var hadTonight = !!state.tonight || !!state.tonightPending;
   state.tonight = null;
+  state.tonightPending = null;     // запрос по прежнему списку мест — не ждём, его ответ отбросится
+  state.tonightFailedAt = 0;
   if (hadTonight || state.tab === 'tonight' || state.tab === 'map') loadTonight(true);
+  // OVATION сохраняется по точкам, что были при загрузке: у нового места его ещё нет.
+  if (state.ov && typeof loadOvation === 'function') loadOvation(true).then(renderDerived);
   renderMap();
 }
 

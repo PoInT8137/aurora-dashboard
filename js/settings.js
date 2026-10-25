@@ -191,8 +191,9 @@ function armRefresh() {
   var every = refreshMs();
   // Скрытая вкладка не обновляется: это трафик, батарея и лимит Open-Meteo впустую.
   // При возврате данные обновит обработчик visibilitychange (app.js), если пора.
+  // Исключение — уведомления страницы: подсказка обещает их и во вкладке в фоне.
   if (every) state.timer = setInterval(function () {
-    if (document.visibilityState !== 'hidden') refreshAll();
+    if (document.visibilityState !== 'hidden' || pageNotifyArmed()) refreshAll();
   }, every);
 }
 

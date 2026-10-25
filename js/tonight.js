@@ -172,12 +172,16 @@ function readAllPointsHours(data) {
  * отдельно), сохранённый ответ моложе получаса считаем свежим. force: по кнопке «Обновить».
  */
 var TONIGHT_REFRESH_MS = 30 * 60 * 1000;
+var TONIGHT_RETRY_MS = 10 * 60 * 1000;   // пауза после неудачи: 7–12 точек = столько же обращений к квоте
 
 function loadTonight(force) {
+  // Запрос уже в пути (старт на вкладке «Куда ехать»: showTab и refreshAll) — ждём его же.
+  if (state.tonightPending) return state.tonightPending;
   if (!state.tonight) {
     var early = cacheLoad('tonight');
     if (early) {
-      state.tonight = { rows: early.payload, stale: early.age };
+      // loadedAt — от времени сохранения: свежий кэш после перезагрузки остаётся свежим
+      state.tonight = { rows: early.payload, stale: early.age, loadedAt: Date.now() - early.age };
       renderTonight();
       if (!force && early.age < TONIGHT_REFRESH_MS) {
         state.tonight.stale = null;
@@ -189,22 +193,33 @@ function loadTonight(force) {
     renderTonight();
     return Promise.resolve(state.tonight.rows);
   }
+  if (!force && state.tonightFailedAt && Date.now() - state.tonightFailedAt < TONIGHT_RETRY_MS) {
+    return Promise.resolve(state.tonight ? state.tonight.rows : null);
+  }
   markLoading('best-card');
   markLoading('places-card');
 
   // Смена вкладки правит хэш, а hashchange вызывает showTab повторно. Без
   // этого флага второй вызов успевал уйти в сеть до ответа на первый.
   state.tonightLoading = true;
+  // Ответ на запрос, ушедший до смены списка мест (placesChanged), не годится: точек в нём
+  // другое число, или облачность одного места досталась бы другому.
+  var seq = state.tonightSeq = (state.tonightSeq || 0) + 1;
+  var stale = function () { return seq !== state.tonightSeq; };
 
-  return fetchJson(allPointsWeatherUrl())
+  var pending = state.tonightPending = fetchJson(allPointsWeatherUrl())
     .then(function (data) {
+      if (stale()) return state.tonight ? state.tonight.rows : null;
       var rows = readAllPointsHours(data);
       state.tonight = { rows: rows, stale: null, loadedAt: Date.now() };
+      state.tonightFailedAt = 0;
       cacheSave('tonight', rows);
       renderTonight();
       return rows;
     })
     .catch(function (err) {
+      if (stale()) return state.tonight ? state.tonight.rows : null;
+      state.tonightFailedAt = Date.now();
       var cached = cacheLoad('tonight');
 
       if (cached) {
@@ -221,7 +236,12 @@ function loadTonight(force) {
       setState('nights-card', 'error');
       return null;
     })
-    .finally(function () { state.tonightLoading = false; });
+    .finally(function () {
+      if (stale()) return;
+      state.tonightLoading = false;
+      state.tonightPending = null;
+    });
+  return pending;
 }
 
 /** Окно на ближайшую ночь для каждой точки, отсортированное по привлекательности. */

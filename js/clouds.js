@@ -25,6 +25,7 @@ var CLOUD_GRID = {
   rows: 10,
   hours: 24,          // ползунок: от текущего часа на сутки вперёд
   refreshMs: 60 * 60 * 1000,   // модель пересчитывается раз в несколько часов — чаще не нужно
+  retryMs: 15 * 60 * 1000,     // после неудачи: 90 узлов = 90 обращений к суточной квоте Open-Meteo
   upscale: 12,        // во сколько раз холст подробнее сетки: плавная заливка между узлами
   minCloud: 10,       // ниже — небо ясное, облаков не рисуем
   maxAlpha: 0.66      // сплошная облачность не закрывает схему полностью
@@ -176,12 +177,20 @@ function setCloudsEnabled(on) {
 /** Загрузка сетки: сначала сохранённая (если свежая), затем сеть. Не чаще раза в час. */
 function loadCloudGrid(force) {
   if (state.cloudGridLoading) return state.cloudGridLoading;
-  var fresh = state.cloudGrid && Date.now() - state.cloudGrid.loadedAt < CLOUD_GRID.refreshMs;
-  if (fresh && !force) return Promise.resolve(state.cloudGrid);
 
+  // Сохранённая сетка — до проверки свежести: иначе после перезагрузки страницы даже
+  // пятиминутная сетка не считалась свежей и 90 узлов запрашивались заново.
   if (!state.cloudGrid) {
     var cached = cacheLoad('cloudgrid');
     if (cached) state.cloudGrid = { grid: cached.payload, loadedAt: Date.now() - cached.age, stale: cached.age };
+  }
+
+  var fresh = state.cloudGrid && Date.now() - state.cloudGrid.loadedAt < CLOUD_GRID.refreshMs;
+  // После неудачи — пауза: иначе каждое автообновление на открытой карте повторяло бы запрос.
+  var resting = state.cloudGridFailedAt && Date.now() - state.cloudGridFailedAt < CLOUD_GRID.retryMs;
+  if ((fresh || resting) && !force) {
+    renderClouds();
+    return Promise.resolve(state.cloudGrid);
   }
 
   var cells = cloudGridCells();
@@ -189,11 +198,13 @@ function loadCloudGrid(force) {
     .then(function (data) {
       var grid = readCloudGrid(data, cells.length);
       state.cloudGrid = { grid: grid, loadedAt: Date.now(), stale: null };
+      state.cloudGridFailedAt = 0;
       cacheSave('cloudgrid', grid);
       return state.cloudGrid;
     })
     .catch(function () {
       state.cloudGridError = true;
+      state.cloudGridFailedAt = Date.now();
       return state.cloudGrid;
     })
     .then(function (result) {
@@ -248,7 +259,9 @@ function renderClouds() {
   // Облачность в точке, выбранной на карте, — числом: по заливке на глаз её не оценить.
   var point = state.mapPoint ? pointById(state.mapPoint) : currentPoint();
   var pos = mapPosition(point.lat, point.lon);
-  var here = cloudAt(usable.values[index], pos.x, pos.y);
+  // Место за рамкой карты: сетка там не считалась, а край сетки — за сотни километров.
+  var inFrame = pos.x >= 0 && pos.x <= 1 && pos.y >= 0 && pos.y <= 1;
+  var here = inFrame ? cloudAt(usable.values[index], pos.x, pos.y) : null;
   $('map-clouds-here').textContent = here === null ? '' :
     t('clouds.here', { name: pointName(point), v: Math.round(here) });
 }

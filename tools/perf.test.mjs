@@ -125,11 +125,13 @@ test('автообновление пропускает скрытую вкла�
   const armRefresh = /function armRefresh\(\) \{[\s\S]*?\n\}/.exec(src)[0];
   let tick = null;
   let calls = 0;
+  let armed = false;
   const ctx = {
     state: { timer: null },
     document: { visibilityState: 'hidden' },
     refreshMs: () => 60000,
     refreshAll: () => { calls++; },
+    pageNotifyArmed: () => armed,
     setInterval: fn => { tick = fn; return 1; },
     clearInterval: () => {}
   };
@@ -139,4 +141,9 @@ test('автообновление пропускает скрытую вкла�
   ctx.document.visibilityState = 'visible';
   tick();
   assert.equal(calls, 1);
+  // уведомления страницы включены, серверных нет — скрытая вкладка обновляется, иначе они не придут
+  ctx.document.visibilityState = 'hidden';
+  armed = true;
+  tick();
+  assert.equal(calls, 2);
 });

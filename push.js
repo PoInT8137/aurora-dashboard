@@ -237,7 +237,8 @@ function pushUnsubscribe() {
  * Синхронизация при открытии приложения и смене точки: сообщает серверу
  * актуальную точку и чинит потерянную подписку. Результат:
  *   'off' — выключено, 'revoked' — разрешение отозвано, 'ok' — всё в порядке,
- *   'error' — сервер недоступен (повторим при следующем открытии).
+ *   'error' — сервер недоступен (повторим при следующем открытии),
+ *   'lost' — подписки в браузере нет и оформить её заново не вышло: «включено» больше не показываем.
  */
 function pushSync(pointId) {
   if (!pushConfigured() || !pushSupported() || !pushFlagOn()) return Promise.resolve('off');
@@ -253,7 +254,17 @@ function pushSync(pointId) {
     .then(function (result) {
       return pushRequest('/subscribe', pushSubscription(result.subscription.endpoint, pointId));
     })
-    .then(function () { return 'ok'; }, function () { return 'error'; });
+    .then(function () { return 'ok'; }, function () {
+      // Сервер мог быть просто недоступен, а могла пропасть сама подписка (новый ключ, Safari
+      // отклонил подписку без нажатия): без неё переключатель «включено» обманывал бы.
+      return pushRegistration()
+        .then(function (registration) { return registration.pushManager.getSubscription(); })
+        .then(function (subscription) {
+          if (subscription) return 'error';
+          setPushFlag(false);
+          return 'lost';
+        }, function () { return 'error'; });
+    });
 }
 
 /** Пробное уведомление с сервера; delaySeconds — чтобы успеть закрыть приложение. */
