@@ -154,7 +154,35 @@ test('push-сервис ответил 404 или 410 — подписка уд�
   assert.ok(subRow(env, 3));
 });
 
-test('временные сбои: счётчик растёт, после пяти подряд подписка удаляется, успех обнуляет', async () => {
+test('временные сбои сервиса (429, 5xx, сеть, наш ключ) подписку не удаляют: повтор на следующем проходе', async () => {
+  for (const status of [503, 429, 0, 401]) {
+    const { env } = await makeEnv();
+    addSub(env, { n: 1 });
+    await run(env, T0, { kp: 0.3 });
+    for (let i = 1; i <= 7; i++) {
+      const { summary } = await run(env, T0 + i * 5 * MIN, { pushStatus: { [ep(1)]: status }, kp: 4.3 });
+      assert.equal(summary.failed, 1, `статус ${status}, проход ${i}`);
+    }
+    const row = subRow(env, 1);
+    assert.ok(row, `статус ${status}: подписка на месте`);
+    assert.equal(row.fails, 0);
+    assert.equal(row.last_sent, 0);
+  }
+});
+
+test('текст уведомления в базе уже в момент доставки push: service worker не видит прошлый', async () => {
+  const { env } = await makeEnv();
+  addSub(env, { n: 1 });
+  env.DB.raw.prepare('UPDATE subs SET msg = ? WHERE id = ?').run(JSON.stringify({ title: 'Пробное', test: true }), subRow(env, 1).id);
+  await run(env, T0, { kp: 0.3 });
+  const seen = [];
+  await run(env, T1, { kp: 4.3, onPush: u => { if (u === ep(1)) seen.push(JSON.parse(subRow(env, 1).msg)); } });
+  assert.equal(seen.length, 1);
+  assert.notEqual(seen[0].test, true, 'в момент доставки лежит уже новый текст');
+  assert.match(seen[0].title, /Высокий/);
+});
+
+test('постоянные отказы (400, 403): счётчик растёт, после пяти подряд подписка удаляется, успех обнуляет', async () => {
   const { env } = await makeEnv();
   addSub(env, { n: 1 });
   await run(env, T0, { kp: 0.3 });
@@ -162,7 +190,7 @@ test('временные сбои: счётчик растёт, после пя�
 
   // высокий с сбоями; каждый раз новый «эпизод» — иначе рассылка не повторится
   let now = T1;
-  const fail = { pushStatus: { [ep(1)]: 503 } };
+  const fail = { pushStatus: { [ep(1)]: 403 } };
   for (let i = 1; i <= 4; i++) {
     now += 10 * MIN;
     await run(env, now, { ...fail, kp: 4.3 });

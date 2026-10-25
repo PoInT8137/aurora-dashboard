@@ -123,6 +123,25 @@ export async function vapidAuthorization(endpointUrl, env, nowMs) {
 }
 
 /**
+ * Сбой не по вине подписки: сеть или подпись (0), наш ключ VAPID (401), перегрузка сервиса
+ * (429, 5xx). Такой ответ не приближает удаление подписки: иначе за 25 минут сбоя у FCM
+ * сервер стёр бы всех подписчиков точки.
+ */
+export function pushTransient(status) {
+  return status === 0 || status === 401 || status === 429 || status >= 500;
+}
+
+/**
+ * Текст уведомления — в базу до отправки: service worker забирает его (/message), как только
+ * пришёл push. Записанный после отправки, он не успевал, и показывался прошлый текст.
+ * messageFor(sub) — строка JSON.
+ */
+export async function writeMessages(env, subs, messageFor) {
+  if (!subs.length) return;
+  await env.DB.batch(subs.map(s => env.DB.prepare('UPDATE subs SET msg = ? WHERE id = ?').bind(messageFor(s), s.id)));
+}
+
+/**
  * Отправляет пустой push. Возвращает HTTP-статус ответа push-сервиса либо 0,
  * если запрос не удался вовсе. 404 и 410 означают, что подписки больше нет.
  */

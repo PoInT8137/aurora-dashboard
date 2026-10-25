@@ -146,7 +146,8 @@ export function makeFetch(now, initial = {}) {
       return json(status === 200 ? { ok: true, result } : { ok: false, description: 'Forbidden: bot was blocked by the user' }, status);
     }
 
-    // push-сервер
+    // push-сервер; onPush(адрес) — посмотреть базу в момент доставки
+    if (opts.onPush) opts.onPush(u);
     const status = opts.pushStatus[u] ?? 201;
     return new Response(null, { status });
   };

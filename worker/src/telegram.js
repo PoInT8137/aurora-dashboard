@@ -382,7 +382,8 @@ export async function telegramAlerts(env, nowMs, fetchFn, ctx, summary, budget) 
       } else if (r.status === 403 || r.status === 400) {
         // Бот заблокирован или чат удалён — подписка больше не нужна.
         updates.push(env.DB.prepare('DELETE FROM tg_subs WHERE chat_id = ?').bind(sub.chat_id));
-      } else {
+      } else if (!(r.status === 0 || r.status === 401 || r.status === 429 || r.status >= 500)) {
+        // Сеть, наш токен или перегрузка Telegram — не вина подписчика, к удалению не ведёт.
         updates.push(env.DB.prepare('UPDATE tg_subs SET fails = fails + 1 WHERE chat_id = ?').bind(sub.chat_id));
       }
     }

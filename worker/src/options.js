@@ -9,7 +9,7 @@
 // первой; здесь — дополнительные сигналы. Любой сбой здесь основную рассылку не трогает.
 
 import '../../core.js';
-import { sendPush } from './push.js';
+import { sendPush, pushTransient, writeMessages } from './push.js';
 import { alertMessage, skyMessage, DEFAULT_LANG } from './messages.js';
 import { tally } from './journal.js';
 
@@ -61,20 +61,20 @@ export function skyChance(point, kp, cloud, nowMs) {
 /** Рассылка набора подписчиков; column — какая отметка времени ставится при успехе. */
 async function deliver(env, nowMs, fetchFn, subs, messageFor, column, summary, key, pointId) {
   const updates = [];
+  await writeMessages(env, subs, sub => JSON.stringify(messageFor(sub)));
   const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
   subs.forEach((sub, i) => {
     const status = statuses[i];
     if (status >= 200 && status < 300) {
       summary[key]++;
       tally(summary, pointId, 'other');
-      updates.push(env.DB.prepare('UPDATE subs SET ' + column + ' = ?, msg = ?, fails = 0 WHERE id = ?')
-        .bind(nowMs, JSON.stringify(messageFor(sub)), sub.id));
+      updates.push(env.DB.prepare('UPDATE subs SET ' + column + ' = ?, fails = 0 WHERE id = ?').bind(nowMs, sub.id));
     } else if (status === 404 || status === 410) {
       summary.gone++;
       updates.push(env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(sub.id));
     } else {
       summary.failed++;
-      updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
+      if (!pushTransient(status)) updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
     }
   });
   if (updates.length) await env.DB.batch(updates);

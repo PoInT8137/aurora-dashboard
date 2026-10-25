@@ -5,7 +5,7 @@
 // уведомление не может расходиться с тем, что человек увидит в приложении.
 
 import '../../core.js';
-import { sendPush } from './push.js';
+import { sendPush, pushTransient, writeMessages } from './push.js';
 import { alertMessage, bzMessage, DEFAULT_LANG } from './messages.js';
 import { loadBz, loadBzState, saveBzState, nextBzState, bzLevel, bzPointOk, BZ_COOLDOWN_MS, BZ_AFTER_ALERT_MS } from './bz.js';
 import { purgeReports, reportSummary } from './reports.js';
@@ -270,6 +270,7 @@ async function checkOnce(env, nowMs, fetchFn) {
       if (!texts.has(lang)) texts.set(lang, JSON.stringify(alertMessage(t.point, kp, t.cloud, nowMs, lang)));
       return texts.get(lang);
     };
+    await writeMessages(env, subs, messageFor);
     const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
 
     subs.forEach((sub, i) => {
@@ -277,14 +278,13 @@ async function checkOnce(env, nowMs, fetchFn) {
       if (status >= 200 && status < 300) {
         summary.sent++;
         tally(summary, t.point.id, 'high');
-        updates.push(env.DB.prepare('UPDATE subs SET last_sent = ?, msg = ?, fails = 0 WHERE id = ?')
-          .bind(nowMs, messageFor(sub), sub.id));
+        updates.push(env.DB.prepare('UPDATE subs SET last_sent = ?, fails = 0 WHERE id = ?').bind(nowMs, sub.id));
       } else if (status === 404 || status === 410) {
         summary.gone++;                               // человек отозвал подписку или сменил браузер
         updates.push(env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(sub.id));
       } else {
         summary.failed++;
-        updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
+        if (!pushTransient(status)) updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
       }
     });
   }
@@ -416,20 +416,21 @@ async function bzAlerts(env, nowMs, fetchFn, reading, points, clouds, summary, b
     if (!subs.length) continue;
     budget -= subs.length;
 
+    await writeMessages(env, subs,
+      sub => JSON.stringify(bzMessage(point, state.bz, cloud, level, nowMs, sub.lang || DEFAULT_LANG)));
     const statuses = await Promise.all(subs.map(s => sendPush(s.endpoint, env, nowMs, fetchFn)));
     subs.forEach((sub, k) => {
       const status = statuses[k];
       if (status >= 200 && status < 300) {
         summary.bzSent++;
         tally(summary, point.id, 'bz');
-        const msg = JSON.stringify(bzMessage(point, state.bz, cloud, level, nowMs, sub.lang || DEFAULT_LANG));
-        updates.push(env.DB.prepare('UPDATE subs SET last_bz = ?, msg = ?, fails = 0 WHERE id = ?').bind(nowMs, msg, sub.id));
+        updates.push(env.DB.prepare('UPDATE subs SET last_bz = ?, fails = 0 WHERE id = ?').bind(nowMs, sub.id));
       } else if (status === 404 || status === 410) {
         summary.gone++;
         updates.push(env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(sub.id));
       } else {
         summary.failed++;
-        updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
+        if (!pushTransient(status)) updates.push(env.DB.prepare('UPDATE subs SET fails = fails + 1 WHERE id = ?').bind(sub.id));
       }
     });
   }
