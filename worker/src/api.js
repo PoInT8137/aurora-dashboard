@@ -25,7 +25,7 @@
 import '../../core.js';
 import { checkEndpoint, sendPush } from './push.js';
 import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './messages.js';
-import { acceptReport, reportSummary } from './reports.js';
+import { acceptReport, reportSummary, reporterId, reportSalt } from './reports.js';
 import { verifyStats } from './verify.js';
 import { meteoProxy } from './meteo.js';
 import { noaaProxy } from './noaa.js';
@@ -37,6 +37,39 @@ const Core = globalThis.AuroraCore;
 
 /** Потолок числа подписок: защита базы и лимитов от переполнения мусором. */
 export const MAX_SUBS = 5000;
+/**
+ * Новых подписок с одного адреса за час. Без лимита скрипт мог выбрать весь MAX_SUBS выдуманными
+ * адресами FCM, а мусор занимал бюджет рассылки. Смена точки или языка новой подпиской не считается.
+ */
+export const NEW_SUBS_PER_IP_HOUR = 5;
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Сколько новых подписок за час пришло с этого адреса: { who, count } или null, если считать
+ * нечем (нет соли или таблицы sub_new — база до миграции; тогда лимит не действует).
+ */
+async function newSubsFrom(env, ip, nowMs) {
+  const salt = reportSalt(env);
+  if (!salt) return null;
+  try {
+    const who = await reporterId(ip, nowMs, salt);
+    const row = await env.DB.prepare('SELECT COUNT(*) AS c FROM sub_new WHERE who = ? AND at > ?')
+      .bind(who, nowMs - HOUR_MS).first();
+    return { who, count: row ? row.c : 0 };
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Запомнить новую подписку для лимита; строки старше суток удаляются тут же. */
+async function rememberNewSub(env, who, nowMs) {
+  try {
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO sub_new(who, at) VALUES(?, ?)').bind(who, nowMs),
+      env.DB.prepare('DELETE FROM sub_new WHERE at < ?').bind(nowMs - 24 * HOUR_MS)
+    ]);
+  } catch (e) { /* база до миграции: подписка важнее лимита */ }
+}
 const MAX_BODY = 4096;
 const TEST_MIN_INTERVAL_MS = 20000;
 const MAX_TEST_DELAY_S = 20;   // после ответа worker живёт ещё ~30 с
@@ -55,6 +88,8 @@ function corsHeaders(request, env) {
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
+    // Без этого страница не видит признак запасной копии и принимает её за свежие данные.
+    'Access-Control-Expose-Headers': 'X-Stale',
     Vary: 'Origin'
   };
 }
@@ -118,10 +153,15 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
   if (url.pathname === '/meteo' && request.method === 'GET') {
     // Только для страницы сайта: иначе это был бы открытый прокси к Open-Meteo.
     if (!cors) return reply({ error: 'forbidden_origin' }, 403);
-    const [body, status] = await meteoProxy(url.search, nowMs, fetchFn);
+    const [body, status, stale] = await meteoProxy(url.search, nowMs, fetchFn);
     return new Response(body, {
       status,
-      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': status === 200 ? 'private, max-age=300' : 'no-store', ...cors }
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': status === 200 && !stale ? 'private, max-age=300' : 'no-store',
+        ...(stale ? { 'X-Stale': '1' } : {}),
+        ...cors
+      }
     });
   }
 
@@ -206,9 +246,12 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
       if (!point) return reply({ error: 'bad_point' }, 400, cors);
 
       const existing = await env.DB.prepare('SELECT 1 AS found FROM subs WHERE id = ?').bind(id).first();
+      let newFrom = null;   // обезличенный адрес новой подписки — для лимита ниже
       if (!existing) {
         const { c } = await env.DB.prepare('SELECT COUNT(*) AS c FROM subs').first();
         if (c >= MAX_SUBS) return reply({ error: 'limit' }, 503, cors);
+        newFrom = await newSubsFrom(env, request.headers.get('CF-Connecting-IP'), nowMs);
+        if (newFrom && newFrom.count >= NEW_SUBS_PER_IP_HOUR) return reply({ error: 'limit' }, 429, cors);
       }
 
       // Смена точки начинает отсчёт заново: по новой точке человек не получит
@@ -235,6 +278,7 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
         'tz = CASE WHEN ? THEN NULL ELSE COALESCE(?, subs.tz) END'
       ).bind(id, endpoint, point.id, nowMs, lang, quiet.from ?? null, quiet.to ?? null, quiet.from ?? null, tz,
         lang, quiet.set ? 1 : 0, quiet.from ?? null, quiet.set ? 1 : 0, quiet.to ?? null, quietOff ? 1 : 0, tz).run();
+      if (newFrom) await rememberNewSub(env, newFrom.who, nowMs);
       // Отдельным запросом: база до миграции (без колонок) не мешает самой подписке.
       if (level !== null || sky !== null) {
         try {

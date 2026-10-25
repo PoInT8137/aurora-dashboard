@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v75';
+var APP_VERSION = 'v76';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -319,11 +319,31 @@ function hedgeFetch(first, second, delayMs, onSecond) {
   });
 }
 
+/**
+ * hedgeFetch, где запасная копия сервера (ошибка stale_copy с данными) уступает другому пути, но
+ * не пропадает: не ответил никто — отдаём её, это лучше, чем ничего.
+ */
+function hedgeWithStale(first, second, delayMs, onSecond) {
+  var stale = null;
+  var keep = function (fn) {
+    return function (signal) {
+      return fn(signal).catch(function (err) {
+        if (err && err.code === 'stale_copy') stale = err;
+        throw err;
+      });
+    };
+  };
+  return hedgeFetch(keep(first), keep(second), delayMs, onSecond).catch(function (err) {
+    if (stale) return stale.data;
+    throw err;
+  });
+}
+
 function fetchJson(url, attempt, as) {
   var noaa = attempt ? null : noaaServerUrl(String(url));
   if (noaa) {
     // Сервер отдаёт NOAA в сжатом компактном виде; не ответил быстро — параллельно напрямую.
-    return hedgeFetch(
+    return hedgeWithStale(
       function (signal) { return fetchJsonDirect(noaa, CONFIG.retries, as, NOAA_SERVER_TIMEOUT_MS, signal); },
       function (signal) { return fetchJsonDirect(url, 0, as, undefined, signal); },
       HEDGE_MS);
@@ -335,9 +355,9 @@ function fetchJson(url, attempt, as) {
   var direct = function (signal) { return fetchJsonDirect(url, CONFIG.retries, as, METEO_DIRECT_TIMEOUT_MS, signal); };
   var server = function (signal) { return fetchJsonDirect(viaServer, CONFIG.retries, as, undefined, signal); };
 
-  if (meteoViaServer()) return hedgeFetch(server, direct, HEDGE_MS);
+  if (meteoViaServer()) return hedgeWithStale(server, direct, HEDGE_MS);
   // Напрямую не прошло, а через сервер — да: сутки начинаем с сервера.
-  return hedgeFetch(direct, server, HEDGE_MS, rememberMeteoViaServer);
+  return hedgeWithStale(direct, server, HEDGE_MS, rememberMeteoViaServer);
 }
 
 /**
@@ -360,10 +380,20 @@ function fetchJsonDirect(url, attempt, as, timeoutMs, outer) {
       // 429 — источник ограничил запросы с этого адреса: повтор через секунду только усугубит.
       if (res.status === 429) throw appError('rate_limit');
       if (!res.ok) throw appError('http', { status: res.status });
-      return as === 'text' ? res.text() : res.json();
+      var body = as === 'text' ? res.text() : res.json();
+      // Запасная копия сервера (worker не достучался до источника): не победа в страхующем
+      // запросе — сначала другой путь, копия пригодится, если и он не ответит (hedgeWithStale).
+      if (res.headers && res.headers.get && res.headers.get('X-Stale')) {
+        return body.then(function (data) {
+          var stale = appError('stale_copy');
+          stale.data = data;
+          throw stale;
+        });
+      }
+      return body;
     })
     .catch(function (err) {
-      if (err && err.code === 'rate_limit') throw err;
+      if (err && (err.code === 'rate_limit' || err.code === 'stale_copy')) throw err;
       if (outer && outer.aborted) throw appError('timeout');   // отменили снаружи — не повторяем
       if (attempt < CONFIG.retries) {
         return new Promise(function (resolve) { setTimeout(resolve, 900); })

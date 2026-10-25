@@ -70,9 +70,14 @@ function reportDevice() {
   }
 }
 
-/** Подтверждено ли сияние у точки: отметки с REPORTS.confirm разных устройств за час. */
+/**
+ * Подтверждено ли сияние у точки. Решает сервер (разные устройства и разные сети); по числу
+ * устройств судим, только если ответ старого сервера без поля confirmed.
+ */
 function reportsConfirmed(p) {
-  return !!(p && (p.confirmed || (p.devices || 0) >= REPORTS.confirm));
+  if (!p) return false;
+  if (typeof p.confirmed === 'boolean') return p.confirmed;
+  return (p.devices || 0) >= REPORTS.confirm;
 }
 
 /** Когда можно снова отметить эту точку (мс) или 0, если уже можно. */

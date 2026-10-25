@@ -53,6 +53,16 @@ CREATE INDEX IF NOT EXISTS reports_at ON reports(at);
 CREATE INDEX IF NOT EXISTS reports_who ON reports(who, at);
 CREATE INDEX IF NOT EXISTS reports_dev ON reports(dev, point, at);
 
+-- Новые подписки по обезличенному адресу (src/api.js NEW_SUBS_PER_IP_HOUR): не больше пяти в час
+-- с одного адреса. who — тот же HMAC(адрес|сутки), что у отметок. Хранятся сутки.
+CREATE TABLE IF NOT EXISTS sub_new (
+  who TEXT NOT NULL,
+  at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS sub_new_who ON sub_new(who, at);
+CREATE INDEX IF NOT EXISTS sub_new_at ON sub_new(at);
+
 -- Проверка прогноза (src/verify.js): вечером — какой шанс обещан на ночь, утром — каким он был.
 CREATE TABLE IF NOT EXISTS verify (
   night    TEXT NOT NULL,              -- дата вечера по Москве, 2026-09-24

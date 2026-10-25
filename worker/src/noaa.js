@@ -104,6 +104,21 @@ async function readSaved(db, name) {
   }
 }
 
+/**
+ * Годится ли тело как данные: JSON — разбирается и не пуст, текст — не HTML-страница. Ответ 200
+ * со страницей «Service Unavailable» иначе лёг бы в кэш поверх последней удачной копии.
+ */
+export function usableBody(body, type) {
+  if (typeof body !== 'string' || !body.trim()) return false;
+  if (type !== 'json') return !/^\s*</.test(body);
+  try {
+    const data = JSON.parse(body);
+    return Array.isArray(data) ? data.length > 0 : !!data && typeof data === 'object';
+  } catch {
+    return false;
+  }
+}
+
 function load(name, source, nowMs, fetchFn, db) {
   if (pending.has(name)) return pending.get(name);
   const job = (async () => {
@@ -111,6 +126,7 @@ function load(name, source, nowMs, fetchFn, db) {
     if (!res.ok) throw new Error('http ' + res.status);
     const text = await res.text();
     const body = source.trim ? source.trim(text, nowMs) : text;
+    if (!usableBody(body, source.type)) throw new Error('bad_body');
     memory.set(name, { body, at: nowMs });
     if (db) {
       try {

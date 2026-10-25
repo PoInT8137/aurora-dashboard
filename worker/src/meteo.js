@@ -59,14 +59,34 @@ export function clearMeteoCache() {
   memory.clear();
 }
 
-/** Ответ для страницы: [тело (строка), статус]. */
+// Идущие запросы: одинаковые промахи кэша ждут один и тот же, а не уходят в Open-Meteo каждый.
+const pending = new Map();
+
+/**
+ * Ответ для страницы: [тело (строка), статус, из запаса ли]. Копия старше срока отдаётся с
+ * признаком: страница пробует другой путь и, если не вышло, показывает её как сохранённую.
+ */
 export async function meteoProxy(search, nowMs, fetchFn) {
   const upstream = meteoUpstream(search);
-  if (!upstream) return [JSON.stringify({ error: 'bad_query' }), 400];
+  if (!upstream) return [JSON.stringify({ error: 'bad_query' }), 400, false];
 
   const hit = memory.get(upstream);
-  if (hit && nowMs - hit.at < METEO_TTL_MS) return [hit.body, 200];
+  if (hit && nowMs - hit.at < METEO_TTL_MS) return [hit.body, 200, false];
 
+  let job = pending.get(upstream);
+  if (!job) {
+    job = fetchFresh(upstream, nowMs, fetchFn);
+    pending.set(upstream, job);
+    job.then(() => pending.delete(upstream), () => pending.delete(upstream));
+  }
+  const [body, status] = await job;
+  if (status === 200) return [body, 200, false];
+  if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200, true];
+  return [body, status, false];
+}
+
+/** Open-Meteo, затем MET Norway; удачный ответ запоминается. [тело, статус]. */
+async function fetchFresh(upstream, nowMs, fetchFn) {
   let failure;
   try {
     const res = await fetchFn(upstream, { signal: AbortSignal.timeout(10000) });
@@ -80,15 +100,14 @@ export async function meteoProxy(search, nowMs, fetchFn) {
     failure = [JSON.stringify({ error: 'upstream_unreachable' }), 502];
   }
 
-  // Open-Meteo не ответил: резерв — MET Norway в том же формате (src/metno.js), затем последняя
-  // удачная копия не старше 3 часов. Резервный ответ хранится так же, 10 минут.
+  // Open-Meteo не ответил: резерв — MET Norway в том же формате (src/metno.js), затем (в
+  // meteoProxy) последняя удачная копия не старше 3 часов. Резервный ответ хранится так же, 10 минут.
   const backup = await metnoFallback(upstream, nowMs, fetchFn);
   if (backup) {
     const body = JSON.stringify(backup);
     remember(upstream, body, nowMs);
     return [body, 200];
   }
-  if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200];
   return failure;
 }
 

@@ -14,7 +14,8 @@
 // отметки не принимаются. Отметки старше суток удаляются проходом по расписанию.
 //
 // Подтверждение: отметки считаются подтверждением сияния у точки (и поднимают шанс), только
-// если за час они пришли минимум с CONFIRM_DEVICES разных устройств. Меньше: просто число.
+// если за час они пришли минимум с CONFIRM_DEVICES разных устройств и CONFIRM_NETWORKS разных
+// адресов. Меньше: просто число.
 
 import '../../core.js';
 
@@ -26,6 +27,7 @@ export const DEVICE_INTERVAL_MS = 60 * 60 * 1000;     // устройство и
 export const IP_PER_HOUR = 4;                          // с одного IP за час
 export const REPORTS_PER_DAY = 12;                     // с одного IP за сутки
 export const CONFIRM_DEVICES = 3;                      // столько разных устройств за час: подтверждение
+export const CONFIRM_NETWORKS = 2;                     // и хотя бы из стольких разных сетей (адресов)
 export const REPORTS_PER_HOUR_TOTAL = 300;
 export const REPORT_KEEP_MS = 24 * 60 * 60 * 1000;
 
@@ -125,7 +127,8 @@ async function deviceLast(env, dev, pointId, nowMs) {
  * Только числа: кто и откуда, не отдаётся.
  */
 export async function reportSummary(env, nowMs) {
-  const head = "SELECT point, COUNT(*) AS c, SUM(CASE WHEN strength = 'bright' THEN 1 ELSE 0 END) AS b, MAX(at) AS last, ";
+  const head = "SELECT point, COUNT(*) AS c, SUM(CASE WHEN strength = 'bright' THEN 1 ELSE 0 END) AS b, MAX(at) AS last, " +
+    'COUNT(DISTINCT who) AS n, ';
   const tail = ' FROM reports WHERE at > ? GROUP BY point';
   let results;
   try {
@@ -138,7 +141,10 @@ export async function reportSummary(env, nowMs) {
   let total = 0;
   for (const r of results) {
     if (!Core.POINTS.some(p => p.id === r.point)) continue;
-    points[r.point] = { count: r.c, devices: r.d, bright: r.b || 0, last: r.last, confirmed: r.d >= CONFIRM_DEVICES };
+    // Номер устройства присылает сама страница, и его можно выдумать: три «устройства» с одного
+    // адреса — это один человек. Подтверждение требует ещё и разных сетей (HMAC адреса за сутки).
+    points[r.point] = { count: r.c, devices: r.d, bright: r.b || 0, last: r.last,
+      confirmed: r.d >= CONFIRM_DEVICES && r.n >= CONFIRM_NETWORKS };
     total += r.c;
   }
   return { window: REPORT_WINDOW_MS / 60000, total, confirm: CONFIRM_DEVICES, points };

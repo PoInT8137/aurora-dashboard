@@ -98,3 +98,19 @@ test('серверные уведомления для своего места �
   assert.doesNotMatch(src, /pushSubscribe\(currentPoint\(\)/);
   assert.match(src, /pushSubscribe\(pushPoint\(\)\.id\)/);
 });
+
+test('запасная копия сервера (X-Stale) уступает прямому запросу к NOAA, но выручает, если он не ответил', async () => {
+  const KP = 'https://services.swpc.noaa.gov/json/planetary_k_index_1m.json';
+  const make = direct => loadApp(
+    [['config.js', read('config.js')], ['core.js', read('core.js')], ['push.js', read('push.js')], ['app.js', read('app.js')]],
+    {
+      now: NOW, rawFetch: true, getElement: () => element(), createElement: () => element(),
+      fetch: async url => (String(url).includes('/noaa/kp')
+        ? new Response('[{"v":"stale"}]', { status: 200, headers: { 'X-Stale': '1' } })
+        : direct())
+    });
+  const fresh = make(async () => new Response('[{"v":"fresh"}]', { status: 200 }));
+  assert.equal((await fresh.fetchJson(KP))[0].v, 'fresh');
+  const down = make(async () => { throw new TypeError('Failed to fetch'); });
+  assert.equal((await down.fetchJson(KP))[0].v, 'stale');
+});
