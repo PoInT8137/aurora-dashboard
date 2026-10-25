@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { firstLoadFiles } from './first-load.mjs';
 
-const BUDGET = { gzipKb: 245, files: 30 };
+const BUDGET = { gzipKb: 215, files: 28 };   // 26.10.2026: 205 КБ, 27 файлов (словари по требованию)
 
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url));
 

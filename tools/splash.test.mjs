@@ -270,36 +270,36 @@ test('язык и тексты заставки ставятся сразу; к�
   assert.equal(w.byId('splash-skip').focused, true, 'Enter и пробел сразу пропускают');
 });
 
-test('полная версия: в 2,7 с плавный уход 1,2 с — сияние за горизонт, дашборд поднимается; итого до 4 с', () => {
+test('полная версия: в 1,2 с плавный уход 0,6 с: сияние за горизонт, дашборд поднимается; итого до 2 с', () => {
   const w = world();
   for (let i = 0; i < 10; i++) w.advance(16);
   assert.equal(w.splash.frames, 10);
-  const auto = w.timers.find(t => t.ms === 2700);
-  assert.ok(auto, 'уход назначен на 2,7 с');
+  const auto = w.timers.find(t => t.ms === 1200);
+  assert.ok(auto, 'уход назначен на 1,2 с');
   auto.fn();
   const box = w.byId('splash');
   assert.ok(box.classes.has('splash--leave'));
   assert.ok(!box.classes.has('splash--fly'), 'без кольца вердикта на экране — без перелёта');
   assert.ok(!box.classes.has('splash--out'), 'слой не гаснет целиком');
-  assert.equal(box.style.props['--splash-fade'], '1200ms');
+  assert.equal(box.style.props['--splash-fade'], '600ms');
   assert.ok(w.root.classes.has('splash-rise'), 'дашборд поднимается волной');
   assert.ok(w.root.classes.has('has-splash'), 'пока идёт переход, слой ещё на месте');
-  w.timers.find(t => t.ms === 1200).fn();
+  w.timers.find(t => t.ms === 600).fn();
   assert.ok(!w.root.classes.has('has-splash'));
   assert.ok(!w.root.classes.has('splash-rise'));
   assert.equal(w.docListeners.keydown, undefined, 'обработчики сняты');
-  assert.ok(2700 + 1200 <= 4000);
+  assert.ok(1200 + 600 <= 2000, "прогноз виден не позже чем через 2 с");
 });
 
 test('при плавном уходе сияние ещё рисуется и опускается, после снятия слоя кадров нет', () => {
   const w = world();
   w.advance(16);
-  w.timers.find(t => t.ms === 2700).fn();
+  w.timers.find(t => t.ms === 1200).fn();
   const before = w.splash.frames;
   w.advance(16);
   w.advance(16);
   assert.equal(w.splash.frames, before + 2, 'кадры продолжаются');
-  w.timers.find(t => t.ms === 1200).fn();
+  w.timers.find(t => t.ms === 600).fn();
   w.advance(16);
   w.advance(16);
   assert.equal(w.frames.length, 0, 'после ухода кадры остановлены');
@@ -329,7 +329,7 @@ test('уход с данными на экране: эмблема в цвете
   const box = w.byId('splash');
   box.attrs = {};
   box.setAttribute = (k, v) => { box.attrs[k] = v; };
-  w.timers.find(t => t.ms === 2700).fn();
+  w.timers.find(t => t.ms === 1200).fn();
   assert.match(asked, /#verdict-card\[data-state="ok"\] \.ring/, 'летим только на кольцо с данными');
   assert.ok(box.classes.has('splash--fly') && box.classes.has('splash--leave'));
   assert.ok(!box.classes.has('splash--out'), 'слой целиком не гаснет — эмблема летит');
@@ -339,7 +339,7 @@ test('уход с данными на экране: эмблема в цвете
   assert.equal(box.attrs['data-level'], 'mid', 'и число его делений');
   assert.ok(w.root.classes.has('splash-leaving'), 'дашборд виден под пролетающей эмблемой');
   assert.ok(w.root.classes.has('splash-flying'), 'настоящее кольцо ждёт посадки');
-  w.timers.find(t => t.ms === 1200).fn();
+  w.timers.find(t => t.ms === 600).fn();
   assert.ok(!box.classes.has('splash--fly'));
   assert.ok(!w.root.classes.has('splash-flying'));
   assert.ok(!w.root.classes.has('has-splash'));
@@ -446,4 +446,15 @@ test('страница под заставкой скрыта до начала 
   const leaving = finish.indexOf("root.classList.add('splash-leaving')");
   assert.ok(leaving > 0 && leaving < finish.indexOf('later('), 'дашборд проявляется вместе с исчезновением, а не после');
   assert.match(finish, /root\.classList\.remove\('has-splash', 'splash-leaving'[^)]*\)/);
+});
+
+test('заставка короткая: показ 1,2 с и уход 0,6 с, сцена ускорена во столько же раз (задумана на 2,7 с)', () => {
+  const src = read('splash.js');
+  const show = Number(/showMs: (\d+)/.exec(src)[1]);
+  const fade = Number(/fadeMs: (\d+)/.exec(src)[1]);
+  const speed = Number(/speed: ([\d.]+)/.exec(src)[1]);
+  assert.ok(show + fade <= 2000, 'прогноз виден не позже чем через 2 с');
+  assert.ok(Math.abs(show * speed - 2700) < 50, 'анимация успевает дойти до конца');
+  assert.match(src, /a\.playbackRate = SPLASH\.speed/);
+  assert.match(src, /\(now\(\) - start\) \/ 1000 \* SPLASH\.speed/);
 });

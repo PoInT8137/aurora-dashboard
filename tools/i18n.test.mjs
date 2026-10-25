@@ -489,6 +489,7 @@ test('нажатие на язык: выбор сохраняется, ?lang= у
   ctx.showError('kp-error', 'kp.error', ctx.appError('timeout'));
   ctx.state.kp = { value: 4.3, time: null, stale: null };
   choose('en');
+  await new Promise(r => setTimeout(r, 0));   // смена языка ждёт словарь (ensureLang)
 
   assert.equal(ctx.getLang(), 'en');
   assert.equal(ctx.savedLang(), 'en');
@@ -505,7 +506,18 @@ test('нажатие на язык: выбор сохраняется, ?lang= у
   assert.equal(vm.runInContext('replaced.length', ctx), 0);
 
   choose('zh');
+  await new Promise(r => setTimeout(r, 0));
   assert.equal(el('kp-error').textContent, 'NOAA SWPC 不可用：无网络连接。');
+});
+
+test('словари по требованию: на странице сразу только русский и выбранный язык, остальные догружаются', () => {
+  const html = read('index.html');
+  assert.match(html, /<script src="lang\/ru\.js"><\/script>/);
+  assert.doesNotMatch(html, /<script src="lang\/(en|zh)\.js"><\/script>/, 'английский и китайский не грузятся всем');
+  assert.match(html, /if \(lang !== 'ru'\) document\.write\('<script src=lang\/' \+ lang \+ '\.js><\\\/script>'\);/);
+  const sw = read('sw.js');
+  for (const l of ['ru', 'en', 'zh']) assert.match(sw, new RegExp("'lang/" + l + "\\.js'"), 'без сети нужны все словари: ' + l);
+  assert.match(read('js/settings.js'), /ensureLang\(code\)\.then/);
 });
 
 test('настоящий сбой загрузки: текст ошибки в карточках строится по коду и переводится вместе со страницей', async () => {

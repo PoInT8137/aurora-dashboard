@@ -71,6 +71,30 @@ function detectLang(fromUrl, saved, browserLangs) {
   return I18N_FALLBACK;
 }
 
+/*
+ * Словари грузятся по требованию: на странице сразу только русский (он же последний запасной)
+ * и словарь выбранного языка (загрузчик в index.html). Остальные догружаются при смене языка
+ * или выборе языка ссылки в «Поделиться». Так первый заход легче примерно на 32 КБ.
+ */
+var i18nLoading = {};
+
+/** Словарь языка готов: сразу, если уже загружен, иначе после загрузки lang/<код>.js. */
+function ensureLang(code) {
+  if (!i18nKnown(code) || i18nDicts[code]) return Promise.resolve(code);
+  if (i18nLoading[code]) return i18nLoading[code];
+  i18nLoading[code] = new Promise(function (resolve, reject) {
+    var script = document.createElement('script');
+    script.src = 'lang/' + code + '.js';
+    script.onload = function () { resolve(code); };
+    script.onerror = function () {
+      delete i18nLoading[code];
+      reject(new Error('no dictionary: ' + code));
+    };
+    document.head.appendChild(script);
+  });
+  return i18nLoading[code];
+}
+
 function i18nLookup(key) {
   var order = [i18nLang, 'en', 'ru'];
   for (var i = 0; i < order.length; i++) {

@@ -1061,8 +1061,19 @@ try {
 <script src="map.js"></script>
 <script src="i18n.js"></script>
 <script src="lang/ru.js"></script>
-<script src="lang/en.js"></script>
-<script src="lang/zh.js"></script>
+<script>
+/* Словарь языка страницы. Русский уже загружен (он же запасной), английский или китайский
+   грузим, только если выбран он: тот же выбор, что у initLanguage (js/settings.js). Остальные
+   словари догружает ensureLang (i18n.js) при смене языка. */
+(function () {
+  var fromUrl = /[?&]lang=([a-zA-Z-]+)/.exec(location.search || '');
+  var saved = null;
+  try { saved = localStorage.getItem('aurora.lang'); } catch (e) { /* без хранилища: по браузеру */ }
+  var lang = detectLang(fromUrl ? langFromTag(fromUrl[1]) : null, saved, navigator.languages || [navigator.language]);
+  // Атрибут без кавычек: так эту строку не примут за подключённый файл проверки разметки.
+  if (lang !== 'ru') document.write('<script src=lang/' + lang + '.js><\/script>');
+})();
+</script>
 <script src="push.js"></script>
 <script src="js/base.js"></script>
 <script src="js/places.js"></script>

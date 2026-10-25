@@ -224,6 +224,7 @@ function initShare() {
     var btn = e.target.closest ? e.target.closest('[data-share-lang]') : null;
     if (!btn) return;
     state.shareLang = btn.getAttribute('data-share-lang');
+    ensureLang(state.shareLang).catch(function () { /* текст будет на языке страницы */ });
     setShareStatus(null);
     renderShare();
   });

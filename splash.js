@@ -3,10 +3,14 @@
    (класс has-splash, не splash: стиль .splash скрыл бы <html>). Данные заставка не ждёт. */
 'use strict';
 
+/* Заставка короткая: прогноз важнее анимации. Вся сцена (CSS-анимации и сияние на холсте)
+   проигрывается в speed раз быстрее, чем задумана по таймингам в styles.css: было 2,7 с показа и
+   1,2 с ухода, теперь 1,2 с и 0,6 с. */
 var SPLASH = {
-  showMs: 2700,      // когда начинать уход
-  fadeMs: 1200,      // уход: сияние за горизонт, эмблема на кольцо вердикта, дашборд поднимается
-  skipFadeMs: 250,   // после «Пропустить» — быстро и без перелёта
+  showMs: 1200,      // когда начинать уход
+  fadeMs: 600,       // уход: сияние за горизонт, эмблема на кольцо вердикта, дашборд поднимается
+  skipFadeMs: 250,   // после «Пропустить» быстро и без перелёта
+  speed: 2.25,       // во сколько раз быстрее заданных в CSS таймингов
   scale: 2           // во сколько раз холст сияния меньше экрана
 };
 
@@ -215,6 +219,11 @@ function startSplash(env) {
   var ctx = sky.getContext('2d');
   splashStars(document.getElementById('splash-stars'), innerWidth, innerHeight, Math.min(2, window.devicePixelRatio || 1), Math.random);
 
+  // CSS-анимации сцены быстрее в SPLASH.speed раз (без поддержки getAnimations: как задуманы)
+  if (typeof box.getAnimations === 'function') {
+    box.getAnimations({ subtree: true }).forEach(function (a) { a.playbackRate = SPLASH.speed; });
+  }
+
   var start = now();
   var done = false;
   var leaving = null;   // начало плавного ухода
@@ -272,7 +281,7 @@ function startSplash(env) {
     // после пропуска кадров нет; при плавном уходе — пока сияние не скроется
     if (done && leaving === null) return;
     var sink = leaving === null ? 0 : (now() - leaving) / (SPLASH.fadeMs * 0.6);
-    splashFrame(ctx, w, h, (now() - start) / 1000, sprites, glow, sink);
+    splashFrame(ctx, w, h, (now() - start) / 1000 * SPLASH.speed, sprites, glow, sink);
     splash.frames++;
     raf(tick);
   };

@@ -361,14 +361,20 @@ function initLanguage() {
 
   $('lang').addEventListener('click', function (e) {
     var btn = e.target.closest ? e.target.closest('[data-lang]') : null;
-    if (!btn || btn.getAttribute('data-lang') === getLang()) return;
+    var code = btn && btn.getAttribute('data-lang');
+    if (!btn || code === getLang()) return;
 
-    setLang(btn.getAttribute('data-lang'));
-    saveLang(getLang());
-    // ?lang= в адресе перебивал бы сделанный выбор при каждой перезагрузке.
-    if (langFromUrl()) history.replaceState(null, '', location.pathname + location.hash);
-    applyLanguage();
-    // Уведомления с сервера приходят на выбранном языке — сообщаем серверу о смене.
-    pushSync(pushPoint().id).then(renderNotifyDiagnostics);
+    // Словарь этого языка могли ещё не загрузить: сначала он, потом смена. Без сети и без
+    // сохранённой копии словаря язык просто не меняется.
+    ensureLang(code).then(function () {
+      if (code === getLang()) return;
+      setLang(code);
+      saveLang(getLang());
+      // ?lang= в адресе перебивал бы сделанный выбор при каждой перезагрузке.
+      if (langFromUrl()) history.replaceState(null, '', location.pathname + location.hash);
+      applyLanguage();
+      // Уведомления с сервера приходят на выбранном языке: сообщаем серверу о смене.
+      pushSync(pushPoint().id).then(renderNotifyDiagnostics);
+    }, function () { /* словарь не загрузился: остаёмся на прежнем языке */ });
   });
 }
