@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v73';
+var APP_VERSION = 'v74';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -551,10 +551,13 @@ var LEAD_OFFLINE = 'lead.offline';        // ключи словаря: «Нет
 var LEAD_REFRESHING = 'lead.refreshing';  // «Обновляем. Данные»
 
 function restoreKp(cached, refreshing) {
+  var time = toDate(cached.payload.time);
+  // Возраст — по времени самого значения: сохранить можно было и уже старый Kp.
+  var dataAge = time ? Date.now() - time.getTime() : 0;
   return {
     value: cached.payload.value,
-    time: toDate(cached.payload.time),
-    stale: cached.age,
+    time: time,
+    stale: Math.max(cached.age, dataAge),
     refreshing: !!refreshing
   };
 }

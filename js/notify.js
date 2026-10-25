@@ -568,7 +568,7 @@ function initPushCard() {
         setPushStatus(t('push.done.off'));
       });
     } else {
-      runPushAction(t('push.busy.on'), function () { return pushSubscribe(currentPoint().id); }, function () {
+      runPushAction(t('push.busy.on'), function () { return pushSubscribe(pushPoint().id); }, function () {
         setPushStatus(t('push.done.on'), TONE.ok);
       });
     }

@@ -261,6 +261,14 @@ function computeVerdict(kp, cloud) {
 /*  Kp: текущее значение                                               */
 /* ------------------------------------------------------------------ */
 
+var KP_MINUTE_FRESH_MS = 30 * 60000;      // поминутная оценка NOAA обычно отстаёт на 1–3 минуты
+var KP_FRESH_MS = 4 * 60 * 60 * 1000;     // как KP_MAX_AGE_MS у сервера уведомлений
+
+/** Возраст последнего значения Kp в мс; 0, если время неизвестно. */
+function kpAge(kp) {
+  return kp && kp.time ? Math.max(0, Date.now() - kp.time.getTime()) : 0;
+}
+
 function loadKp() {
   // Пока идёт запрос, показываем сохранённое. Иначе при медленной сети
   // карточка стояла пустой до 50 с: основной источник с повтором, затем
@@ -279,12 +287,20 @@ function loadKp() {
 
   return fetchJson(URLS.kpNow)
     .then(readKpSeries)
+    .then(function (kp) {
+      // Поминутный ряд, замерший у NOAA или из запасной копии сервера, — не «сейчас».
+      if (kpAge(kp) > KP_MINUTE_FRESH_MS) throw appError('kp_stale');
+      return kp;
+    })
     .catch(function () {
-      // Основной endpoint не отдал данные — пробуем трёхчасовой ряд.
+      // Основной endpoint не отдал свежие данные — пробуем трёхчасовой ряд.
       return fetchJson(URLS.kpNowAlt).then(readKpSeries);
     })
     .then(function (kp) {
-      kp.stale = null;
+      // Старше, чем принимает сервер уведомлений, — показываем как сохранённые: без «за час»
+      // в вердикте и без уведомлений по нему.
+      var age = kpAge(kp);
+      kp.stale = age > KP_FRESH_MS ? age : null;
       state.kp = kp;
       cacheSave('kp', { value: kp.value, time: kp.time });
       renderKp(kp);
@@ -405,9 +421,11 @@ function loadSolarWind() {
       var summary = solarWindSummary(results[0], Date.now());
       if (!summary) throw appError('sw_stale');
 
+      // mean60 нужен вердикту (bzActivity: «поле копит энергию»), source и fallback — подписи
       var sw = {
         time: summary.time, bz: summary.bz, bt: summary.bt, level: summary.level,
-        southMinutes: summary.southMinutes, series: summary.series, speed: results[1], stale: null
+        southMinutes: summary.southMinutes, mean60: summary.mean60, source: summary.source,
+        fallback: summary.fallback, series: summary.series, speed: results[1], stale: null
       };
       state.sw = sw;
       cacheSave('sw', sw);

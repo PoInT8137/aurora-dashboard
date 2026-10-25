@@ -429,7 +429,9 @@ function solarAltitude(date, lat, lon) {
  */
 function kpThresholds(point) {
   var reference = findPoint(REFERENCE_POINT_ID);
-  var shift = (reference.geoLat - point.geoLat) / 2;
+  // Округление до сотых: (64.87 − 63.53) / 2 в двоичной арифметике даёт 0.6700000000000017,
+  // и значения NOAA «1+, 2+, 3+» (1.67, 2.67, 3.67) оказывались ниже порога.
+  var shift = Math.round((reference.geoLat - point.geoLat) / 2 * 100) / 100;
   return { low: 1 + shift, mid: 2 + shift, high: 3 + shift };
 }
 
