@@ -2738,6 +2738,7 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
 
 /* Раскрытое «Подробнее» и «Как это считается» */
 .verdict__more[open] > ul,
+.verdict__more[open] > p,
 .more[open] > p,
 .card__warn[open] > p { animation: body-in 0.2s var(--ease-out); }
 
@@ -2745,6 +2746,7 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
 @media (prefers-reduced-motion: reduce) {
   .card[data-state="ok"] > .card__body,
   .verdict__more[open] > ul,
+  .verdict__more[open] > p,
   .more[open] > p,
   .card__warn[open] > p { animation: fade-in 0.15s linear; }
   .nchart__cols--enter .ncol__bar,

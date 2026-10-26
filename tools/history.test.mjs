@@ -194,9 +194,11 @@ test('точность за 30 дней: размер выборки всегд�
   assert.equal(calls[0], 'https://aurora-push.aurora-murmansk.workers.dev/verify');
   assert.equal(el('accuracy-card').hidden, false);
   assert.equal(el('accuracy-text').textContent,
-    'За 30 дней сверено 150 прогнозов (точка за ночь, ночей: 23). Уровень совпал в 111 из 150 (74%). Ошибка на одну ступень: 34, на две: 5. ' +
+    'Прогноз данных. За 30 дней сверено 150 прогнозов (точка за ночь, ночей: 23). Уровень совпал с тем, что показали измеренный Kp и облачность модели, в 111 из 150 (74%). Ошибка на одну ступень: 34, на две: 5. ' +
     'Когда обещали высокий шанс, он оказался высоким или средним в 10 из 12. ' +
-    'Очевидцы подтвердили сияние в 13 случаях (точка за ночь); прогноз на вечер был средним или высоким в 9 из них (69%).');
+    'Это проверка прогноза Kp и облаков, а не того, видели ли сияние: облачность «по факту» берётся из той же модели за прошедшие часы, спутникового снимка у нас нет.');
+  assert.equal(el('accuracy-people').textContent,
+    'По очевидцам. Очевидцы подтвердили сияние в 13 случаях (точка за ночь); прогноз на вечер был средним или высоким в 9 из них (69%).');
   await ctx.loadAccuracy(false);
   assert.equal(calls.length, 1, 'не чаще раза в час');
 });
@@ -213,17 +215,29 @@ test('точность: данных мало — без процентов, н�
     seen: { checked: 28, confirmed: 2, hit: 2 } });
   await few.ctx.loadAccuracy(false);
   assert.equal(few.el('accuracy-text').textContent,
-    'Данных пока мало: сверено прогнозов 28 (точка за ночь). Цифры покажем, когда их будет хотя бы 30. ' +
-    'Случаев, когда сияние подтвердили очевидцы, пока 2: для вывода нужно хотя бы 10. Ночей, по которым очевидцев уже считали: 28.');
-  assert.doesNotMatch(few.el('accuracy-text').textContent, /%/);
+    'Прогноз данных. Данных пока мало: сверено прогнозов 28 (точка за ночь). Цифры покажем, когда их будет хотя бы 30.');
+  assert.equal(few.el('accuracy-people').textContent,
+    'По очевидцам. Случаев, когда сияние подтвердили очевидцы, пока 2: для вывода нужно хотя бы 10. Ночей, по которым очевидцев уже считали: 28.');
+  assert.doesNotMatch(few.el('accuracy-text').textContent + few.el('accuracy-people').textContent, /%/);
 
   // старый сервер (без сверки очевидцев) и пустая база
   const old = accuracyPage({ nights: 0, total: 0, exact: 0, offByOne: 0, offByTwo: 0, promised: {} });
   await old.ctx.loadAccuracy(false);
-  assert.match(old.el('accuracy-text').textContent, /сверено прогнозов 0 .* Сверка с очевидцами появится/);
+  assert.match(old.el('accuracy-text').textContent, /сверено прогнозов 0 /);
+  assert.match(old.el('accuracy-people').textContent, /^По очевидцам\. Сверка с очевидцами появится/);
 
   const down = accuracyPage('fail');
   await down.ctx.loadAccuracy(false);
   assert.equal(down.el('accuracy-card').hidden, true);
   assert.match(read('js/page.js'), /loadAccuracy\(false\)/);
+});
+
+test('уровень в вердикте подписан как не вероятность, на всех трёх языках', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const details = /<details class="verdict__more">[\s\S]*?<\/details>/.exec(html)[0];
+  assert.match(details, /data-i18n="verdict\.not_prob"/);
+  for (const lang of ['ru', 'en', 'zh']) {
+    const src = fs.readFileSync(new URL('../lang/' + lang + '.js', import.meta.url), 'utf8');
+    assert.match(src, /'verdict\.not_prob': '[^']*(вероятность|probability|概率)/, lang);
+  }
 });

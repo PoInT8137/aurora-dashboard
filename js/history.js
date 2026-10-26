@@ -231,11 +231,14 @@ function loadAccuracy(force) {
 }
 
 /**
- * Текст итога: сверка с измерениями (доля совпадений, промахи, что было при обещанном высоком
- * шансе) и сверка с очевидцами. Размер выборки называется всегда.
+ * Итог в два абзаца, размер выборки называется всегда.
+ * «Прогноз данных»: совпал ли уровень с тем, что дали измеренный Kp и облачность модели за
+ * прошедшие часы. Это проверка прогноза Kp и облаков, а не того, видели ли сияние: «факт» по
+ * облакам берётся из той же модели, спутникового снимка нет. Об этом сказано прямо.
+ * «По очевидцам»: было ли сияние подтверждено людьми и что обещал прогноз в эти ночи.
  */
 function accuracyText(d) {
-  var parts = [];
+  var parts = [t('accuracy.model_label')];
   var total = d ? d.total : 0;
   if (total < ACCURACY.minChecks) {
     parts.push(t('accuracy.collecting', { count: t('accuracy.count', { n: total }), min: ACCURACY.minChecks }));
@@ -246,8 +249,14 @@ function accuracyText(d) {
     }));
     var high = d.promised && d.promised.high;
     if (high && high.n) parts.push(t('accuracy.high', { ok: high.high + high.mid, n: high.n }));
+    parts.push(t('accuracy.model_note'));
   }
+  return parts.join(t('sep.sentence'));   // в китайском фразы идут без пробела
+}
 
+/** Второй абзац: сверка с очевидцами. */
+function accuracyPeopleText(d) {
+  var parts = [t('accuracy.people_label')];
   var seen = d && d.seen;
   if (!seen || !seen.checked) parts.push(t('accuracy.seen_none'));
   else if (seen.confirmed < ACCURACY.minSeen) {
@@ -264,4 +273,5 @@ function renderAccuracy() {
   card.hidden = !pushConfigured() || !state.accuracy;
   if (card.hidden) return;
   $('accuracy-text').textContent = accuracyText(state.accuracy.data);
+  $('accuracy-people').textContent = accuracyPeopleText(state.accuracy.data);
 }

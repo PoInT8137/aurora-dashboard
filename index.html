@@ -334,6 +334,7 @@ try {
       <details class="verdict__more">
         <summary data-i18n="verdict.more">Подробнее</summary>
         <ul class="verdict__factors" id="verdict-factors"></ul>
+        <p class="card__meta" data-i18n="verdict.not_prob">«Высокий», «средний» и «низкий» не вероятность. Это сочетание трёх шкал: активность, небо и темнота. Насколько уровень совпадает с тем, что видят люди, показано в разделе «Как часто прогноз сбывается».</p>
       </details>
     </div>
 
@@ -740,6 +741,7 @@ try {
   <section class="card card--wide card--plain" id="accuracy-card" hidden>
     <h2 class="card__label" data-i18n="accuracy.title">Как часто прогноз сбывается</h2>
     <p class="accuracy__text" id="accuracy-text"></p>
+    <p class="accuracy__text" id="accuracy-people"></p>
     <p class="card__meta" data-i18n="accuracy.note">Каждый вечер в 18:00 по Москве сервер записывает прогноз на ночь для семи точек: уровень шанса, наибольший Kp и наименьшую облачность. Утром он сверяет его с измеренным Kp NOAA, облачностью модели ICON-EU за прошедшие часы и отметками очевидцев. Окно: последние 30 дней. Проценты округлены вниз. Совпадение значит тот же уровень шанса на ночь.</p>
   </section>
 
