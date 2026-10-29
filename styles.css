@@ -1918,6 +1918,8 @@ details.card__warn > summary { color: var(--mid); font-weight: 600; font-size: 1
   font-size: 12px;
   color: var(--text-faint);
 }
+/* Вторая модель облаков не согласна с первой: тем же жёлтым, что и предупреждение */
+.card__model--warn { color: var(--mid); font-weight: 600; line-height: 1.45; }
 
 .layers__note {
   margin: 12px 0 0;

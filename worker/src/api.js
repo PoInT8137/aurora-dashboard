@@ -14,6 +14,7 @@
 //   GET  /reports                              сводка отметок за последний час
 //   GET  /verify                               насколько сбывается прогноз: статистика за 60 ночей
 //   GET  /meteo?…                              запасной путь к Open-Meteo для страницы (src/meteo.js)
+//   GET  /metno/cloud?lat=&lon=                облачность MET Norway, второе мнение (src/metno.js)
 //   GET  /noaa/<имя>                           данные NOAA в компактном виде (src/noaa.js)
 //   POST /telegram                             webhook Telegram-бота (src/telegram.js)
 //   POST /hit          { lang, mobile, pwa, fresh, ref, v }  посещение страницы (src/stats.js)
@@ -29,6 +30,7 @@ import { normalizeLang, normalizeQuiet, normalizeZone, testMessage } from './mes
 import { acceptReport, reportSummary, reporterId, reportSalt } from './reports.js';
 import { verifyStats } from './verify.js';
 import { meteoProxy } from './meteo.js';
+import { metnoCloud } from './metno.js';
 import { noaaProxy } from './noaa.js';
 import { handleTelegram } from './telegram.js';
 import { acceptHit, isBot } from './stats.js';
@@ -161,6 +163,19 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': status === 200 && !stale ? 'private, max-age=300' : 'no-store',
         ...(stale ? { 'X-Stale': '1' } : {}),
+        ...cors
+      }
+    });
+  }
+
+  if (url.pathname === '/metno/cloud' && request.method === 'GET') {
+    if (!cors) return reply({ error: 'forbidden_origin' }, 403);
+    const [body, status] = await metnoCloud(url.search, nowMs, fetchFn);
+    return new Response(body, {
+      status,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': status === 200 ? 'private, max-age=900' : 'no-store',
         ...cors
       }
     });

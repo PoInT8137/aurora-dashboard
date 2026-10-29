@@ -174,6 +174,8 @@ function computeVerdict(kp, cloud) {
   if (act && act.by === 'bz') add('kp', t('verdict.f.bz'));
   add('cloud', cs !== null ? t('verdict.f.cloud', { v: cloud.value }) : t('verdict.f.cloud_none'));
   if (cloud && cloud.conflict) add('cloud', t('verdict.f.conflict'));
+  var opinion = cloudSecondOpinion(cloud, state.cloud2);
+  if (opinion && opinion.disagree) add('cloud', t('verdict.f.models', { model: opinion.model, other: opinion.other }));
 
   var point = currentPoint();
   var alt = solarAltitude(new Date(), point.lat, point.lon);
@@ -813,6 +815,7 @@ function loadCloud() {
       state.cloudPending = false;
       state.cloud = cloud;
       renderCloud(cloud);
+      scheduleCloudSecond(point);
       return cloud;
     })
     .catch(function (err) {
@@ -873,6 +876,61 @@ function pickCloudIn(data, hours) {
   return null;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Второе мнение об облаках: MET Norway                               */
+/* ------------------------------------------------------------------ */
+
+// Модели облаков часто ошибаются по-разному. Вторая (MET Norway, через сервер: worker/src/metno.js)
+// не меняет вердикт, а показывает, насколько можно верить первой. Сравнивается общая облачность:
+// у MET Norway ярусы противоречат её же сумме (см. CONFIG в base.js), а сумме можно верить.
+// Запрос уходит после основного, когда страница уже показана, и не чаще раза в полчаса на точку.
+var CLOUD_SECOND = { ttlMs: 30 * 60000, timeoutMs: 8000, disagree: 40 };
+
+function scheduleCloudSecond(point) {
+  var run = function () {
+    loadCloudSecond(point).then(function (second) {
+      if (!second || !state.cloud || state.cloud.pointId !== point.id) return;
+      renderCloud(state.cloud);
+      if (typeof renderVerdict === 'function') renderVerdict();
+    });
+  };
+  (window.requestIdleCallback || function (fn) { return setTimeout(fn, 300); })(run, { timeout: 2000 });
+}
+
+function loadCloudSecond(point) {
+  if (typeof AURORA_CONFIG === 'undefined' || !AURORA_CONFIG.pushApi) return Promise.resolve(null);
+  var have = state.cloud2;
+  if (have && have.pointId === point.id && Date.now() - have.at < CLOUD_SECOND.ttlMs) return Promise.resolve(null);
+  return fetchJsonDirect(AURORA_CONFIG.pushApi + '/metno/cloud?lat=' + point.lat + '&lon=' + point.lon,
+    CONFIG.retries, 'json', CLOUD_SECOND.timeoutMs)
+    .then(function (data) {
+      var hours = data && Array.isArray(data.hours) ? data.hours : [];
+      if (!hours.length) return null;
+      state.cloud2 = { pointId: point.id, at: Date.now(), model: data.model || 'MET Norway', hours: hours };
+      return state.cloud2;
+    }, function () { return null; });   // второе мнение не обязательно: без него всё как раньше
+}
+
+/**
+ * Сравнение с основной моделью на час данных: { other, main, model, disagree } или null.
+ * Нет второго ряда, другая точка или основная модель сама оказалась MET Norway (резерв): null.
+ */
+function cloudSecondOpinion(cloud, second) {
+  if (!cloud || !second || second.pointId !== cloud.pointId) return null;
+  if (cloud.model && cloud.model === second.model) return null;
+  var main = cloud.total !== null && cloud.total !== undefined ? cloud.total : cloud.value;
+  var at = (cloud.time ? cloud.time.getTime() : Date.now()) / 1000;
+  var best = null;
+  second.hours.forEach(function (row) {
+    var gap = Math.abs(row[0] - at);
+    if (gap <= 5400 && (best === null || gap < best.gap)) best = { gap: gap, value: row[1] };
+  });
+  if (best === null || main === null || main === undefined) return null;
+  main = Math.round(main);
+  return { other: best.value, main: main, model: second.model,
+           disagree: Math.abs(best.value - main) >= CLOUD_SECOND.disagree };
+}
+
 function renderCloud(cloud) {
   $('cloud-model').textContent = t('cloud.model', { model: cloud.model || weatherModelLabel() });
   var tone = cloudTone(cloud.value);
@@ -894,6 +952,15 @@ function renderCloud(cloud) {
   warn.hidden = !cloud.conflict;
   if (cloud.conflict) {
     $('cloud-warn-text').textContent = t('cloud.warn', { layers: cloud.value, total: Math.round(cloud.total) });
+  }
+
+  var opinion = cloudSecondOpinion(cloud, state.cloud2);
+  var second = $('cloud-second');
+  second.hidden = !opinion;
+  if (opinion) {
+    var vars = { model: opinion.model, other: opinion.other, main: opinion.main, first: (cloud.model || weatherModelLabel()).split(' · ')[0] };   // «ICON-EU», без подробностей о сетке
+    second.textContent = t(opinion.disagree ? 'cloud.second.disagree' : 'cloud.second.agree', vars);
+    second.classList.toggle('card__model--warn', opinion.disagree);
   }
 
   var parts = [];

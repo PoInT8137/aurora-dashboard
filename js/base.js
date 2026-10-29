@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v82';
+var APP_VERSION = 'v83';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -107,7 +107,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
               mapPoint: null, nightHour: null, places: null, mapPick: false, reports: null, reportBusy: false, history: null, accuracy: null, meteoViaServer: false,
-              cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, shareLang: null, shareMatrix: null };
+              cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, cloud2: null, shareLang: null, shareMatrix: null };
 
 /* ------------------------------------------------------------------ */
 /*  Точка наблюдения                                                   */

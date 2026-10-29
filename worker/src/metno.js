@@ -125,3 +125,81 @@ export async function metnoFallback(upstreamUrl, nowMs, fetchFn) {
     return null;
   }
 }
+
+// Второе мнение об облаках: GET /metno/cloud?lat=&lon=. Страница сравнивает общую облачность
+// MET Norway с ICON-EU и, если модели сильно расходятся, говорит об этом прямо. Берётся только
+// общая облачность: её ярусы противоречат ей же (см. выше), а сумма с другими моделями согласна.
+// Координаты округляются до 0,01° (~1 км): так соседние запросы попадают в одну копию, а MET
+// получает не больше одного запроса на место за полчаса.
+
+export const METNO_CLOUD_TTL_MS = 30 * 60 * 1000;
+const CLOUD_HOURS = 48;
+const CLOUD_ENTRIES = 200;
+const cloudMemory = new Map();
+const cloudPending = new Map();
+
+export function clearMetnoCloudCache() {
+  cloudMemory.clear();
+}
+
+/** Проверенные координаты из адреса: { lat, lon } с точностью 0,01° или null. */
+export function cloudQuery(search) {
+  const params = new URLSearchParams(search);
+  const num = v => (/^-?\d{1,3}(\.\d{1,6})?$/.test(v || '') ? Number(v) : NaN);
+  const lat = num(params.get('lat')), lon = num(params.get('lon'));
+  if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return null;
+  const r2 = v => Math.round(v * 100) / 100;
+  return { lat: r2(lat), lon: r2(lon) };
+}
+
+/** Ответ MET Norway → { model, hours: [[секунды UTC, облачность %], …] }: только часовой шаг, до 48 часов. */
+export function cloudSeries(met, nowMs) {
+  const start = Math.floor(nowMs / HOUR) * HOUR;
+  const series = (met && met.properties && met.properties.timeseries) || [];
+  const hours = [];
+  for (const s of series) {
+    const t = Date.parse(s.time);
+    const c = s.data && s.data.instant && s.data.instant.details && s.data.instant.details.cloud_area_fraction;
+    if (!(t >= start) || t >= start + CLOUD_HOURS * HOUR || typeof c !== 'number') continue;
+    hours.push([t / 1000, Math.round(c)]);
+  }
+  return { model: METNO_MODEL, hours };
+}
+
+/** [тело, статус] для страницы. Не ответил MET: последняя копия не старше 3 часов, иначе 502. */
+export async function metnoCloud(search, nowMs, fetchFn) {
+  const q = cloudQuery(search);
+  if (!q) return [JSON.stringify({ error: 'bad_query' }), 400];
+  const key = q.lat + ',' + q.lon;
+  const hit = cloudMemory.get(key);
+  if (hit && nowMs - hit.at < METNO_CLOUD_TTL_MS) return [hit.body, 200];
+
+  let job = cloudPending.get(key);
+  if (!job) {
+    job = fetchCloud(q, nowMs, fetchFn);
+    cloudPending.set(key, job);
+    job.then(() => cloudPending.delete(key), () => cloudPending.delete(key));
+  }
+  const body = await job;
+  if (body) {
+    cloudMemory.set(key, { body, at: nowMs });
+    if (cloudMemory.size > CLOUD_ENTRIES) cloudMemory.delete(cloudMemory.keys().next().value);
+    return [body, 200];
+  }
+  if (hit && nowMs - hit.at < 3 * HOUR) return [hit.body, 200];
+  return [JSON.stringify({ error: 'upstream' }), 502];
+}
+
+async function fetchCloud(q, nowMs, fetchFn) {
+  try {
+    const res = await fetchFn('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=' + q.lat + '&lon=' + q.lon, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) return null;
+    const out = cloudSeries(await res.json(), nowMs);
+    return out.hours.length ? JSON.stringify(out) : null;
+  } catch {
+    return null;
+  }
+}
