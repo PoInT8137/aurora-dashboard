@@ -120,7 +120,8 @@ test('загрузка: два запроса (Kp NOAA и облака за 7 с
   const { ctx, el, calls } = page({ cloudAt: t => (clear(t) ? 5 : 95), kpAt: () => 2.33 });
   await ctx.loadHistory(false);
   assert.equal(calls.length, 2);
-  const cloudUrl = new URL(calls.find(u => u.includes('open-meteo')));
+  // облака: через сервер (/meteo, с v84 он первый) с теми же параметрами, что у Open-Meteo
+  const cloudUrl = new URL(calls.find(u => u.includes('open-meteo') || u.includes('/meteo?')));
   assert.equal(cloudUrl.searchParams.get('models'), ctx.CONFIG.weatherModel);
   assert.equal(cloudUrl.searchParams.get('past_days'), '7');
 

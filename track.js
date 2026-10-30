@@ -55,6 +55,13 @@
     });
   }
 
+  // Сбой источника данных (js/base.js noteMeteoFailure), в тот же журнал, с пометкой src: source.
+  // Офлайн-посетителя не считаем: у него не работает ничего, и до сервера сообщение не дойдёт.
+  window.reportProblem = function (msg) {
+    if (navigator.onLine === false) return;
+    reportBug(msg, 'source', null, null, null);
+  };
+
   window.addEventListener('error', function (e) {
     if (!e || e.target !== window && e.target && e.target.nodeType) return;   // не загрузилась картинка и т. п.
     var err = e.error;

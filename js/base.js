@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v83';
+var APP_VERSION = 'v84';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -106,7 +106,7 @@ var state = { tab: 'now', point: null, kp: null, cloud: null, forecast: null, fo
               cloudSeq: 0, cloudPending: false, refreshing: null,
               lastLevel: null, pushBusy: false, pushHealth: null, pushServer: null,
               status: null, errors: {}, settings: null, timer: null, sw: null, ov: null, outlook: null,
-              mapPoint: null, nightHour: null, places: null, mapPick: false, reports: null, reportBusy: false, history: null, accuracy: null, meteoViaServer: false,
+              mapPoint: null, nightHour: null, places: null, mapPick: false, reports: null, reportBusy: false, history: null, accuracy: null,
               cloudGrid: null, cloudGridLoading: null, cloudGridError: false, cloudHour: 0, cloudsOn: undefined, cloud2: null, shareLang: null, shareMatrix: null };
 
 /* ------------------------------------------------------------------ */
@@ -222,33 +222,45 @@ function meteoFallbackUrl(url) {
   return AURORA_CONFIG.pushApi + '/meteo' + url.slice(OPEN_METEO.length);
 }
 
-/* Прямой запрос к Open-Meteo ждём недолго и не повторяем: если сеть его не пускает, запрос
-   часто не отклоняется, а повисает (так бывает, когда провайдер блокирует адреса хостинга).
-   Запасной путь через сервер уведомлений должен начаться за секунды, а не за полминуты. */
+/*
+ * Open-Meteo: сначала через сервер уведомлений (worker/src/meteo.js). У него общий для всех кэш
+ * на 10 минут, поэтому суточный лимит Open-Meteo на адрес посетителя (10 000 обращений, и его
+ * делят все устройства за одним Wi-Fi или мобильным оператором) больше не кончается, а пустой
+ * ответ модели сервер сам заменяет резервной (MET Norway). Прямой запрос: запасной путь, если
+ * сервер за HEDGE_MS не ответил или ответил ошибкой. Его ждём недолго и не повторяем: когда сеть
+ * не пускает к Open-Meteo, запрос часто не отклоняется, а повисает.
+ */
 var METEO_DIRECT_TIMEOUT_MS = 6000;
-var METEO_VIA_SERVER_MS = 24 * 60 * 60 * 1000;   // сколько помнить, что напрямую не проходит
 
-/** Прямой путь к Open-Meteo недавно не работал — сначала сервер. Помнится сутки и между сеансами. */
-function meteoViaServer() {
-  if (state.meteoViaServer) return true;
-  try {
-    var at = Number(localStorage.getItem(CACHE.prefix + 'meteoViaServer')) || 0;
-    return Date.now() - at < METEO_VIA_SERVER_MS;
-  } catch (e) { return false; }
-}
-
-function rememberMeteoViaServer() {
-  state.meteoViaServer = true;
-  try { localStorage.setItem(CACHE.prefix + 'meteoViaServer', String(Date.now())); } catch (e) { /* до конца сеанса */ }
+/**
+ * Есть ли в ответе Open-Meteo облачность: текущая или почасовая, хоть по одной точке. Пока
+ * модель пересчитывается, Open-Meteo бывает отвечает успешно, но пустыми значениями. Такой ответ
+ * считается сбоем, и страница берёт другой путь, а не показывает «нет облачности».
+ */
+function meteoHasCloud(data) {
+  var list = Array.isArray(data) ? data : [data];
+  return list.some(function (d) {
+    if (!d) return false;
+    if (d.current && num(d.current.cloud_cover) !== null) return true;
+    var hours = d.hourly && d.hourly.cloud_cover;
+    return Array.isArray(hours) && hours.some(function (v) { return num(v) !== null; });
+  });
 }
 
 /**
- * JSON по адресу. Open-Meteo бывает недоступен именно отсюда: сеть не пускает к нему (запрос
- * отклоняется или повисает), адрес выбрал суточный лимит (ответ 429 без CORS-заголовков, и
- * браузер видит «нет соединения»). Тогда тот же запрос уходит через сервер уведомлений, и сутки
- * запросы к Open-Meteo сначала идут через него — не ждать каждый раз отказа. Если вдруг не
- * отвечает сервер — пробуем напрямую.
+ * Сбой пути к Open-Meteo, в журнал владельцу (track.js reportProblem): в Telegram приходит
+ * сообщение о новом виде сбоя, повторы считаются. Так видно, что именно ломается: лимит (429),
+ * таймаут, пустой ответ модели или нет связи. Отменённый проигравший страхующий запрос: не сбой.
  */
+function noteMeteoFailure(path, err, signal) {
+  if ((signal && signal.aborted) || typeof reportProblem !== 'function') return;
+  var code = (err && err.code) || (err && err.name) || 'error';
+  if (code === 'http' && err.params && err.params.status) code = 'http ' + err.params.status;
+  if (code === 'stale_copy') code = 'сервер отдал сохранённую копию';
+  reportProblem('Open-Meteo ' + (path === 'server' ? 'через сервер' : 'напрямую') + ': ' + code);
+}
+
+/** JSON по адресу. NOAA и Open-Meteo: с запасным путём (см. выше); остальное: напрямую. */
 /*
  * Данные NOAA — сначала через сервер уведомлений (worker/src/noaa.js): он отдаёт те же файлы в
  * компактном виде (солнечный ветер — 30 КБ вместо 1 МБ, OVATION — 10 КБ вместо 900 КБ) и
@@ -355,12 +367,21 @@ function fetchJson(url, attempt, as) {
   var viaServer = attempt ? null : meteoFallbackUrl(url);
   if (!viaServer) return fetchJsonDirect(url, attempt, as);
 
-  var direct = function (signal) { return fetchJsonDirect(url, CONFIG.retries, as, METEO_DIRECT_TIMEOUT_MS, signal); };
-  var server = function (signal) { return fetchJsonDirect(viaServer, CONFIG.retries, as, undefined, signal); };
-
-  if (meteoViaServer()) return hedgeWithStale(server, direct, HEDGE_MS);
-  // Напрямую не прошло, а через сервер — да: сутки начинаем с сервера.
-  return hedgeWithStale(direct, server, HEDGE_MS, rememberMeteoViaServer);
+  // Каждый путь: пустой ответ модели: сбой; сбой: в журнал.
+  var checked = function (path, run) {
+    return function (signal) {
+      return run(signal).then(function (data) {
+        if (!meteoHasCloud(data)) throw appError('no_cloud');
+        return data;
+      }).catch(function (err) {
+        noteMeteoFailure(path, err, signal);
+        throw err;
+      });
+    };
+  };
+  var server = checked('server', function (signal) { return fetchJsonDirect(viaServer, CONFIG.retries, as, undefined, signal); });
+  var direct = checked('direct', function (signal) { return fetchJsonDirect(url, CONFIG.retries, as, METEO_DIRECT_TIMEOUT_MS, signal); });
+  return hedgeWithStale(server, direct, HEDGE_MS);
 }
 
 /**

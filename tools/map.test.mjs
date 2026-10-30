@@ -176,7 +176,7 @@ test('открытие вкладки «Карта» запрашивает да
   const { ctx } = page({ fetch: url => { calls.push(String(url)); return new Promise(() => {}); } });
   ctx.showTab('map', 'replace');
   assert.equal(ctx.state.tab, 'map');
-  assert.ok(calls.some(u => u.includes('api.open-meteo.com') && u.includes(',')), 'запрос сразу по всем точкам');
+  assert.ok(calls.some(u => (u.includes('api.open-meteo.com') || u.includes('/meteo?')) && u.includes(',')), 'запрос сразу по всем точкам');
 });
 
 test('разметка: вкладка «Карта» после «Куда ехать», map.js подключён и лежит в оболочке service worker', () => {

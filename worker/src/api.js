@@ -34,7 +34,7 @@ import { metnoCloud } from './metno.js';
 import { noaaProxy } from './noaa.js';
 import { handleTelegram } from './telegram.js';
 import { acceptHit, isBot } from './stats.js';
-import { acceptBug } from './bugs.js';
+import { acceptBug, recordWorkerError } from './bugs.js';
 
 const Core = globalThis.AuroraCore;
 
@@ -156,7 +156,9 @@ export async function handleRequest(request, env, ctx, nowMs = Date.now(), fetch
   if (url.pathname === '/meteo' && request.method === 'GET') {
     // Только для страницы сайта: иначе это был бы открытый прокси к Open-Meteo.
     if (!cors) return reply({ error: 'forbidden_origin' }, 403);
-    const [body, status, stale] = await meteoProxy(url.search, nowMs, fetchFn);
+    const [body, status, stale, note] = await meteoProxy(url.search, nowMs, fetchFn, { db: env.DB });
+    // Что сломалось у Open-Meteo, в журнал ошибок: о новом виде сбоя владельцу придёт сообщение.
+    if (note) ctx.waitUntil(recordWorkerError(env, 'meteo', new Error(note), nowMs));
     return new Response(body, {
       status,
       headers: {

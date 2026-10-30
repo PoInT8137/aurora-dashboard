@@ -30,32 +30,38 @@ test('адрес запасного пути — те же параметры н
   assert.equal(page(() => json({}), false).ctx.meteoFallbackUrl(url), null, 'сервер не настроен');
 });
 
-test('прямой запрос «нет соединения» — данные через сервер, и дальше в этом сеансе сразу через сервер', async () => {
-  const { ctx, calls } = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('Failed to fetch')) : json({ current: { cloud_cover: 42 } })));
-  const url = ctx.weatherUrl(ctx.findPoint('murmansk'));
-  const data = await ctx.fetchJson(url);
+const CLOUD = { current: { cloud_cover: 42 }, hourly: { cloud_cover: [42] } };
+
+test('Open-Meteo, сначала через сервер: сервер ответил: прямой запрос не уходит', async () => {
+  const { ctx, calls } = page(() => json(CLOUD));
+  const data = await ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk')));
   assert.equal(data.current.cloud_cover, 42);
-  assert.equal(ctx.state.meteoViaServer, true);
-  calls.length = 0;
-  await ctx.fetchJson(url);
-  assert.deepEqual(calls.map(u => u.slice(0, API.length + 6)), [API + '/meteo'], 'сразу через сервер, без прямой попытки');
+  assert.deepEqual(calls.map(u => u.slice(0, API.length + 6)), [API + '/meteo']);
 });
 
-test('прямой путь работает — сервер не трогается', async () => {
-  const { ctx, calls } = page(() => json({ current: { cloud_cover: 7 } }));
-  await ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk')));
-  assert.equal(calls.length, 1);
-  assert.ok(calls[0].startsWith('https://api.open-meteo.com'));
-  assert.equal(ctx.state.meteoViaServer, false);
+test('сервер ответил ошибкой: данные напрямую из Open-Meteo', async () => {
+  const { ctx, calls } = page(url => (url.includes('/meteo') ? json({ error: 1 }, 502) : json({ ...CLOUD, direct: true })));
+  const data = await ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk')));
+  assert.equal(data.direct, true);
+  assert.equal(calls.filter(u => u.startsWith('https://api.open-meteo.com')).length, 1, 'прямой: одна попытка, без повтора');
+  assert.ok(ctx.METEO_DIRECT_TIMEOUT_MS <= 6000, 'ждём недолго: повисший запрос не должен держать карточку полминуты');
 });
 
-test('не помог и сервер — показывается исходная причина, а не ошибка сервера', async () => {
+test('пустой ответ модели, сбой: берётся другой путь, а не «нет облачности»', async () => {
+  const empty = { current: { cloud_cover: null }, hourly: { cloud_cover: [null] } };
+  const { ctx } = page(url => (url.includes('/meteo') ? json(empty) : json({ ...CLOUD, direct: true })));
+  const data = await ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk')));
+  assert.equal(data.direct, true);
+  assert.equal(ctx.meteoHasCloud(empty), false);
+  assert.equal(ctx.meteoHasCloud([empty, { hourly: { cloud_cover: [null, 5] } }]), true, 'хоть одна точка с облачностью');
+});
+
+test('не помог ни сервер, ни прямой путь: ошибка, а не пустые данные', async () => {
   const { ctx } = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('Failed to fetch')) : json({ error: 'upstream' }, 502)));
-  await assert.rejects(ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk'))), e => e.code === 'offline');
-  assert.equal(ctx.state.meteoViaServer, false);
+  await assert.rejects(ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk'))), e => e.code === 'http' || e.code === 'offline');
 });
 
-test('облачность на «Сейчас» при недоступном Open-Meteo загружается через сервер', async () => {
+test('облачность на «Сейчас» при недоступном прямом Open-Meteo загружается через сервер', async () => {
   const hourly = { time: ['2026-09-25T12:00'], cloud_cover: [30], cloud_cover_low: [20], cloud_cover_mid: [10], cloud_cover_high: [0] };
   const body = { current: { time: '2026-09-25T12:00', cloud_cover: 30, cloud_cover_low: 20, cloud_cover_mid: 10, cloud_cover_high: 0, temperature_2m: 9 }, hourly };
   const { ctx } = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('Failed to fetch')) : json(body)));
@@ -63,38 +69,26 @@ test('облачность на «Сейчас» при недоступном O
   assert.ok(cloud && cloud.value >= 0, JSON.stringify(cloud));
 });
 
-test('прямой запрос к Open-Meteo — одна попытка с коротким ожиданием, без повтора', async () => {
-  const { ctx, calls } = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('Failed to fetch')) : json({ ok: 1 })));
+test('сбой пути, в журнал владельцу (reportProblem): что именно и каким путём; отменённый проигравший: нет', async () => {
+  const notes = [];
+  const { ctx } = page(url => (url.includes('/meteo') ? json({ error: 1 }, 429) : json(CLOUD)));
+  ctx.reportProblem = msg => notes.push(msg);
   await ctx.fetchJson(ctx.weatherUrl(ctx.findPoint('murmansk')));
-  assert.equal(calls.filter(u => u.startsWith('https://api.open-meteo.com')).length, 1, 'без повтора перед запасным путём');
-  assert.ok(ctx.METEO_DIRECT_TIMEOUT_MS <= 6000, 'ждём недолго: повисший запрос не должен держать карточку полминуты');
-  assert.match(read('js/base.js'), /timeoutMs \|\| CONFIG\.timeoutMs/);
-});
+  assert.deepEqual(notes, ['Open-Meteo через сервер: rate_limit']);
 
-test('сервер выручил — это помнится сутки и между сеансами; не отвечает сервер — пробуем напрямую', async () => {
-  const first = page(url => (url.startsWith('https://api.open-meteo.com') ? Promise.reject(new TypeError('x')) : json({ ok: 1 })));
-  await first.ctx.fetchJson(first.ctx.weatherUrl(first.ctx.findPoint('murmansk')));
-  const saved = first.ctx.localStorage.getItem('aurora.meteoViaServer');
-  assert.ok(Number(saved) > 0);
+  // сервер ответил быстро: прямой запрос не уходил и в журнал не попал
+  const quiet = [];
+  const ok = page(() => json(CLOUD));
+  ok.ctx.reportProblem = msg => quiet.push(msg);
+  await ok.ctx.fetchJson(ok.ctx.weatherUrl(ok.ctx.findPoint('murmansk')));
+  assert.deepEqual(quiet, []);
 
-  // новый сеанс: сразу через сервер
-  const next = page(() => json({ ok: 2 }));
-  next.ctx.localStorage.setItem('aurora.meteoViaServer', saved);
-  await next.ctx.fetchJson(next.ctx.weatherUrl(next.ctx.findPoint('murmansk')));
-  assert.ok(next.calls[0].startsWith('https://aurora-push.aurora-murmansk.workers.dev/meteo'));
-  assert.equal(next.calls.length, 1);
-
-  // сервер не отвечает — прямой путь как запасной
-  const serverDown = page(url => (url.includes('/meteo') ? json({ error: 1 }, 502) : json({ direct: true })));
-  serverDown.ctx.localStorage.setItem('aurora.meteoViaServer', saved);
-  const data = await serverDown.ctx.fetchJson(serverDown.ctx.weatherUrl(serverDown.ctx.findPoint('murmansk')));
-  assert.equal(data.direct, true);
-
-  // через сутки — снова сначала напрямую
-  const later = page(() => json({ ok: 3 }));
-  later.ctx.localStorage.setItem('aurora.meteoViaServer', String(Date.parse('2026-09-24T11:00:00Z')));
-  await later.ctx.fetchJson(later.ctx.weatherUrl(later.ctx.findPoint('murmansk')));
-  assert.ok(later.calls[0].startsWith('https://api.open-meteo.com'));
+  // пустой ответ модели называется прямо
+  const empty = [];
+  const e = page(url => (url.includes('/meteo') ? json({ current: { cloud_cover: null } }) : json(CLOUD)));
+  e.ctx.reportProblem = msg => empty.push(msg);
+  await e.ctx.fetchJson(e.ctx.weatherUrl(e.ctx.findPoint('murmansk')));
+  assert.deepEqual(empty, ['Open-Meteo через сервер: no_cloud']);
 });
 
 test('версия в подвале совпадает с версией кэша service worker; новая версия перезагружает страницу один раз', () => {

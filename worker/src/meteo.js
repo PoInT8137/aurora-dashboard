@@ -1,13 +1,17 @@
-// Запасной путь к Open-Meteo для страницы: GET /meteo?<те же параметры, что у api.open-meteo.com/v1/forecast>.
+// Open-Meteo для страницы: GET /meteo?<те же параметры, что у api.open-meteo.com/v1/forecast>.
 //
-// Сайт запрашивает Open-Meteo напрямую, а сюда приходит, только если прямой запрос не прошёл:
-// сеть или VPN не пускает к api.open-meteo.com, адрес исчерпал суточный лимит Open-Meteo (тогда
-// ответ 429 приходит без CORS-заголовков, и браузер видит «нет соединения») и т. п. Сервер
-// уведомлений и так ходит в Open-Meteo каждые 10 минут.
+// С v84 страница идёт сюда первой, а напрямую, только если сервер не ответил. Причина: суточный
+// лимит Open-Meteo (10 000 обращений) считается по адресу, и у посетителей за одним Wi-Fi или
+// мобильным оператором он кончался; здесь же одна копия на всех. Копия хранится в памяти
+// экземпляра и в D1 (noaa_cache, имя «meteo:<запрос>»), поэтому её видят все экземпляры worker'а:
+// Cache API Cloudflare на адресе *.workers.dev не работает.
+//
+// Пустой ответ модели (Open-Meteo отвечает успешно, но без облачности, пока модель пересчитывается)
+// считается сбоем: берётся резерв MET Norway. Что именно сломалось, meteoProxy возвращает строкой:
+// api.js пишет её в журнал ошибок, и владелец узнаёт о новом виде сбоя в Telegram.
 //
 // Это не открытый прокси: только /v1/forecast, только перечисленные параметры с проверенными
-// значениями, только запросы со страницы сайта (Origin из ALLOWED_ORIGINS). Ответы хранятся
-// в памяти worker'а 10 минут — облачность модель всё равно пересчитывает раз в час.
+// значениями, только запросы со страницы сайта (Origin из ALLOWED_ORIGINS).
 
 import { metnoFallback } from './metno.js';
 
@@ -52,7 +56,7 @@ export function meteoUpstream(search) {
 }
 
 // Память живёт, пока жив экземпляр worker'а: этого хватает, чтобы волна одинаковых запросов
-// (например, все открывшие сайт в Мурманске) не уходила в Open-Meteo каждый раз.
+// (например, все открывшие сайт в Мурманске) не уходила даже в базу каждый раз.
 const memory = new Map();
 
 export function clearMeteoCache() {
@@ -62,41 +66,68 @@ export function clearMeteoCache() {
 // Идущие запросы: одинаковые промахи кэша ждут один и тот же, а не уходят в Open-Meteo каждый.
 const pending = new Map();
 
-/**
- * Ответ для страницы: [тело (строка), статус, из запаса ли]. Копия старше срока отдаётся с
- * признаком: страница пробует другой путь и, если не вышло, показывает её как сохранённую.
- */
-export async function meteoProxy(search, nowMs, fetchFn) {
-  const upstream = meteoUpstream(search);
-  if (!upstream) return [JSON.stringify({ error: 'bad_query' }), 400, false];
+const savedName = upstream => 'meteo:' + upstream.slice(UPSTREAM.length);
 
-  const hit = memory.get(upstream);
-  if (hit && nowMs - hit.at < METEO_TTL_MS) return [hit.body, 200, false];
+/** Есть ли облачность в ответе: текущая или почасовая, хоть по одной точке (как meteoHasCloud у страницы). */
+export function meteoHasCloud(body) {
+  if (!/"cloud_cover"/.test(body)) return true;   // облачность не просили: проверять нечего
+  let data;
+  try { data = JSON.parse(body); } catch { return false; }
+  const list = Array.isArray(data) ? data : [data];
+  const real = v => v !== null && v !== undefined && Number.isFinite(Number(v));
+  return list.some(d => d && ((d.current && real(d.current.cloud_cover)) ||
+    (d.hourly && Array.isArray(d.hourly.cloud_cover) && d.hourly.cloud_cover.some(real))));
+}
+
+/**
+ * Ответ для страницы: [тело (строка), статус, из запаса ли, что сломалось или null]. Копия
+ * старше срока отдаётся с признаком: страница пробует другой путь и, если не вышло, показывает
+ * её как сохранённую. opts.db: база с таблицей noaa_cache (общая копия для всех экземпляров).
+ */
+export async function meteoProxy(search, nowMs, fetchFn, opts = {}) {
+  const upstream = meteoUpstream(search);
+  if (!upstream) return [JSON.stringify({ error: 'bad_query' }), 400, false, null];
+  const db = opts.db || null;
+
+  let hit = memory.get(upstream);
+  if (!hit || nowMs - hit.at >= METEO_TTL_MS) {
+    const saved = await readSaved(db, upstream);
+    if (saved && (!hit || saved.at > hit.at)) { hit = saved; remember(upstream, saved.body, saved.at); }
+  }
+  if (hit && nowMs - hit.at < METEO_TTL_MS) return [hit.body, 200, false, null];
 
   let job = pending.get(upstream);
   if (!job) {
-    job = fetchFresh(upstream, nowMs, fetchFn);
+    job = fetchFresh(upstream, nowMs, fetchFn, db);
     pending.set(upstream, job);
     job.then(() => pending.delete(upstream), () => pending.delete(upstream));
   }
-  const [body, status] = await job;
-  if (status === 200) return [body, 200, false];
-  if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200, true];
-  return [body, status, false];
+  const [body, status, note] = await job;
+  if (status === 200) return [body, 200, false, note];
+  if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200, true, note];
+  return [body, status, false, note];
 }
 
-/** Open-Meteo, затем MET Norway; удачный ответ запоминается. [тело, статус]. */
-async function fetchFresh(upstream, nowMs, fetchFn) {
+/** Open-Meteo, затем MET Norway; удачный ответ запоминается. [тело, статус, что сломалось или null]. */
+async function fetchFresh(upstream, nowMs, fetchFn, db) {
   let failure;
+  let why;
   try {
     const res = await fetchFn(upstream, { signal: AbortSignal.timeout(10000) });
     const body = await res.text();
-    if (res.ok) {
-      remember(upstream, body, nowMs);
-      return [body, 200];
+    if (res.ok && meteoHasCloud(body)) {
+      await keep(db, upstream, body, nowMs);
+      return [body, 200, null];
     }
-    failure = [JSON.stringify({ error: 'upstream', status: res.status }), res.status === 429 ? 429 : 502];
+    if (res.ok) {
+      why = 'пустой ответ модели';
+      failure = [JSON.stringify({ error: 'empty_model' }), 502];
+    } else {
+      why = 'ответ ' + res.status;
+      failure = [JSON.stringify({ error: 'upstream', status: res.status }), res.status === 429 ? 429 : 502];
+    }
   } catch {
+    why = 'нет ответа';
     failure = [JSON.stringify({ error: 'upstream_unreachable' }), 502];
   }
 
@@ -105,13 +136,38 @@ async function fetchFresh(upstream, nowMs, fetchFn) {
   const backup = await metnoFallback(upstream, nowMs, fetchFn);
   if (backup) {
     const body = JSON.stringify(backup);
-    remember(upstream, body, nowMs);
-    return [body, 200];
+    await keep(db, upstream, body, nowMs);
+    return [body, 200, 'Open-Meteo: ' + why + ', взят резерв MET Norway'];
   }
-  return failure;
+  return [...failure, 'Open-Meteo: ' + why + ', резерва нет'];
 }
 
-function remember(key, body, nowMs) {
-  memory.set(key, { body, at: nowMs });
+function remember(key, body, at) {
+  memory.set(key, { body, at });
   if (memory.size > MAX_ENTRIES) memory.delete(memory.keys().next().value);
+}
+
+/** Копия в память и в базу. Без базы (или до миграции): только память. */
+async function keep(db, upstream, body, nowMs) {
+  remember(upstream, body, nowMs);
+  if (!db) return;
+  try {
+    await db.prepare('INSERT INTO noaa_cache (name, body, at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(name) DO UPDATE SET body = excluded.body, at = excluded.at').bind(savedName(upstream), body, nowMs).run();
+  } catch (e) { /* копия в базе: только ускорение */ }
+}
+
+async function readSaved(db, upstream) {
+  if (!db) return null;
+  try {
+    const row = await db.prepare('SELECT body, at FROM noaa_cache WHERE name = ?').bind(savedName(upstream)).first();
+    return row ? { body: row.body, at: row.at } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Уборка копий старше срока запаса: проходом по расписанию (копий столько, сколько разных запросов). */
+export function purgeMeteo(env, nowMs) {
+  return env.DB.prepare("DELETE FROM noaa_cache WHERE name LIKE 'meteo:%' AND at < ?").bind(nowMs - STALE_KEEP_MS).run();
 }
