@@ -88,3 +88,19 @@ test('сбой Open-Meteo на сервере попадает в журнал �
   assert.equal(rows[0].count, 2);
   assert.equal(rows[0].kind, 'worker');
 });
+
+test('успешный резерв MET Norway при сбое Open-Meteo не создаёт запись в журнале багов', async () => {
+  clearMeteoCache();
+  const { env } = await makeEnv();
+  const met = {
+    properties: {
+      timeseries: [{ time: new Date(NIGHT).toISOString(), data: { instant: { details: { cloud_area_fraction: 35 } } } }]
+    }
+  };
+  const ctx = fakeCtx();
+  const res = await handleRequest(apiRequest('/meteo' + Q, null, { method: 'GET' }), env, ctx, NIGHT, world('', { status: 503, met }));
+  assert.equal(res.status, 200);
+  await Promise.all(ctx.pending);
+  const rows = env.DB.raw.prepare("SELECT * FROM bugs WHERE src = 'meteo'").all();
+  assert.equal(rows.length, 0);
+});

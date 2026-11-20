@@ -63,9 +63,6 @@ export function clearMeteoCache() {
   memory.clear();
 }
 
-// Идущие запросы: одинаковые промахи кэша ждут один и тот же, а не уходят в Open-Meteo каждый.
-const pending = new Map();
-
 const savedName = upstream => 'meteo:' + upstream.slice(UPSTREAM.length);
 
 /** Есть ли облачность в ответе: текущая или почасовая, хоть по одной точке (как meteoHasCloud у страницы). */
@@ -96,13 +93,9 @@ export async function meteoProxy(search, nowMs, fetchFn, opts = {}) {
   }
   if (hit && nowMs - hit.at < METEO_TTL_MS) return [hit.body, 200, false, null];
 
-  let job = pending.get(upstream);
-  if (!job) {
-    job = fetchFresh(upstream, nowMs, fetchFn, db);
-    pending.set(upstream, job);
-    job.then(() => pending.delete(upstream), () => pending.delete(upstream));
-  }
-  const [body, status, note] = await job;
+  // Не делим промис между запросами: в Cloudflare Workers с handle_cross_request_promise_resolution
+  // отмена первого запроса роняет все остальные, которые ждали тот же промис.
+  const [body, status, note] = await fetchFresh(upstream, nowMs, fetchFn, db);
   if (status === 200) return [body, 200, false, note];
   if (hit && nowMs - hit.at < STALE_KEEP_MS) return [hit.body, 200, true, note];
   return [body, status, false, note];
@@ -137,7 +130,7 @@ async function fetchFresh(upstream, nowMs, fetchFn, db) {
   if (backup) {
     const body = JSON.stringify(backup);
     await keep(db, upstream, body, nowMs);
-    return [body, 200, 'Open-Meteo: ' + why + ', взят резерв MET Norway'];
+    return [body, 200, null];
   }
   return [...failure, 'Open-Meteo: ' + why + ', резерва нет'];
 }

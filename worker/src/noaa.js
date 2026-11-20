@@ -87,11 +87,9 @@ export const STALE_KEEP_MS = 6 * 60 * MIN;
 export const REVALIDATE_MS = 10 * MIN;
 
 const memory = new Map();
-const pending = new Map();   // идущие загрузки: одновременные запросы ждут одну и ту же
 
 export function clearNoaaCache() {
   memory.clear();
-  pending.clear();
 }
 
 async function readSaved(db, name) {
@@ -119,26 +117,20 @@ export function usableBody(body, type) {
   }
 }
 
-function load(name, source, nowMs, fetchFn, db) {
-  if (pending.has(name)) return pending.get(name);
-  const job = (async () => {
-    const res = await fetchFn(source.url ? source.url(nowMs) : BASE + source.path, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error('http ' + res.status);
-    const text = await res.text();
-    const body = source.trim ? source.trim(text, nowMs) : text;
-    if (!usableBody(body, source.type)) throw new Error('bad_body');
-    memory.set(name, { body, at: nowMs });
-    if (db) {
-      try {
-        await db.prepare('INSERT INTO noaa_cache (name, body, at) VALUES (?, ?, ?) ' +
-          'ON CONFLICT(name) DO UPDATE SET body = excluded.body, at = excluded.at').bind(name, body, nowMs).run();
-      } catch (e) { /* копия в базе — только ускорение */ }
-    }
-    return body;
-  })();
-  pending.set(name, job);
-  job.then(() => pending.delete(name), () => pending.delete(name));
-  return job;
+async function load(name, source, nowMs, fetchFn, db) {
+  const res = await fetchFn(source.url ? source.url(nowMs) : BASE + source.path, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error('http ' + res.status);
+  const text = await res.text();
+  const body = source.trim ? source.trim(text, nowMs) : text;
+  if (!usableBody(body, source.type)) throw new Error('bad_body');
+  memory.set(name, { body, at: nowMs });
+  if (db) {
+    try {
+      await db.prepare('INSERT INTO noaa_cache (name, body, at) VALUES (?, ?, ?) ' +
+        'ON CONFLICT(name) DO UPDATE SET body = excluded.body, at = excluded.at').bind(name, body, nowMs).run();
+    } catch (e) { /* копия в базе: только ускорение */ }
+  }
+  return body;
 }
 
 /**

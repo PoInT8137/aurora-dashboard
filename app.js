@@ -6,29 +6,29 @@
 function init() {
   // До появления выбора точки облачность лежала в общем ключе. У тех, кто
   // заходил раньше, он остался мусором — убираем при первом же запуске.
-  cacheDrop('cloud');
-
-  initLanguage();
-  applyAppearance();
-  initSettings();
-  initPointSelect();
-  initPlaces();
-  initReports();
-  renderWebcams();
-  initMapTab();
-  initClouds();
-  initNightChart();
-  initSolarWindChart();
-  initShare();
-  initInstallHint();
-  initNotifications();
-  initNotifyTab();
-  initPushCard();
-  initTabs();
-  initSkyDepth();
-  initHeroSky();
-  initTopMenu();
-  $('refresh').addEventListener('click', refreshAll);
+  if (typeof cacheDrop === 'function') cacheDrop('cloud');
+  // Проверяем перед вызовом: недогруз одного скрипта не роняет всю страницу.
+  if (typeof initLanguage === 'function') initLanguage();
+  if (typeof applyAppearance === 'function') applyAppearance();
+  if (typeof initSettings === 'function') initSettings();
+  if (typeof initPointSelect === 'function') initPointSelect();
+  if (typeof initPlaces === 'function') initPlaces();
+  if (typeof initReports === 'function') initReports();
+  if (typeof renderWebcams === 'function') renderWebcams();
+  if (typeof initMapTab === 'function') initMapTab();
+  if (typeof initClouds === 'function') initClouds();
+  if (typeof initNightChart === 'function') initNightChart();
+  if (typeof initSolarWindChart === 'function') initSolarWindChart();
+  if (typeof initShare === 'function') initShare();
+  if (typeof initInstallHint === 'function') initInstallHint();
+  if (typeof initNotifications === 'function') initNotifications();
+  if (typeof initNotifyTab === 'function') initNotifyTab();
+  if (typeof initPushCard === 'function') initPushCard();
+  if (typeof initTabs === 'function') initTabs();
+  if (typeof initSkyDepth === 'function') initSkyDepth();
+  if (typeof initHeroSky === 'function') initHeroSky();
+  if (typeof initTopMenu === 'function') initTopMenu();
+  if (typeof $ === 'function' && $('refresh')) $('refresh').addEventListener('click', refreshAll);
 
   // Кнопки «Повторить» внутри карточек перезагружают только свой блок.
   document.addEventListener('click', function (e) {

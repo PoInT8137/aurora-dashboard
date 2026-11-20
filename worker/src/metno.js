@@ -136,7 +136,6 @@ export const METNO_CLOUD_TTL_MS = 30 * 60 * 1000;
 const CLOUD_HOURS = 48;
 const CLOUD_ENTRIES = 200;
 const cloudMemory = new Map();
-const cloudPending = new Map();
 
 export function clearMetnoCloudCache() {
   cloudMemory.clear();
@@ -174,13 +173,8 @@ export async function metnoCloud(search, nowMs, fetchFn) {
   const hit = cloudMemory.get(key);
   if (hit && nowMs - hit.at < METNO_CLOUD_TTL_MS) return [hit.body, 200];
 
-  let job = cloudPending.get(key);
-  if (!job) {
-    job = fetchCloud(q, nowMs, fetchFn);
-    cloudPending.set(key, job);
-    job.then(() => cloudPending.delete(key), () => cloudPending.delete(key));
-  }
-  const body = await job;
+  // Без общего промиса между запросами (см. meteo.js): отмена одного запроса не ломает соседние.
+  const body = await fetchCloud(q, nowMs, fetchFn);
   if (body) {
     cloudMemory.set(key, { body, at: nowMs });
     if (cloudMemory.size > CLOUD_ENTRIES) cloudMemory.delete(cloudMemory.keys().next().value);

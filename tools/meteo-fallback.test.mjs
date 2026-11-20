@@ -89,6 +89,42 @@ test('сбой пути, в журнал владельцу (reportProblem): ч�
   e.ctx.reportProblem = msg => empty.push(msg);
   await e.ctx.fetchJson(e.ctx.weatherUrl(e.ctx.findPoint('murmansk')));
   assert.deepEqual(empty, ['Open-Meteo через сервер: no_cloud']);
+
+  // сетевой шум (offline, timeout, stale_copy, 502, 503) в журнал багов не попадает
+  const noisy = [];
+  ctx.reportProblem = msg => noisy.push(msg);
+  ctx.noteMeteoFailure('server', ctx.appError('offline'), null);
+  ctx.noteMeteoFailure('direct', ctx.appError('timeout'), null);
+  ctx.noteMeteoFailure('server', ctx.appError('stale_copy'), null);
+  ctx.noteMeteoFailure('server', ctx.appError('http', { status: 502 }), null);
+  ctx.noteMeteoFailure('direct', ctx.appError('http', { status: 503 }), null);
+  assert.deepEqual(noisy, []);
+});
+
+test('initNotifyTab не даёт unhandledrejection при Illegal invocation в status.onchange', async () => {
+  const { ctx } = page(() => json({}));
+  let rejected = false;
+  const badStatus = {};
+  Object.defineProperty(badStatus, 'onchange', {
+    set() { throw new TypeError('Illegal invocation'); }
+  });
+  ctx.navigator.permissions = { query: () => Promise.resolve(badStatus) };
+  const onUnhandled = () => { rejected = true; };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    ctx.initNotifyTab();
+    await new Promise(r => setTimeout(r, 20));
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+  assert.equal(rejected, false);
+});
+
+test('init не падает с ReferenceError, если один из модулей (например initMapTab) не загрузился', () => {
+  const { ctx } = page(() => json(CLOUD));
+  ctx.initMapTab = undefined;
+  ctx.initInstallHint = undefined;
+  assert.doesNotThrow(() => ctx.init());
 });
 
 test('версия в подвале совпадает с версией кэша service worker; новая версия перезагружает страницу один раз', () => {

@@ -112,7 +112,7 @@ test('память: в пределах срока — без NOAA; NOAA упа�
   assert.equal((await get(env, 'kp-forecast', { fetchFn: upstream(500) })).status, 502);
 });
 
-test('чуть устаревшая копия отдаётся сразу, свежая грузится в фоне; одновременные запросы — один поход к NOAA', async () => {
+test('чуть устаревшая копия отдаётся сразу, свежая грузится в фоне; повторный запрос берёт кэш', async () => {
   clearNoaaCache();
   const { env } = await makeEnv();
   await get(env, 'sw-speed', { fetchFn: upstream(200, '[1]') });
@@ -129,7 +129,8 @@ test('чуть устаревшая копия отдаётся сразу, св
 
   clearNoaaCache();
   const slow = upstream(200, '[3]');
-  await Promise.all([1, 2, 3].map(() => get(env, 'kp-forecast', { fetchFn: slow })));
+  await get(env, 'kp-forecast', { fetchFn: slow });
+  await get(env, 'kp-forecast', { fetchFn: slow });
   assert.equal(slow.calls.length, 1);
 });
 

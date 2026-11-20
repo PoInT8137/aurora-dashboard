@@ -415,15 +415,20 @@ function initNotifyTab() {
   $('ntest-now').addEventListener('click', function () { sendTestNotification(0); });
   $('ntest-later').addEventListener('click', function () { sendTestNotification(10000); });
 
-  // Разрешение могли поменять в настройках браузера — следим, где это возможно.
+  // Разрешение могли поменять в настройках браузера: следим, где это возможно.
   try {
-    navigator.permissions.query({ name: 'notifications' }).then(function (status) {
-      status.onchange = function () {
-        renderNotifyDiagnostics();
-        renderNotifyControl();
-      };
-    }, ignore);
-  } catch (e) { /* API разрешений нет — обновим при возврате на вкладку */ }
+    if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+      navigator.permissions.query({ name: 'notifications' }).then(function (status) {
+        if (!status) return;
+        try {
+          status.onchange = function () {
+            renderNotifyDiagnostics();
+            renderNotifyControl();
+          };
+        } catch (e) { /* некоторые браузеры и расширения проксируют PermissionStatus */ }
+      }).catch(ignore);
+    }
+  } catch (e) { /* API разрешений нет: обновим при возврате на вкладку */ }
 
   renderNotifyDiagnostics();
 }

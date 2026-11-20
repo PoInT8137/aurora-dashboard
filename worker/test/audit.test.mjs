@@ -96,7 +96,7 @@ test('мусор NOAA (200 со страницей ошибки или обры�
 
 const GRID = '?latitude=69.315,69.315&longitude=30.978,31.733&hourly=cloud_cover&models=icon_eu&forecast_hours=24&timezone=UTC&timeformat=unixtime';
 
-test('/meteo: одновременные одинаковые запросы уходят в Open-Meteo один раз', async () => {
+test('/meteo: одновременные запросы не делят общий промис (cross-request safe), повторный берёт кэш', async () => {
   clearMeteoCache();
   const { env } = await makeEnv();
   let calls = 0;
@@ -104,12 +104,15 @@ test('/meteo: одновременные одинаковые запросы у�
   const gate = new Promise(r => { release = r; });
   const fetchFn = async () => { calls++; await gate; return new Response('{"ok":1}', { status: 200 }); };
   const req = () => handleRequest(apiRequest('/meteo' + GRID, null, { method: 'GET' }), env, fakeCtx(), NIGHT, fetchFn);
-  const all = Promise.all([req(), req(), req()]);
+  const all = Promise.all([req(), req()]);
   await new Promise(r => setTimeout(r, 10));
   release();
   const answers = await all;
-  assert.equal(calls, 1);
-  assert.deepEqual(answers.map(r => r.status), [200, 200, 200]);
+  assert.equal(calls, 2, 'каждый запрос ждёт только свой fetch');
+  assert.deepEqual(answers.map(r => r.status), [200, 200]);
+  const cached = await req();
+  assert.equal(cached.status, 200);
+  assert.equal(calls, 2, 'последующий запрос взят из памяти без похода к Open-Meteo');
 });
 
 test('/meteo: копия после сбоя источников помечена X-Stale и не кэшируется браузером', async () => {

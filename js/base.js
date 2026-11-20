@@ -8,7 +8,7 @@
 /* ------------------------------------------------------------------ */
 
 /* Версия сайта — та же, что у кэша service worker (sw.js, CACHE_VERSION): видна в подвале. */
-var APP_VERSION = 'v84';
+var APP_VERSION = 'v85';
 
 var CONFIG = {
   tz: 'Europe/Moscow',
@@ -254,9 +254,15 @@ function meteoHasCloud(data) {
  */
 function noteMeteoFailure(path, err, signal) {
   if ((signal && signal.aborted) || typeof reportProblem !== 'function') return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
   var code = (err && err.code) || (err && err.name) || 'error';
-  if (code === 'http' && err.params && err.params.status) code = 'http ' + err.params.status;
-  if (code === 'stale_copy') code = 'сервер отдал сохранённую копию';
+  // Обрывы связи, таймауты у посетителя (мобильная сеть, свёрнутая вкладка) и штатная запасная
+  // копия сервера не являются ошибками сайта; 502/503 Open-Meteo уже фиксирует сам сервер.
+  if (code === 'offline' || code === 'timeout' || code === 'stale_copy') return;
+  if (code === 'http' && err.params && err.params.status) {
+    if (err.params.status === 502 || err.params.status === 503) return;
+    code = 'http ' + err.params.status;
+  }
   reportProblem('Open-Meteo ' + (path === 'server' ? 'через сервер' : 'напрямую') + ': ' + code);
 }
 
